@@ -202,6 +202,17 @@ export default function AIChatWidget({ books = [] }) {
           background: #cbd5e1;
           border-radius: 4px;
         }
+
+        .ai-chat-input,
+        .ai-chat-input:focus,
+        .ai-chat-input:hover,
+        .ai-chat-input:active {
+          border: none !important;
+          outline: none !important;
+          box-shadow: none !important;
+          -webkit-box-shadow: none !important;
+          background: transparent !important;
+        }
       `}</style>
 
       {/* Floating Button */}
@@ -418,12 +429,13 @@ export default function AIChatWidget({ books = [] }) {
               <input
                 ref={inputRef}
                 type="text"
+                className="ai-chat-input"
                 value={inputMessage}
                 onChange={(e) => setInputMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={isThinking ? 'Chờ mình trả lời xíu nha...' : 'Hỏi mình về sách, tác giả, mượn trả...'}
                 disabled={isThinking}
-                style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0f172a', padding: '7px 0' }}
+                style={{ flex: 1, border: 'none', outline: 'none', boxShadow: 'none', background: 'transparent', fontSize: '13px', color: '#0f172a', padding: '7px 0' }}
               />
               <button
                 type="button"
