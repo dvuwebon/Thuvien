@@ -492,10 +492,12 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
     setIsReturning(true);
     try {
       await api.updateBorrowStatus(adminReturnRecord.id, 'Đã trả');
+      showToast(`✓ Đã xác nhận độc giả "${adminReturnRecord.readerName}" trả cuốn sách "${adminReturnRecord.bookTitle}" về kho thành công!`);
       setAdminReturnRecord(null);
-      loadData();
+      await loadData();
     } catch (err) {
       console.error('Lỗi khi trả sách:', err);
+      showToast('Có lỗi xảy ra khi thực hiện trả sách.');
     } finally {
       setIsReturning(false);
     }

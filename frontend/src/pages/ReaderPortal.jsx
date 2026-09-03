@@ -34,6 +34,12 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const [borrowTargetBook, setBorrowTargetBook] = useState(null);
   const [returnConfirmRecord, setReturnConfirmRecord] = useState(null);
   const [isReturning, setIsReturning] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  const showToast = (msg) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 3500);
+  };
 
   const loadData = async (silent = false) => {
     try {
@@ -129,10 +135,12 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     setIsReturning(true);
     try {
       await api.updateBorrowStatus(returnConfirmRecord.id, 'Đã trả');
+      showToast(`✓ Đã hoàn tất trả cuốn sách "${returnConfirmRecord.bookTitle}" về thư viện thành công!`);
       setReturnConfirmRecord(null);
-      loadData();
+      await loadData();
     } catch (err) {
       console.error(err);
+      showToast('Có lỗi xảy ra khi thực hiện trả sách.');
     } finally {
       setIsReturning(false);
     }
@@ -572,6 +580,31 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notification khi Trả sách thành công */}
+      {toastMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '28px',
+            background: '#0f172a',
+            color: '#ffffff',
+            padding: '12px 20px',
+            borderRadius: '10px',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.25)',
+            fontSize: '13.5px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            zIndex: 10000
+          }}
+        >
+          <CheckCircle size={18} color="#22c55e" />
+          <span>{toastMessage}</span>
         </div>
       )}
     </div>
