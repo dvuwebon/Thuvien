@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { BookOpen, User, Lock, Mail, Phone, Calendar, MapPin, ArrowRight, ShieldCheck } from 'lucide-react';
 
@@ -127,7 +127,7 @@ export default function LoginPage() {
             Smart<span style={{ color: '#2563eb' }}>Lib</span>
           </h1>
           <p style={{ fontSize: '13.5px', color: '#64748b', marginTop: '4px' }}>
-            Hệ thống Quản lý Thư viện Thông minh (React + Python)
+            Hệ thống Quản lý Thư viện Thông minh
           </p>
         </div>
 
