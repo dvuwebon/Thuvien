@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
 
 const AuthContext = createContext();
@@ -6,6 +6,11 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
+      // Khi truy cập qua GitHub Pages, luôn bắt đầu bằng form Đăng nhập cho phiên mới
+      if (typeof window !== 'undefined' && window.location.hostname.includes('github.io')) {
+        const sessionUser = sessionStorage.getItem('currentUser');
+        return sessionUser ? JSON.parse(sessionUser) : null;
+      }
       const saved = localStorage.getItem('currentUser');
       return saved ? JSON.parse(saved) : null;
     } catch {
@@ -14,6 +19,10 @@ export const AuthProvider = ({ children }) => {
   });
 
   const [role, setRole] = useState(() => {
+    if (typeof window !== 'undefined' && window.location.hostname.includes('github.io')) {
+      const sessionRole = sessionStorage.getItem('currentUserRole');
+      return sessionRole || (user ? (user.Role || user.role || 'Reader') : null);
+    }
     return localStorage.getItem('currentUserRole') || (user ? (user.Role || user.role || 'Reader') : null);
   });
 
@@ -23,6 +32,8 @@ export const AuthProvider = ({ children }) => {
       const uRole = res.user.Role || res.user.role || 'Reader';
       setUser(res.user);
       setRole(uRole);
+      sessionStorage.setItem('currentUser', JSON.stringify(res.user));
+      sessionStorage.setItem('currentUserRole', uRole);
       localStorage.setItem('currentUser', JSON.stringify(res.user));
       localStorage.setItem('currentUserRole', uRole);
       return res.user;
@@ -35,6 +46,8 @@ export const AuthProvider = ({ children }) => {
     if (res && res.user) {
       setUser(res.user);
       setRole('Reader');
+      sessionStorage.setItem('currentUser', JSON.stringify(res.user));
+      sessionStorage.setItem('currentUserRole', 'Reader');
       localStorage.setItem('currentUser', JSON.stringify(res.user));
       localStorage.setItem('currentUserRole', 'Reader');
       return res.user;
@@ -45,6 +58,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     setUser(null);
     setRole(null);
+    sessionStorage.removeItem('currentUser');
+    sessionStorage.removeItem('currentUserRole');
     localStorage.removeItem('currentUser');
     localStorage.removeItem('currentUserRole');
   };
@@ -52,7 +67,7 @@ export const AuthProvider = ({ children }) => {
   const updateUser = (updatedData) => {
     const merged = { ...user, ...updatedData };
     setUser(merged);
-    localStorage.setItem('currentUser', JSON.stringify(merged));
+    sessionStorage.setItem('currentUser', JSON.stringify(merged));
   };
 
   return (
