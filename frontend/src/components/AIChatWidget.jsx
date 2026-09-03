@@ -231,7 +231,7 @@ export default function AIChatWidget({ books = [] }) {
               onMouseLeave={() => setIsButtonHovered(false)}
             >
               <Sparkles size={15} color="#6366f1" />
-              <span>Tám chuyện cùng AI Thư viện ✨</span>
+              <span>Bạn cần tôi giúp đỡ gì không? ✨</span>
             </div>
           )}
 
