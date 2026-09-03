@@ -8,51 +8,54 @@ const generateLocalSmartResponse = (question, books = []) => {
 
   // 1. Hỏi về quy định mượn / hạn trả sách
   if (q.includes('mượn') && (q.includes('hạn') || q.includes('bao lâu') || q.includes('quy định') || q.includes('thời gian'))) {
-    return `📖 **Quy định mượn sách tại Thư viện:**
-- **Thời hạn mượn:** Mỗi độc giả được mượn tối đa **14 ngày** cho mỗi cuốn sách.
-- **Số lượng tối đa:** Tối đa **3 cuốn** cùng lúc để đảm bảo sách được luân chuyển đều đặn.
-- **Hình thức mượn:** Bạn có thể chọn *"Mượn về nhà"* hoặc *"Đọc tại chỗ tại thư viện"*.
-- **Gia hạn:** Bạn có thể liên hệ thủ thư hoặc gia hạn trước ngày hết hạn 3 ngày nếu chưa có bạn đọc khác đặt trước.
+    return `Dạ, về quy định mượn sách thì siêu thoải mái bạn nhé! 📖✨
 
-*Chúc bạn có những giờ phút đọc sách thật bổ ích!*`;
+- **Thời hạn mượn:** Bạn được mượn sách về nhà tối đa **14 ngày** (tha hồ thời gian đọc nghiền ngẫm nha).
+- **Số lượng:** Mỗi bạn được mượn cùng lúc **tối đa 3 cuốn** để sách luôn được luân chuyển đều đặn.
+- **Gia hạn:** Nếu đọc chưa kịp xong, bạn chỉ cần báo thủ thư hoặc gia hạn trước 3 ngày là được nha.
+
+Bạn đang tăm tia cuốn nào trong thư viện chưa nè? Cứ bảo mình nhé! 😊`;
   }
 
   // 2. Hỏi về cách trả sách
   if (q.includes('trả sách') || q.includes('cách trả') || q.includes('hoàn tất')) {
-    return `🔄 **Hướng dẫn Trả sách về thư viện:**
-1. Truy cập vào mục **"Sách đang mượn & Chờ duyệt"** trên cổng độc giả của bạn.
-2. Tại cuốn sách bạn muốn trả (đang có trạng thái **Đang mượn**), nhấn nút **[Trả sách]**.
-3. Một hộp thoại xác nhận sẽ hiện ra, nhấn **[Xác nhận]** để hoàn tất việc trả sách.
-4. Cuốn sách sẽ ngay lập tức được chuyển sang mục **"Lịch sử mượn trả"** và ghi nhận thời gian trả thực tế.`;
+    return `Trả sách thì cực kỳ đơn giản chỉ mất 5 giây thôi nè! 🔄
+
+1. Bạn vào mục **"Sách đang mượn & Chờ duyệt"** trên cổng độc giả.
+2. Tại cuốn sách bạn muốn trả, bấm nút **[Trả sách]** màu xanh lá.
+3. Hộp thoại hiện ra, bạn chỉ việc ấn **[Xác nhận]** là sách sẽ chuyển ngay sang mục **Lịch sử mượn trả** luôn!
+
+Có cuốn nào bạn đọc xong rồi muốn trả để mượn cuốn mới không? 😉`;
   }
 
   // 3. Hỏi về gợi ý sách phát triển bản thân / kỹ năng
-  if (q.includes('phát triển bản thân') || q.includes('kỹ năng') || q.includes('tư duy') || q.includes('đắc nhân tâm')) {
+  if (q.includes('phát triển bản thân') || q.includes('kỹ năng') || q.includes('tư duy') || q.includes('đắc nhân tâm') || q.includes('sách hay')) {
     const matched = books.filter(b => 
       (b.category && (b.category.includes('Kỹ năng') || b.category.includes('Tâm lý') || b.category.includes('Kinh doanh'))) ||
       (b.title && (b.title.toLowerCase().includes('tư duy') || b.title.toLowerCase().includes('đắc nhân tâm') || b.title.toLowerCase().includes('thói quen')))
     ).slice(0, 3);
 
-    let res = `🌟 **Gợi ý sách Phát triển bản thân & Kỹ năng xuất sắc nhất trong thư viện:**\n\n`;
+    let res = `U là trời, bạn hỏi đúng tủ của mình rồi! Đây là mấy cuốn phát triển bản thân đọc bao cuốn mà thư viện đang có sẵn nè: 🌟\n\n`;
     if (matched.length > 0) {
       matched.forEach((b, idx) => {
-        res += `${idx + 1}. 📚 **${b.title}**\n   - Tác giả: *${b.author || 'Nhiều tác giả'}*\n   - Thể loại: ${b.category || 'Kỹ năng sống'}\n   - Tình trạng: ${b.quantity > 0 ? 'Có sẵn trong kho' : 'Tạm hết'}\n\n`;
+        res += `${idx + 1}. 📚 **${b.title}** - *${b.author || 'Tác giả nổi tiếng'}*\n   👉 Thể loại: ${b.category || 'Kỹ năng sống'} (Hiện còn ${b.quantity || 1} cuốn trong kho)\n\n`;
       });
     } else {
-      res += `1. **Đắc Nhân Tâm** - Dale Carnegie: Nghệ thuật thu phục lòng người và giao tiếp đỉnh cao.\n2. **Tư Duy Mở** - Carol S. Dweck: Khai phóng tiềm năng tư duy phát triển.\n3. **7 Thói Quen Của Bạn Trẻ Thành Đạt** - Sean Covey: Xây dựng nền tảng tư duy vững chắc.\n\n`;
+      res += `1. **Đắc Nhân Tâm** - Cuốn sách gối đầu giường về nghệ thuật thấu hiểu và giao tiếp.\n2. **Tư Duy Mở** - Giúp bạn bứt phá mọi giới hạn bản thân.\n3. **7 Thói Quen Của Bạn Trẻ Thành Đạt** - Xây dựng thói quen cực đỉnh.\n\n`;
     }
-    res += `👉 Bạn có thể chuyển sang tab **"Tra cứu sách"** để ấn mượn ngay hôm nay!`;
+    res += `Bạn thích cuốn nào nhất? Chuyển sang tab **"Tra cứu sách"** bấm mượn luôn kẻo hết nha! 🚀`;
     return res;
   }
 
   // 4. Hỏi về sách công nghệ / lập trình / AI
   if (q.includes('công nghệ') || q.includes('lập trình') || q.includes('python') || q.includes('ai') || q.includes('cntt') || q.includes('khoa học')) {
-    return `💻 **Sách Công nghệ thông tin & Khoa học nổi bật:**
-1. **Lập Trình Python Cơ Bản Đến Nâng Cao**: Cẩm nang nhập môn lập trình hiện đại.
-2. **Trí Tuệ Nhân Tạo & Machine Learning Hiện Đại**: Khám phá thế giới AI thế hệ mới.
-3. **Clean Code - Mã Sạch**: Nghệ thuật viết code chuẩn mực của Robert C. Martin.
+    return `Dân mê công nghệ điểm danh! 💻🔥 Thư viện có mấy cuốn này dành riêng cho bạn:
 
-Thư viện liên tục cập nhật các tài liệu mới nhất về Khoa học dữ liệu, AI và Lập trình phần mềm để phục vụ nhu cầu học tập của bạn!`;
+1. **Lập Trình Python Cơ Bản Đến Nâng Cao** — Cực dễ hiểu cho ai muốn làm chủ ngôn ngữ hot nhất hiện nay.
+2. **Trí Tuệ Nhân Tạo & Machine Learning** — Khám phá cách tạo ra những con bot xịn sò giống mình nè! 🤖
+3. **Clean Code (Mã Sạch)** — Bí kíp để viết code đẹp như tranh vẽ.
+
+Bạn đang theo hướng mảng nào (Web, AI hay Data) để mình lọc sách chuẩn hơn cho bạn nha?`;
   }
 
   // 5. Tìm kiếm trực tiếp tên sách trong kho
@@ -61,28 +64,25 @@ Thư viện liên tục cập nhật các tài liệu mới nhất về Khoa h�
   );
   if (foundBooks.length > 0) {
     const b = foundBooks[0];
-    return `🔍 **Tìm thấy sách trong kho thư viện:**
-- 📖 **Tựa đề:** **${b.title}**
-- ✍️ **Tác giả:** ${b.author || 'Chưa cập nhật'}
-- 🏷️ **Thể loại:** ${b.category || 'Chung'}
-- 📦 **Số lượng trong kho:** ${b.quantity || 1} cuốn
-- 📝 **Mô tả:** ${b.desc || 'Cuốn sách giá trị đang được nhiều độc giả quan tâm tại thư viện.'}
+    return `Ting ting! Mình tìm thấy cuốn này trong kho sách rồi nè bạn ơi: 🎉
 
-👉 Bạn có thể vào tab **Tra cứu sách** để đăng ký mượn cuốn sách này ngay nhé!`;
+- 📖 **Tên sách:** **${b.title}**
+- ✍️ **Tác giả:** ${b.author || 'Đang cập nhật'}
+- 🏷️ **Thể loại:** ${b.category || 'Tổng hợp'}
+- 📦 **Kho còn:** ${b.quantity || 1} cuốn sẵn sàng cho mượn.
+- 📝 **Nội dung:** ${b.desc || 'Cuốn sách cực kỳ bổ ích và được nhiều bạn đọc chấm 5 sao tại thư viện.'}
+
+Bạn vào tab **Tra cứu sách** để ấn mượn về nhà đọc ngay nha! Chúc bạn đọc sách vui vẻ! ✨`;
   }
 
   // 6. Trả lời mặc định thông minh & phong phú
-  const randomBooks = books.slice(0, 3).map(b => `• **${b.title}** (${b.author || 'Tác giả'})`).join('\n');
-  return `Chào bạn! Tôi là **Trợ lý AI Thư viện SmartLib** 🤖.
+  const randomBooks = books.slice(0, 3).map(b => `• 📖 **${b.title}** (${b.author || 'Tác giả'})`).join('\n');
+  return `Chào bạn nha! Cảm ơn câu hỏi rất thú vị của bạn: *"@question"* ✨
 
-Cảm ơn bạn đã đặt câu hỏi: *"@question"*
-
-Một số thông tin hữu ích dành cho bạn:
-- Thư viện hiện đang có hơn **${books.length || 20} đầu sách** phong phú thuộc các thể loại: *Kỹ năng sống, Công nghệ thông tin, Kinh tế, Văn học và Khoa học*.
-- Một vài cuốn sách đang được độc giả yêu thích nhất:
+Hiện tại trong kho của chúng mình đang có hơn **${books.length || 20} đầu sách** cực hay. Mấy cuốn đang hot rần rần gồm có:
 ${randomBooks || '• Giáo Trình Triết Học Mác - Lênin\n• Đắc Nhân Tâm\n• Tư Duy Mở'}
 
-💡 *Mẹo: Bạn có thể hỏi tôi về quy định mượn trả, gợi ý sách theo chủ đề yêu thích, hoặc điền Google Gemini API Key vào tệp cấu hình để tôi giải đáp chuyên sâu mọi câu hỏi học thuật khác nhé!*`.replace('@question', question);
+Bạn có muốn mình gợi ý thêm sách theo gu riêng của bạn không? Cứ thoải mái chia sẻ với mình nhé! 😊`.replace('@question', question);
 };
 
 /**
