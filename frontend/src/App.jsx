@@ -11,6 +11,7 @@ import SearchModal from './components/SearchModal';
 import BookDetailModal from './components/BookDetailModal';
 import BorrowModal from './components/BorrowModal';
 import Footer from './components/Footer';
+import AIChatWidget from './components/AIChatWidget';
 
 export default function App() {
   const { isAuthenticated, role } = useAuth();
@@ -172,6 +173,9 @@ export default function App() {
         isOpen={exportModalOpen}
         onClose={() => setExportModalOpen(false)}
       />
+
+      {/* 7. Trợ lý AI Hỏi đáp ở góc bên phải phía dưới cho độc giả */}
+      {role === 'Reader' && <AIChatWidget books={books} />}
     </div>
   );
 }

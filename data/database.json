@@ -550,8 +550,9 @@
       "readerName": "Độc giả",
       "borrowDate": "2026-09-01T08:00:00",
       "returnDate": "2026-09-15T08:00:00",
-      "status": "Đang mượn",
-      "borrowType": "Mượn về nhà"
+      "status": "Đã trả",
+      "borrowType": "Mượn về nhà",
+      "actualReturnDate": "2026-09-03T21:08:50.479235"
     },
     {
       "id": 2,
@@ -561,8 +562,9 @@
       "readerName": "Độc giả",
       "borrowDate": "2026-09-02T09:30:00",
       "returnDate": "2026-09-16T09:30:00",
-      "status": "Đang mượn",
-      "borrowType": "Mượn về nhà"
+      "status": "Đã trả",
+      "borrowType": "Mượn về nhà",
+      "actualReturnDate": "2026-09-03T21:08:52.979114"
     },
     {
       "id": 3,
