@@ -48,21 +48,38 @@ export const notifyDataUpdated = (type = 'all') => {
 export const api = {
   // Auth
   login: async (username, password) => {
+    const trimmedUsername = (username || '').trim();
     try {
       const res = await fetch(`${API_BASE}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username: trimmedUsername, password })
       });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        // Đồng bộ người dùng vào localDb để offline / GitHub Pages cũng đăng nhập được
+        try {
+          const db = getLocalDb();
+          const existingUsers = (db.users || []).filter(
+            u => u.username && u.username.toLowerCase() !== trimmedUsername.toLowerCase()
+          );
+          existingUsers.push({ ...data.user, password });
+          db.users = existingUsers;
+          saveLocalDb(db);
+        } catch (e) {}
+        return data;
+      } else if (res.status === 401 || res.status === 400) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Tên đăng nhập hoặc mật khẩu không chính xác!');
       }
     } catch (e) {
-      // ignore network errors and fallback to local
+      if (e.message && e.message !== 'Failed to fetch' && !e.message.includes('NetworkError')) {
+        throw e;
+      }
     }
 
     // Local / GitHub Pages fallback
-    if (username === 'admin' && password === '123') {
+    if (trimmedUsername.toLowerCase() === 'admin' && password === '123') {
       const adminUser = {
         id: 1,
         UserID: 1,
@@ -76,7 +93,7 @@ export const api = {
         address: 'Hà Nội'
       };
       return { user: adminUser };
-    } else if ((username === 'reader' || username === 'docgia') && password === '123') {
+    } else if ((trimmedUsername.toLowerCase() === 'reader' || trimmedUsername.toLowerCase() === 'docgia') && password === '123') {
       const readerUser = {
         id: 2,
         UserID: 2,
@@ -94,7 +111,7 @@ export const api = {
 
     const db = getLocalDb();
     const found = (db.users || []).find(
-      u => u.username && u.username.toLowerCase() === username.toLowerCase() && u.password === password
+      u => u.username && u.username.toLowerCase() === trimmedUsername.toLowerCase() && u.password === password
     );
     if (found) {
       return { user: found };
@@ -104,33 +121,62 @@ export const api = {
   },
 
   register: async (userData) => {
+    const trimmedUsername = (userData.username || '').trim();
     try {
       const res = await fetch(`${API_BASE}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userData)
+        body: JSON.stringify({ ...userData, username: trimmedUsername })
       });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        // LƯU NGAY VÀO LOCAL DATABASE ĐỂ OFFLINE / GITHUB PAGES CŨNG ĐỒNG BỘ
+        try {
+          const db = getLocalDb();
+          const newUser = {
+            id: data.user?.id || Date.now(),
+            UserID: data.user?.id || Date.now(),
+            ...userData,
+            username: trimmedUsername,
+            role: 'Reader',
+            Role: 'Reader'
+          };
+          db.users = [
+            ...(db.users || []).filter(u => u.username && u.username.toLowerCase() !== trimmedUsername.toLowerCase()),
+            newUser
+          ];
+          saveLocalDb(db);
+        } catch (e) {}
+
+        notifyDataUpdated('reader');
+        return data;
+      } else if (res.status === 400) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Tên đăng nhập đã tồn tại!');
       }
     } catch (e) {
-      // fallback
+      if (e.message && e.message !== 'Failed to fetch' && !e.message.includes('NetworkError')) {
+        throw e;
+      }
     }
 
+    // Local / GitHub Pages fallback (khi chạy không có server backend)
     const db = getLocalDb();
-    if ((db.users || []).some(u => u.username && u.username.toLowerCase() === userData.username.toLowerCase())) {
-      throw new Error('Tên đăng nhập đã tồn tại!');
+    if ((db.users || []).some(u => u.username && u.username.toLowerCase() === trimmedUsername.toLowerCase())) {
+      throw new Error('Tên đăng nhập này đã được sử dụng. Vui lòng chọn tên khác!');
     }
-    const newId = Math.max(0, ...(db.users || []).map(u => u.id || 0)) + 1;
+    const newId = Math.max(0, ...(db.users || []).map(u => Number(u.id) || 0)) + 1;
     const newUser = {
       id: newId,
       UserID: newId,
       ...userData,
+      username: trimmedUsername,
       role: 'Reader',
       Role: 'Reader'
     };
     db.users = [...(db.users || []), newUser];
     saveLocalDb(db);
+    notifyDataUpdated('reader');
     return { user: newUser, message: 'Đăng ký thành công!' };
   },
 

@@ -25,6 +25,18 @@
       "address": "Hà Nội",
       "birthDate": "2000-01-15",
       "isActive": true
+    },
+    {
+      "id": 3,
+      "username": "testuser",
+      "password": "123",
+      "fullName": "Nguyen Van Test",
+      "role": "Reader",
+      "phone": "0901234567",
+      "email": "",
+      "address": "",
+      "birthDate": null,
+      "isActive": true
     }
   ],
   "books": [
@@ -683,6 +695,22 @@
     }
   ],
   "notifications": [
+    {
+      "id": 25,
+      "recipientRole": "Admin",
+      "recipientUserId": null,
+      "title": "Độc giả mới đăng ký",
+      "message": "Độc giả Nguyen Van Test (@testuser) vừa tạo tài khoản trên hệ thống.",
+      "type": "reader_registered",
+      "isRead": false,
+      "createdAt": "2026-09-03T20:35:51.115664",
+      "meta": {
+        "readerId": 3,
+        "readerName": "Nguyen Van Test"
+      },
+      "readerId": 3,
+      "readerName": "Nguyen Van Test"
+    },
     {
       "id": 24,
       "recipientRole": "Reader",
