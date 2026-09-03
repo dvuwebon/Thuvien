@@ -32,6 +32,16 @@ export default function AIChatWidget({ books = [] }) {
   const [showSettings, setShowSettings] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [apiKeySavedMsg, setApiKeySavedMsg] = useState(false);
+  const [showPromptBanner, setShowPromptBanner] = useState(true);
+  const [isButtonHovered, setIsButtonHovered] = useState(false);
+
+  // Tự động ẩn dòng chữ "Tám chuyện cùng AI Thư viện" sau đúng 7 giây
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowPromptBanner(false);
+    }, 7000);
+    return () => clearTimeout(timer);
+  }, []);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -197,33 +207,38 @@ export default function AIChatWidget({ books = [] }) {
       {/* Floating Button */}
       {!isOpen && (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9999, display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <div
-            onClick={() => setIsOpen(true)}
-            style={{
-              background: '#ffffff',
-              color: '#1e293b',
-              padding: '8px 16px',
-              borderRadius: '24px',
-              fontSize: '13px',
-              fontWeight: 600,
-              boxShadow: '0 6px 20px rgba(0, 0, 0, 0.12)',
-              cursor: 'pointer',
-              border: '1px solid #e2e8f0',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'transform 0.2s ease',
-              userSelect: 'none'
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.04)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-          >
-            <Sparkles size={15} color="#6366f1" />
-            <span>Tám chuyện cùng AI Thư viện ✨</span>
-          </div>
+          {(showPromptBanner || isButtonHovered) && (
+            <div
+              onClick={() => setIsOpen(true)}
+              style={{
+                background: '#ffffff',
+                color: '#1e293b',
+                padding: '8px 16px',
+                borderRadius: '24px',
+                fontSize: '13px',
+                fontWeight: 600,
+                boxShadow: '0 6px 20px rgba(0, 0, 0, 0.12)',
+                cursor: 'pointer',
+                border: '1px solid #e2e8f0',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.3s ease',
+                userSelect: 'none',
+                animation: 'msgSlideUp 0.3s ease'
+              }}
+              onMouseEnter={() => setIsButtonHovered(true)}
+              onMouseLeave={() => setIsButtonHovered(false)}
+            >
+              <Sparkles size={15} color="#6366f1" />
+              <span>Tám chuyện cùng AI Thư viện ✨</span>
+            </div>
+          )}
 
           <button
             onClick={() => setIsOpen(true)}
+            onMouseEnter={() => setIsButtonHovered(true)}
+            onMouseLeave={() => setIsButtonHovered(false)}
             style={{
               width: '58px',
               height: '58px',
@@ -239,8 +254,6 @@ export default function AIChatWidget({ books = [] }) {
               transition: 'transform 0.2s ease',
               position: 'relative'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
             title="Nhắn tin với Thủ thư AI"
           >
             <Bot size={28} />
