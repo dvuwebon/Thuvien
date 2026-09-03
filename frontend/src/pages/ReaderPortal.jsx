@@ -132,15 +132,26 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
   const handleConfirmReturn = async () => {
     if (!returnConfirmRecord) return;
+    const targetId = returnConfirmRecord.id;
+    const targetTitle = returnConfirmRecord.bookTitle;
     setIsReturning(true);
+
+    // Cập nhật giao diện ngay lập tức 0ms để sách biến mất khỏi danh sách đang mượn ngay
+    setMyBorrows(prev => prev.map(r => 
+      Number(r.id) === Number(targetId) 
+        ? { ...r, status: 'Đã trả', actualReturnDate: new Date().toISOString().substring(0, 10) }
+        : r
+    ));
+    setReturnConfirmRecord(null);
+
     try {
-      await api.updateBorrowStatus(returnConfirmRecord.id, 'Đã trả');
-      showToast(`✓ Đã hoàn tất trả cuốn sách "${returnConfirmRecord.bookTitle}" về thư viện thành công!`);
-      setReturnConfirmRecord(null);
-      await loadData();
+      await api.updateBorrowStatus(targetId, 'Đã trả');
+      showToast(`✓ Đã hoàn tất trả cuốn sách "${targetTitle}" về thư viện thành công!`);
+      await loadData(true);
     } catch (err) {
       console.error(err);
       showToast('Có lỗi xảy ra khi thực hiện trả sách.');
+      await loadData(true);
     } finally {
       setIsReturning(false);
     }

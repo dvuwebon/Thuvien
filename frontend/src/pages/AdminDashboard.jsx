@@ -489,15 +489,27 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
 
   const handleConfirmReturn = async () => {
     if (!adminReturnRecord) return;
+    const targetId = adminReturnRecord.id;
+    const targetTitle = adminReturnRecord.bookTitle;
+    const targetReader = adminReturnRecord.readerName;
     setIsReturning(true);
+
+    // Cập nhật giao diện ngay lập tức
+    setBorrowRecords(prev => prev.map(r => 
+      Number(r.id) === Number(targetId) 
+        ? { ...r, status: 'Đã trả', actualReturnDate: new Date().toISOString().substring(0, 10) }
+        : r
+    ));
+    setAdminReturnRecord(null);
+
     try {
-      await api.updateBorrowStatus(adminReturnRecord.id, 'Đã trả');
-      showToast(`✓ Đã xác nhận độc giả "${adminReturnRecord.readerName}" trả cuốn sách "${adminReturnRecord.bookTitle}" về kho thành công!`);
-      setAdminReturnRecord(null);
-      await loadData();
+      await api.updateBorrowStatus(targetId, 'Đã trả');
+      showToast(`✓ Đã xác nhận độc giả "${targetReader}" trả cuốn sách "${targetTitle}" về kho thành công!`);
+      await loadData(true);
     } catch (err) {
       console.error('Lỗi khi trả sách:', err);
       showToast('Có lỗi xảy ra khi thực hiện trả sách.');
+      await loadData(true);
     } finally {
       setIsReturning(false);
     }

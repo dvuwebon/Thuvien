@@ -4,10 +4,18 @@ import initialDb from '../../../data/database.json';
 const API_BASE = '/api';
 
 // Local storage fallback database helper
+const DB_VERSION = 'v5_clean_sync_2026';
+
+const isStaticHost = typeof window !== 'undefined' && (
+  window.location.hostname.includes('github.io') ||
+  window.location.protocol === 'file:'
+);
+
 const getLocalDb = () => {
   try {
+    const savedVersion = localStorage.getItem('smartlib_db_version');
     const raw = localStorage.getItem('smartlib_db');
-    if (raw) {
+    if (raw && savedVersion === DB_VERSION) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.books) && parsed.books.length > 0) {
         return parsed;
@@ -19,6 +27,7 @@ const getLocalDb = () => {
   const clone = JSON.parse(JSON.stringify(initialDb));
   try {
     localStorage.setItem('smartlib_db', JSON.stringify(clone));
+    localStorage.setItem('smartlib_db_version', DB_VERSION);
   } catch (e) {
     // ignore
   }
@@ -509,33 +518,37 @@ export const api = {
   },
 
   updateBorrowStatus: async (recordId, status) => {
-    try {
-      const res = await fetch(`${API_BASE}/borrow-records/${recordId}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
-      });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('borrow');
-        return result;
-      }
-    } catch (e) {}
-
+    // 1. Luôn cập nhật localDb trước để đảm bảo trạng thái đổi ngay lập tức
     const db = getLocalDb();
+    let updated = null;
     db.borrowRecords = (db.borrowRecords || []).map(r => {
       if (Number(r.id) === Number(recordId)) {
-        const update = { ...r, status };
+        updated = { ...r, status };
         if (status === 'Đã trả') {
-          update.actualReturnDate = new Date().toISOString().substring(0, 10);
+          updated.actualReturnDate = new Date().toISOString().substring(0, 10);
         }
-        return update;
+        return updated;
       }
       return r;
     });
     saveLocalDb(db);
     notifyDataUpdated('borrow');
-    return { success: true };
+
+    // 2. Nếu có máy chủ backend, đồng bộ sang backend
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/borrow-records/${recordId}/status`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status })
+        });
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (e) {}
+    }
+
+    return { success: true, record: updated };
   },
 
   // Notifications
