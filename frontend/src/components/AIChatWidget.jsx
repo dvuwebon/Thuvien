@@ -413,8 +413,8 @@ export default function AIChatWidget({ books = [] }) {
             <div ref={messagesEndRef} />
           </div>
 
-          <div style={{ padding: '12px 14px', background: '#ffffff', borderTop: '1px solid #e2e8f0' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '14px', padding: '6px 8px 6px 14px' }}>
+          <div style={{ padding: '12px 16px', background: '#ffffff', borderTop: '1px solid #f1f5f9' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#f1f5f9', borderRadius: '24px', padding: '4px 6px 4px 14px' }}>
               <input
                 ref={inputRef}
                 type="text"
@@ -423,16 +423,16 @@ export default function AIChatWidget({ books = [] }) {
                 onKeyDown={handleKeyDown}
                 placeholder={isThinking ? 'Chờ mình trả lời xíu nha...' : 'Hỏi mình về sách, tác giả, mượn trả...'}
                 disabled={isThinking}
-                style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0f172a' }}
+                style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '13px', color: '#0f172a', padding: '7px 0' }}
               />
               <button
                 type="button"
                 onClick={() => handleSendMessage()}
                 disabled={!inputMessage.trim() || isThinking}
                 style={{
-                  width: '36px',
-                  height: '36px',
-                  borderRadius: '10px',
+                  width: '34px',
+                  height: '34px',
+                  borderRadius: '50%',
                   background: !inputMessage.trim() || isThinking ? '#cbd5e1' : 'linear-gradient(135deg, #4f46e5 0%, #9333ea 100%)',
                   border: 'none',
                   color: '#ffffff',
@@ -440,21 +440,15 @@ export default function AIChatWidget({ books = [] }) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: !inputMessage.trim() || isThinking ? 'not-allowed' : 'pointer',
-                  transition: 'transform 0.15s ease'
+                  transition: 'transform 0.15s ease',
+                  flexShrink: 0
                 }}
                 onMouseEnter={(e) => { if (inputMessage.trim() && !isThinking) e.currentTarget.style.transform = 'scale(1.06)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                 title="Gửi"
               >
-                <Send size={16} />
+                <Send size={15} />
               </button>
-            </div>
-            <div style={{ textAlign: 'center', fontSize: '11px', color: '#94a3b8', marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-              <span>Thủ thư AI Thư viện SmartLib</span>
-              <span>•</span>
-              <span onClick={() => setShowSettings(true)} style={{ cursor: 'pointer', textDecoration: 'underline', color: '#6366f1' }}>
-                Cài đặt API Key
-              </span>
             </div>
           </div>
         </div>
