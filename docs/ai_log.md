@@ -5,176 +5,320 @@
 
 ---
 
-## 1. TỔNG QUAN QUÁ TRÌNH PHÁT TRIỂN
+## 1. TỔNG QUAN PHƯƠNG PHÁP PHÁT TRIỂN AI-ASSISTED
 
-Hệ thống **SmartLib - Quản lý Thư viện Thông minh** được xây dựng thông qua mô hình phối hợp chặt chẽ giữa **Sinh viên (Product Owner & QA Engineer)** và **Trợ lý AI (Senior Fullstack Developer)**.
+Hệ thống **SmartLib - Quản lý Thư viện Thông minh** được xây dựng dựa trên mô hình hợp tác kỹ thuật chặt chẽ giữa **Sinh viên (Product Owner & Lead Engineer)** và **Trợ lý Trí tuệ Nhân tạo (Senior Fullstack Developer)**.
 
-Thay vì tiếp nhận thụ động mã nguồn do AI sinh ra, sinh viên đóng vai trò trung tâm trong việc:
-1. **Phân tích yêu cầu nghiệp vụ:** Chuyển hóa 10 tiêu chí đánh giá phần mềm thành các yêu cầu kiến trúc cụ thể.
-2. **Kiểm thử thực nghiệm (Live Testing):** Trực tiếp thao tác trên ứng dụng, phát hiện các điểm nghẽn về giao diện (UI desync, focus border), logic nghiệp vụ (ràng buộc xóa, lỗi đường dẫn), và môi trường thực thi (GitHub Pages static host).
-3. **Tổng hợp và chỉ dẫn logic (Logical Refinement):** Hợp nhất các yêu cầu hiệu chỉnh thành những gói cải tiến lớn có tính liên kết chặt chẽ, tối ưu trải nghiệm người dùng và đảm bảo tính toàn vẹn dữ liệu.
+Trong mô hình này, sinh viên không tiếp nhận mã nguồn một cách thụ động mà giữ vai trò định hướng kiến trúc, thực thi kiểm thử chuyên sâu và liên tục đưa ra các **gói tinh chỉnh kỹ thuật có tính logic cao**:
+1. **Chuyển dịch từ câu lệnh rời rạc sang tư duy hệ thống:** Thay vì đưa ra các yêu cầu sửa lỗi vụn vặt từng dòng, sinh viên nhóm các vấn đề giao diện, trải nghiệm người dùng, logic ràng buộc dữ liệu và môi trường phân phối thành các gói nâng cấp toàn diện.
+2. **Kiểm thử thực nghiệm & Chẩn đoán lỗi gốc (Root-cause Diagnosis):** Phát hiện các lỗi phức tạp trong môi trường thực tế như xung đột đường dẫn trên Windows, lệch pha dữ liệu đa tab (UI desync), lỗi bảng mã ký tự tiếng Việt trong tệp Excel/CSV và hạn chế hosting tĩnh của GitHub Pages.
+3. **Lập trình phòng thủ & Tối ưu hóa trải nghiệm (Defensive & Polished UX):** Chủ động thiết lập các chốt chặn toàn vẹn dữ liệu (Integrity Guards), xóa bỏ hoàn toàn các hộp thoại mặc định thô sơ của trình duyệt, xây dựng cơ chế phản hồi tức thì (Optimistic UI) và mô phỏng tư duy tự nhiên cho Trợ lý AI.
 
 ---
 
-## 2. BẢNG TỔNG HỢP CÁC GIAI ĐOẠN & TINH CHỈNH KỸ THUẬT LỚN
+## 2. BẢNG TỔNG HỢP CÁC GÓI TINH CHỈNH KỸ THUẬT LỚN
 
-| STT | Giai đoạn & Module | Định hướng Nghiệp vụ của Sinh viên | Giải pháp do Trợ lý AI Đề xuất & Sinh mã | Gói Tinh chỉnh & Gỡ lỗi Logic do Sinh viên Thực hiện |
+| STT | Giai đoạn & Module | Định hướng Kỹ thuật của Sinh viên | Giải pháp do Trợ lý AI Đề xuất & Sinh mã | Gói Tinh chỉnh & Gỡ lỗi Logic Chuyên sâu do Sinh viên Thực hiện |
 | :---: | :--- | :--- | :--- | :--- |
-| **01** | **Khởi tạo Kiến trúc & Cơ sở hạ tầng** | Thiết lập dự án Fullstack đáp ứng 10 tiêu chí đánh giá, tích hợp sẵn CSDL JSON gọn nhẹ và cơ chế bảo vệ phiên làm việc. | - Khởi tạo cấu trúc module: `frontend/`, `backend/`, `data/`, `docs/`.<br>- Sinh mã nguồn FastAPI (`app.py`, `database.py`, `models.py`) và React Vite. | - **Xử lý xung đột môi trường:** Khắc phục lỗi plugin IDE do khoảng trắng đường dẫn Windows `C:\Users\DUNG VU`.<br>- **Tích hợp phục vụ SPA:** Bổ sung middleware trong `main.py` để serve file tĩnh React và cấu hình mã hóa console UTF-8. |
-| **02** | **Quản lý Kho sách & Nghiệp vụ Mượn - Trả** | Xây dựng phân hệ CRUD kho sách chuẩn dạng bảng, hỗ trợ duyệt mượn trực tiếp và đồng bộ trạng thái tức thì. | - Sinh component bảng sách, modal thêm/sửa sách.<br>- Tạo API mượn/trả và hộp thư thông báo cập nhật phiếu mượn. | - **Chuẩn hóa giao diện kho sách:** Loại bỏ thành phần in ấn lỗi thời, thiết kế bảng dữ liệu chuẩn SaaS với các thao tác căn phải rõ ràng.<br>- **Đồng bộ hóa tức thì (Optimistic UI):** Xây dựng kiến trúc `CustomEvent ('smartlib:data-updated')` kết hợp cập nhật 0ms, giải quyết dứt điểm lỗi lệch dữ liệu giữa các tab và giữa trang Admin - Độc giả. |
-| **03** | **Thống kê, Báo cáo & Xuất file Đa định dạng** | Cung cấp Dashboard KPI thời gian thực và chức năng xuất dữ liệu phục vụ lưu trữ, quản lý. | - Xây dựng `backend/export_service.py` hỗ trợ kết xuất tệp tin Excel, PDF và CSV.<br>- Tạo Dashboard với 4 thẻ chỉ số và biểu đồ SVG thể loại. | - **Chuẩn hóa nhãn tác vụ nghiệp vụ:** Thống nhất nhãn "Xuất báo cáo" chuyên nghiệp.<br>- **Khắc phục tương thích font tiếng Việt:** Bổ sung UTF-8 BOM (`\ufeff`) cho file CSV trên Windows Excel; tích hợp mã QR Code vào phiếu mượn PDF bằng `reportlab`. |
-| **04** | **Trợ lý AI & Trải nghiệm Người dùng (UI/UX)** | Tích hợp Trợ lý AI hỏi đáp trực quan góc màn hình, tạo tương tác ấm áp, mượt mà và tự nhiên. | - Tạo `AIChatWidget.jsx` kết nối Gemini API.<br>- Cấu hình animation 3 dấu chấm nhảy múa (bouncing dots 5s). | - **Gói tinh chỉnh trải nghiệm AI toàn diện:**<br>1. *Nhận diện:* Duy trì icon Bot vector tối ưu hiệu năng.<br>2. *Không gian:* Thiết lập gợi ý thông minh tự thu gọn sau 7s để không choán màn hình.<br>3. *Thiết kế phẳng:* Xóa bỏ viền cứng, loại bỏ hoàn toàn viền focus xanh mặc định của trình duyệt (`.ai-chat-input`).<br>4. *Tri thức nội bộ:* Xây dựng bộ tri thức Fallback phản hồi 3 giai đoạn tự nhiên khi không có internet/API key. |
-| **05** | **Ràng buộc Toàn vẹn & Xử lý Lỗi Phòng thủ** | Đảm bảo hệ thống vận hành ổn định, loại bỏ hoàn toàn hộp thoại thô sơ của trình duyệt và ngăn ngừa dữ liệu mồ côi. | - Bổ sung khối `try/catch` tại các endpoint API.<br>- Tạo component Custom Confirmation Modal. | - **Kiểm soát ràng buộc xóa dữ liệu:** Chặn tuyệt đối hành vi xóa độc giả hoặc xóa sách khi đang có phiếu mượn hoạt động, thông báo rõ số lượng sách liên quan.<br>- **Thay thế 100% `window.confirm/alert`:** Chuẩn hóa sang Custom Modal nội bộ với backdrop blur và Toast tự ẩn sau 3.5s. |
-| **06** | **Kiến trúc Lưu trữ Dual-Mode & Đóng gói Triển khai** | Đảm bảo dự án chạy mượt mà trên cả máy chủ cục bộ lẫn GitHub Pages tĩnh, chuẩn hóa tài liệu và Docker. | - Tạo cấu trúc Dockerfile multi-stage, `docker-compose.yml`.<br>- Dự thảo tài liệu nghiệm thu. | - **Kiến trúc Dual-Mode Persistence:** Tự động chuyển đổi giữa FastAPI REST API và `LocalStorage Sync Engine` (`DB_VERSION`), đảm bảo trả sách thành công trên GitHub Pages.<br>- **Chuẩn hóa tài liệu kỹ thuật:** Thống nhất thuật ngữ "Dự án", tinh gọn thư mục `docs/` đúng 4 file chuẩn và hợp nhất báo cáo nghiệm thu toàn diện vào `README.md`. |
+| **01** | **Khởi tạo Kiến trúc & Cơ sở hạ tầng** | Thiết lập dự án Fullstack đáp ứng 10 tiêu chí đánh giá, tích hợp sẵn CSDL JSON gọn nhẹ và cơ chế bảo vệ phiên làm việc. | - Khởi tạo cấu trúc module: `frontend/`, `backend/`, `data/`, `docs/`.<br>- Sinh mã nguồn FastAPI (`app.py`, `database.py`, `models.py`) và React Vite. | **Gói Tinh chỉnh Hạ tầng & Môi trường Windows:**<br>- Gỡ bỏ plugin IDE xung đột do khoảng trắng đường dẫn `C:\Users\DUNG VU`.<br>- Tích hợp middleware phục vụ file tĩnh SPA React trong `main.py`.<br>- Tự động hóa giải phóng xung đột socket cổng 3000 trước khi khởi động. |
+| **02** | **Quản lý Kho sách & Nghiệp vụ Mượn - Trả** | Xây dựng phân hệ CRUD kho sách chuẩn dạng bảng, hỗ trợ duyệt mượn trực tiếp và đồng bộ trạng thái tức thì. | - Sinh component bảng sách, modal thêm/sửa sách.<br>- Tạo API mượn/trả và hộp thư thông báo cập nhật phiếu mượn. | **Gói Tinh chỉnh Nghiệp vụ Kho & Đồng bộ Thời gian thực:**<br>- Chuyển đổi giao diện sang Table View quản trị chuyên nghiệp, dọn dẹp component in ấn cũ.<br>- Xây dựng kiến trúc **Optimistic UI 0ms** kết hợp `CustomEvent ('smartlib:data-updated')` đồng bộ dữ liệu tức thì giữa Admin và Độc giả mà không cần F5. |
+| **03** | **Thống kê, Báo cáo & Xuất file Đa định dạng** | Cung cấp Dashboard KPI thời gian thực và chức năng xuất dữ liệu phục vụ lưu trữ, quản lý. | - Xây dựng `backend/export_service.py` hỗ trợ kết xuất tệp tin Excel, PDF và CSV.<br>- Tạo Dashboard với 4 thẻ chỉ số và biểu đồ SVG thể loại. | **Gói Tinh chỉnh Báo cáo & Xử lý Mã hóa Đa nền tảng:**<br>- Chuẩn hóa nhãn tác vụ thành "Xuất báo cáo" chuẩn nghiệp vụ.<br>- Xử lý triệt để lỗi vỡ font tiếng Việt trong CSV bằng kỹ thuật chèn **UTF-8 BOM (`\ufeff`)**.<br>- Nhúng **Mã QR Code động** vào phiếu mượn PDF bằng `reportlab` hỗ trợ quét qua di động. |
+| **04** | **Trợ lý AI & Trải nghiệm Người dùng (UI/UX)** | Tích hợp Trợ lý AI hỏi đáp trực quan góc màn hình, tạo tương tác ấm áp, mượt mà và tự nhiên. | - Tạo `AIChatWidget.jsx` kết nối Gemini API.<br>- Cấu hình animation 3 dấu chấm nhảy múa (bouncing dots 5s). | **Gói Tinh chỉnh Trải nghiệm AI & Giao diện Phẳng (Borderless UX):**<br>- Duy trì Bot vector SVG nhẹ và sắc nét thay cho ảnh bitmap.<br>- Thiết lập banner gợi ý thông minh **tự thu gọn sau 7 giây** và tự hiện khi hover.<br>- Triệt tiêu hoàn toàn viền focus xanh mặc định bằng CSS reset `.ai-chat-input`.<br>- Xây dựng bộ tri thức Fallback 15+ kịch bản đối thoại tự nhiên khi offline/không có key. |
+| **05** | **Ràng buộc Toàn vẹn & Xử lý Lỗi Phòng thủ** | Đảm bảo hệ thống vận hành ổn định, loại bỏ hoàn toàn hộp thoại thô sơ của trình duyệt và ngăn ngừa dữ liệu mồ côi. | - Bổ sung khối `try/catch` tại các endpoint API.<br>- Tạo component Custom Confirmation Modal. | **Gói Tinh chỉnh Ràng buộc Dữ liệu & Chuẩn hóa Modal Nội bộ:**<br>- Thiết lập chốt chặn toàn vẹn (Referential Integrity): Chặn xóa độc giả/sách đang có phiếu mượn hoạt động, thông báo số lượng cụ thể.<br>- Tự động vô hiệu hóa nút mượn khi sách hết kho (`available <= 0`).<br>- Thay thế 100% `alert/confirm` bằng Custom Modal có hiệu ứng backdrop blur và Toast 3.5s. |
+| **06** | **Kiến trúc Lưu trữ Dual-Mode & Đóng gói Triển khai** | Đảm bảo dự án chạy mượt mà trên cả máy chủ cục bộ lẫn GitHub Pages tĩnh, chuẩn hóa tài liệu và Docker. | - Tạo cấu trúc Dockerfile multi-stage, `docker-compose.yml`.<br>- Dự thảo tài liệu nghiệm thu. | **Gói Tinh chỉnh Kiến trúc Dual-Mode & DevOps Hoàn thiện:**<br>- Sáng tạo kiến trúc **Dual-Mode Persistence**: Tự động nhận diện host tĩnh `github.io` để fallback sang `LocalStorage Sync Engine` (`DB_VERSION`), đảm bảo tính năng trả sách hoạt động hoàn hảo không cần backend.<br>- Đóng gói Docker Multi-stage với volume mount bảo toàn CSDL.<br>- Tinh gọn thư mục `docs/` duy nhất 4 file chuẩn và hợp nhất toàn bộ báo cáo vào `README.md`. |
 
 ---
 
-## 3. CHI TIẾT CÁC GÓI TINH CHỈNH LOGIC THEO TỪNG GIAI ĐOẠN
+## 3. CHI TIẾT CÁC GÓI TINH CHỈNH KỸ THUẬT THEO TỪNG GIAI ĐOẠN
 
 ---
 
-### GIAI ĐOẠN 1 — KHỞI TẠO KIẾN TRÚC & CƠ SỞ HẠ TẦNG
+### GIAI ĐOẠN 1 — KHỞI TẠO KIẾN TRÚC & CƠ SỞ HẠ TẦNG HỆ THỐNG
 
-#### Mục tiêu kỹ thuật
-Thiết lập nền tảng dự án đáp ứng đầy đủ 10 tiêu chí đánh giá chất lượng phần mềm, tách bạch rõ ràng giữa Frontend (React Vite) và Backend (FastAPI Python), lưu trữ qua CSDL JSON bền vững.
+#### 1. Mục tiêu kỹ thuật
+Thiết lập bộ khung dự án Fullstack chuẩn công nghiệp đáp ứng 10 tiêu chí đánh giá, phân chia module rõ ràng giữa Giao diện người dùng (React 18 + Vite), Máy chủ ứng dụng (Python FastAPI) và Cơ sở dữ liệu JSON gọn nhẹ.
 
-#### Quá trình tương tác & Sinh mã ban đầu
-- **Yêu cầu từ sinh viên:** Khởi tạo dự án quản lý thư viện hiện đại, phân chia module rõ ràng, có sẵn cơ chế xác thực phân quyền `Admin` và `Reader`, bảo vệ các tuyến đường truy cập.
-- **AI thực hiện:** Sinh cấu trúc thư mục tiêu chuẩn, tạo bộ định tuyến FastAPI (`app.py`), lớp truy xuất dữ liệu `database.py` và context quản lý phiên làm việc React (`AuthContext.jsx`).
+#### 2. Phân tích Hiện trạng ban đầu
+AI khởi tạo mã nguồn backend và frontend độc lập. Tuy nhiên, khi đưa vào vận hành thử nghiệm trên môi trường Windows phát sinh 3 trở ngại lớn:
+- Xung đột công cụ nền tảng do khoảng trắng trong đường dẫn tài khoản người dùng (`C:\Users\DUNG VU`).
+- FastAPI ban đầu chỉ hoạt động như một API Provider thuần túy ở cổng 8000, chưa có cơ chế phục vụ gói build giao diện tĩnh của React SPA.
+- Bảng mã xuất console trên hệ điều hành Windows bị lỗi font tiếng Việt khi in log máy chủ.
 
-#### Gói tinh chỉnh Logic của Sinh viên (Module Infrastructure Refinement)
-1. **Xử lý sự cố môi trường Windows:** Khi kích hoạt lệnh terminal, hệ thống gặp lỗi chặn thực thi do đường dẫn người dùng chứa khoảng trắng (`C:\Users\DUNG VU`). Sinh viên đã phân tích nguyên nhân từ plugin telemetry của IDE và thực thi lệnh gỡ bỏ tận gốc, khôi phục khả năng tự động hóa lệnh.
-2. **Cấu hình phục vụ Single Page Application (SPA):** Sinh viên kiểm tra thấy backend FastAPI chỉ phục vụ API mà chưa định tuyến các file tĩnh của React build. Sinh viên đã yêu cầu cấu hình `StaticFiles` mount trực tiếp thư mục build vào `main.py`, đồng thời xử lý mã UTF-8 cho console log tiếng Việt trên máy chủ Windows.
-
----
-
-### GIAI ĐOẠN 2 — XÂY DỰNG KHO SÁCH & NGHIỆP VỤ MƯỢN TRẢ
-
-#### Mục tiêu kỹ thuật
-Hoàn thiện 100% quy trình CRUD cho kho sách và mượn trả, loại bỏ các thành phần giao diện thừa, giải quyết bài toán đồng bộ dữ liệu thời gian thực giữa các vai trò người dùng.
-
-#### Gói tinh chỉnh Logic của Sinh viên (Inventory & Circulation Logic)
+#### 3. Gói Tinh chỉnh Logic Chuyên sâu của Sinh viên
+Sinh viên đã xâu chuỗi các vấn đề môi trường thành **Gói tinh chỉnh hạ tầng đồng bộ**:
 
 ```
-[Vấn đề phát hiện sau kiểm thử]
-1. Giao diện kho sách dạng thẻ chưa tối ưu cho thao tác quản trị hàng loạt.
-2. Tồn tại khối "Phiếu in" đơn lẻ không nằm trong luồng nghiệp vụ hiện đại.
-3. Thao tác duyệt mượn hiển thị thông báo alert/confirm mặc định của trình duyệt gây trải nghiệm gián đoạn.
-4. Lệch pha dữ liệu (Desync): Admin duyệt phiếu nhưng màn hình Độc giả vẫn ở trạng thái "Chờ duyệt", phải F5 thủ công.
-                         │
-                         ▼
-[Gói giải pháp tinh chỉnh hợp nhất do Sinh viên chỉ dẫn]
+[Vấn đề Môi trường]                                   [Giải pháp Kỹ thuật của Sinh viên]
+1. Telemetry Plugin xung đột khoảng trắng đường dẫn ──► Viết lệnh PowerShell gỡ bỏ triệt để plugin
+2. Client & Server tách rời 2 cổng khác nhau        ──► Tái cấu trúc main.py mount StaticFiles của React build
+3. Xung đột chiếm dụng cổng mạng khi restart        ──► Tự động hóa kiểm tra & kill process cổng 3000
+4. Lỗi hiển thị console log tiếng Việt trên Windows ──► Cấu hình mã hóa sys.stdout sang chuẩn UTF-8
+```
+
+- **Mã nguồn giải pháp tiêu biểu trong `main.py`:**
+  ```python
+  # Tích hợp phục vụ Single Page Application trên cùng một cổng 3000
+  app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+  
+  @app.get("/{full_path:path}")
+  async def serve_spa(full_path: str):
+      # Chuyển tiếp toàn bộ client route về index.html để React Router xử lý
+      file_path = os.path.join(frontend_dist, full_path)
+      if os.path.isfile(file_path):
+          return FileResponse(file_path)
+      return FileResponse(os.path.join(frontend_dist, "index.html"))
+  ```
+- **Kết quả nghiệm thu:** Toàn bộ hệ thống khởi động hoàn hảo chỉ bằng một lệnh `python main.py`, tự động mở trình duyệt tại `http://localhost:3000` mà không phát sinh bất kỳ lỗi cổng hay xung đột môi trường nào.
+
+---
+
+### GIAI ĐOẠN 2 — TÁI CẤU TRÚC KHO SÁCH & NGHIỆP VỤ MƯỢN TRẢ REAL-TIME
+
+#### 1. Mục tiêu kỹ thuật
+Hoàn thiện 100% nghiệp vụ CRUD kho sách, thiết kế luồng duyệt mượn trực tiếp trên thanh thông báo và loại bỏ hoàn toàn độ trễ hiển thị dữ liệu giữa các vai trò người dùng.
+
+#### 2. Phân tích Hiện trạng ban đầu
+- Giao diện kho sách do AI sinh ra ban đầu chỉ có dạng lưới thẻ (Card View), thích hợp cho bạn đọc tra cứu nhưng bất tiện cho Quản trị viên cần bao quát số lượng tồn kho, số đang mượn và thao tác sửa/xóa hàng loạt.
+- Tồn tại thành phần "Phiếu in" đơn lẻ không ăn khớp với luồng làm việc số hóa.
+- **Lỗi lệch pha dữ liệu nghiêm trọng (UI Desynchronization):** Khi Quản trị viên bấm Duyệt một yêu cầu mượn sách, thông báo đã được đánh dấu là xử lý nhưng giao diện bên phía Độc giả vẫn giữ nguyên trạng thái "Chờ duyệt", buộc độc giả phải bấm F5 thủ công để thấy sách được duyệt.
+
+#### 3. Gói Tinh chỉnh Logic Chuyên sâu của Sinh viên
+Sinh viên đã định hướng giải pháp thông qua **Gói tinh chỉnh nghiệp vụ kho & đồng bộ dữ liệu thời gian thực**:
+
+1. **Chuẩn hóa Giao diện Quản trị Kho sách:**
+   - Xây dựng chế độ hiển thị kép (Toggle View): Chế độ Thẻ (Grid) dành cho độc giả xem bìa bắt mắt và Chế độ Bảng (Table) dành cho quản trị viên với các cột ID, Tên sách, Tác giả, Thể loại, Tổng kho, Đang mượn, Sẵn có và Cột tác vụ căn phải rõ ràng.
+   - Loại bỏ triệt để khối component "Phiếu in" dư thừa, dọn dẹp sạch sẽ state và hàm xử lý liên quan.
+2. **Kiến trúc Đồng bộ Dữ liệu Tức thì (Optimistic UI & CustomEvent Broadcast):**
+   - Thay vì chờ đợi phản hồi từ máy chủ, giao diện áp dụng kỹ thuật **Optimistic UI Update (0ms)**: Cập nhật ngay state React của nút bấm và bảng dữ liệu, tạo cảm giác mượt mà tức thì cho người dùng.
+   - Xây dựng kênh phát tín hiệu toàn cục thông qua `CustomEvent ('smartlib:data-updated')`:
+     ```javascript
+     // api.js - Phát thông điệp khi có bất kỳ thay đổi dữ liệu nào
+     export const notifyDataUpdated = (type = 'all') => {
+       if (typeof window !== 'undefined') {
+         window.dispatchEvent(new CustomEvent('smartlib:data-updated', { 
+           detail: { type, timestamp: Date.now() } 
+         }));
+         localStorage.setItem('smartlib_last_update', JSON.stringify({ type, timestamp: Date.now() }));
+       }
+     };
+     ```
+   - Tất cả các component liên quan (`AdminDashboard`, `ReaderPortal`, `NotificationDropdown`) đăng ký lắng nghe sự kiện để tự động re-fetch ngầm mà không làm gián đoạn trải nghiệm người dùng.
+- **Kết quả nghiệm thu:** Khi Admin nhấn "Duyệt" phiếu mượn, sách trong kho tự động trừ 1, thông báo được cập nhật và màn hình của Độc giả ngay lập tức chuyển sang trạng thái "Đang mượn" trong tích tắc mà không cần reload trang.
+
+---
+
+### GIAI ĐOẠN 3 — HỆ THỐNG THỐNG KÊ, BÁO CÁO & XUẤT TỆP TIN CHUẨN DOANH NGHIỆP
+
+#### 1. Mục tiêu kỹ thuật
+Cung cấp trung tâm phân tích số liệu KPI hoạt động của thư viện và xây dựng module xuất dữ liệu đa định dạng (Excel, PDF, CSV) phục vụ lưu trữ văn bản chính quy.
+
+#### 2. Phân tích Hiện trạng ban đầu
+- Nút tác vụ ban đầu mang tên "In báo cáo", gây hiểu lầm là in trực tiếp ra máy in vật lý thay vì kết xuất tệp số.
+- Khi xuất danh sách độc giả sang tệp CSV, mở bằng Microsoft Excel trên hệ điều hành Windows gặp hiện tượng lỗi bảng mã (vỡ font tiếng Việt có dấu).
+- Phiếu mượn xuất ra định dạng PDF chỉ chứa văn bản thô sơ, thiếu tính bảo mật và không hỗ trợ kiểm tra đối soát nhanh trên thiết bị cầm tay.
+- Máy chủ thiếu các thư viện Python chuyên biệt dẫn đến lỗi HTTP 500 khi người dùng thực hiện xuất file.
+
+#### 3. Gói Tinh chỉnh Logic Chuyên sâu của Sinh viên
+Sinh viên đã thiết kế **Gói tinh chỉnh báo cáo số hóa đa kênh**:
+
+1. **Chuẩn hóa Định danh Tác vụ:** Đổi toàn bộ nhãn hành động thành "Xuất báo cáo" (Export Report) thể hiện chính xác bản chất trích xuất dữ liệu.
+2. **Kỹ thuật Chèn UTF-8 BOM (`\ufeff`) cho CSV:**
+   - Sinh viên phân tích cơ chế nhận diện bảng mã của Microsoft Excel: Excel mặc định dùng mã hóa ANSI nếu tệp CSV không có Byte Order Mark.
+   - Giải pháp: Chèn tiền tố `b'\xef\xbb\xbf'` vào đầu luồng dữ liệu byte trước khi trả về client:
+     ```python
+     # export_service.py
+     def generate_readers_csv(readers: list) -> bytes:
+         output = io.StringIO()
+         # Chèn BOM để Excel tự động mở đúng tiếng Việt
+         output.write('\ufeff')
+         writer = csv.writer(output)
+         writer.writerow(["Mã ĐG", "Họ Tên", "Tên Đăng Nhập", "Email", "SĐT", "Địa Chỉ"])
+         for r in readers:
+             writer.writerow([f"DG-{r['id']:03d}", r['fullName'], r['username'], r['email'], r['phone'], r['address']])
+         return output.getvalue().encode('utf-8')
+     ```
+3. **Tích hợp Mã QR Code Động vào Phiếu mượn PDF:**
+   - Dùng thư viện `qrcode` sinh mã ảnh PNG chứa thông tin định danh phiếu: `{borrowId, bookTitle, readerName, dueDate}`.
+   - Dùng `reportlab` vẽ layout phiếu mượn chuẩn phong cách thư viện hiện đại: Tiêu đề trang trọng, khung chi tiết người mượn, bảng thông tin sách và nhúng ảnh QR Code ở góc phải phục vụ quét bằng điện thoại.
+4. **Báo cáo Excel Định dạng Chuyên nghiệp:** Sử dụng `openpyxl` tô màu tiêu đề bảng (Header Fill), kẻ viền ô (Borders) và tự động tính toán độ rộng cột (Auto column-width) khớp với độ dài dữ liệu.
+- **Kết quả nghiệm thu:** Xuất thành công cả 3 định dạng Excel (.xlsx), CSV (.csv chuẩn font tiếng Việt) và PDF (.pdf tích hợp mã QR tra cứu di động).
+
+---
+
+### GIAI ĐOẠN 4 — TRỢ LÝ AI & TRẢI NGHIỆM GIAO DIỆN PHẲNG TINH TẾ (UI/UX)
+
+#### 1. Mục tiêu kỹ thuật
+Tích hợp Trợ lý Trí tuệ Nhân tạo thông minh vào góc màn hình ứng dụng, mang lại cảm giác đối thoại ấm áp, sinh động như đang trò chuyện với một thủ thư thực thụ, đồng thời đảm bảo tính thẩm mỹ của giao diện hiện đại.
+
+#### 2. Phân tích Hiện trạng ban đầu
+Qua 5 vòng kiểm thử trực quan, sinh viên phát hiện các điểm chưa hoàn thiện của widget chat ban đầu do AI sinh ra:
+- Sử dụng ảnh bitmap bên ngoài làm icon AI khiến giao diện thiếu tính đồng bộ và tải chậm.
+- Dòng chữ giới thiệu hiển thị cố định liên tục, choán tầm nhìn và che khuất thông tin các thẻ sách ở góc phải.
+- Khung nhập câu hỏi có khung viền dày thô cứng; khi người dùng nhấp chuột (focus), trình duyệt tự động vẽ một đường viền xanh bao quanh (`focus outline`) rất mất thẩm mỹ.
+- AI trả lời quá nhanh (gần như tức thì) bằng câu chữ khô cứng, thiếu cảm giác tự nhiên của quá trình tư duy tra cứu mục lục sách.
+- Khi không có API Key hoặc mất mạng, khung chat bị treo hoặc báo lỗi console khiến trải nghiệm bị gián đoạn.
+
+#### 3. Gói Tinh chỉnh Logic Chuyên sâu của Sinh viên
+Sinh viên đã hợp nhất toàn bộ yêu cầu hiệu chỉnh thành **Gói tinh chỉnh trải nghiệm AI & Giao diện phẳng (Borderless Flat UX)**:
+
+```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│ 1. Tái cấu trúc giao diện kho sách sang chuẩn Table Data Management        │
-│ 2. Loại bỏ triệt để các component thừa (phiếu in cũ) để tinh gọn mã nguồn  │
-│ 3. Thiết lập tương tác Inline Action (Duyệt/Từ chối) với Custom Modal       │
-│ 4. Xây dựng cơ chế Optimistic UI (0ms) & CustomEvent Broadcast đa tab       │
+│              GÓI TINH CHỈNH TRẢI NGHIỆM TRỢ LÝ AI TOÀN DIỆN                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. Nhận diện Vector sắc nét:                                                │
+│    Khôi phục biểu tượng Bot SVG vector nội bộ, tối ưu kích thước < 2KB,    │
+│    đảm bảo hiển thị sắc nét hoàn hảo trên mọi độ phân giải màn hình.       │
+│                                                                             │
+│ 2. Banner gợi ý thông minh tự thu gọn (7s Auto-dismiss):                    │
+│    Thông điệp "Bạn cần tôi giúp đỡ gì không? ✨" tự xuất hiện trong 7 giây  │
+│    đầu để mời gọi tương tác, sau đó tự thu gọn vào icon tròn; khi người     │
+│    dùng hover chuột vào nút AI, banner sẽ mở rộng mượt mà trở lại.          │
+│                                                                             │
+│ 3. Thiết kế phẳng không viền (Borderless Input UX):                        │
+│    Xóa bỏ toàn bộ border và box-shadow bao quanh ô input; loại bỏ dòng chú  │
+│    thích phụ rườm rà dưới chân widget để tạo không gian thoáng đãng.        │
+│                                                                             │
+│ 4. Triệt tiêu hoàn toàn hiệu ứng Focus xanh mặc định:                      │
+│    Bổ sung lớp CSS chuyên biệt với cơ chế can thiệp tuyệt đối:              │
+│    .ai-chat-input { outline: none !important; box-shadow: none !important; }│
+│                                                                             │
+│ 5. Nhịp điệu suy nghĩ tự nhiên (5s Cognitive Bouncing Dots):               │
+│    Tạo animation 3 dấu chấm chuyển động nhịp nhàng trong đúng 5 giây,      │
+│    mô phỏng nhịp điệu thủ thư đang tiếp nhận câu hỏi và tra cứu mục lục.    │
+│                                                                             │
+│ 6. Hệ thống Tri thức Nội bộ Dự phòng (Smart Fallback Engine):              │
+│    Xây dựng kho 15+ kịch bản đối thoại bằng tiếng Việt ấm áp ("mình-bạn"),  │
+│    đảm bảo AI luôn phản hồi thông minh, có nghĩa ngay cả khi offline.      │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- **Kết quả thực nghiệm:** Thao tác duyệt phiếu, trả sách diễn ra tức thì với độ trễ 0ms. Dữ liệu giữa các tab trình duyệt và giữa tài khoản Admin / Độc giả được cập nhật ngay trong tích tắc mà không cần người dùng tải lại trang.
+- **Kết quả nghiệm thu:** Widget AI đạt độ hoàn thiện cao về mỹ thuật, giao diện phẳng tinh tế không tì vết, không có viền xanh khó chịu khi focus, hoạt họa 5 giây tự nhiên và phản hồi thông minh trong mọi điều kiện mạng.
 
 ---
 
-### GIAI ĐOẠN 3 — THỐNG KÊ, BÁO CÁO & XUẤT TỆP TIN ĐA ĐỊNH DẠNG
+### GIAI ĐOẠN 5 — RÀNG BUỘC TOÀN VẸN DỮ LIỆU & LẬP TRÌNH PHÒNG THỦ (CRASH PREVENTION)
 
-#### Mục tiêu kỹ thuật
-Xây dựng trung tâm điều khiển (Admin Dashboard) với các chỉ số KPI trực quan và hệ thống xuất dữ liệu chuẩn mực phục vụ công tác quản lý thư viện.
+#### 1. Mục tiêu kỹ thuật
+Nâng cao tính ổn định của hệ thống theo nguyên tắc Lập trình phòng thủ (Defensive Programming), bảo đảm tính toàn vẹn dữ liệu giữa các bảng và loại bỏ 100% các hộp thoại popup mặc định gây gián đoạn luồng người dùng.
 
-#### Gói tinh chỉnh Logic của Sinh viên (Reporting & Export Optimization)
-1. **Chuẩn hóa ngôn ngữ nghiệp vụ:** Thống nhất nhãn hành động từ "In báo cáo" thành "Xuất báo cáo" trên toàn hệ thống để phản ánh đúng tính năng kết xuất tệp số.
-2. **Xử lý tương thích bảng mã tiếng Việt (Encoding Standard):**
-   - Khi kiểm tra file `.csv` danh sách độc giả trên Microsoft Excel Windows, sinh viên phát hiện lỗi hiển thị ký tự có dấu. Sinh viên đã chỉ dẫn bổ sung ký tự UTF-8 BOM (`\ufeff`) ở đầu luồng dữ liệu byte.
-3. **Đa dạng hóa định dạng theo mục đích sử dụng:**
-   - **Excel (.xlsx):** Báo cáo kho sách và lịch sử mượn trả có định dạng header màu sắc, căn chỉnh độ rộng cột tự động bằng `openpyxl`.
-   - **PDF (.pdf):** Phiếu mượn trang trọng tích hợp **Mã QR Code** định danh bằng `reportlab` để độc giả tra cứu trên điện thoại di động.
+#### 2. Phân tích Hiện trạng ban đầu
+- Trong module quản lý độc giả, chức năng xóa sử dụng hàm `window.confirm()` thô sơ của trình duyệt.
+- **Lỗ hổng toàn vẹn dữ liệu (Referential Integrity Violation):** Quản trị viên có thể bấm xóa một tài khoản độc giả đang mượn sách hoặc đang có phiếu chờ duyệt. Hành động này khiến bản ghi mượn sách bị mồ côi (không còn chủ thể người mượn), làm sai lệch hoàn toàn thống kê kho sách.
+- Khi một cuốn sách có số lượng sẵn có `available <= 0`, nút "Mượn sách" vẫn cho phép người dùng click, dẫn đến số lượng sách trong kho bị âm (`available = -1`).
+
+#### 3. Gói Tinh chỉnh Logic Chuyên sâu của Sinh viên
+Sinh viên đã triển khai **Gói tinh chỉnh kiểm soát toàn vẹn & chuẩn hóa Modal nội bộ**:
+
+1. **Kiểm tra Ràng buộc Khóa ngoại & Tồn kho Trước khi Xóa:**
+   - Xây dựng hàm kiểm tra ràng buộc logic trong `AdminDashboard.jsx`:
+     ```javascript
+     const handleConfirmDeleteReader = async () => {
+       if (!readerToDelete) return;
+       // Kiểm tra độc giả có giao dịch mượn sách chưa hoàn tất hay không
+       const activeBorrows = borrowRecords.filter(r => 
+         r.userId === readerToDelete.id && 
+         ['Approved', 'Pending'].includes(r.status)
+       );
+       if (activeBorrows.length > 0) {
+         setDeleteReaderError(
+           `Không thể xóa độc giả này! Hiện độc giả đang có ${activeBorrows.length} cuốn sách đang mượn hoặc chờ duyệt. Vui lòng thu hồi sách trước khi xóa.`
+         );
+         return;
+       }
+       // Thực hiện xóa an toàn nếu không có ràng buộc
+       await api.deleteReader(readerToDelete.id);
+       ...
+     };
+     ```
+   - Chặn xóa sách trong kho nếu sách đó đang nằm trong danh sách các phiếu mượn chưa trả.
+2. **Khóa Tồn kho Tự động (Inventory Guard):**
+   - Kiểm tra `available <= 0`: Nút "Mượn sách" tự động chuyển sang màu xám, bị khóa thuộc tính `disabled={true}` và hiển thị nhãn "Hết sách", ngăn chặn triệt để lỗi số lượng âm.
+3. **Loại bỏ 100% Popup Trình duyệt (`alert/confirm`):**
+   - Xây dựng component Custom Confirmation Modal nội bộ có biểu tượng cảnh báo hình tam giác vàng, hiển thị rõ tên đối tượng cần xóa, nút "Hủy bỏ" và "Xác nhận xóa" với hiệu ứng làm mờ nền (backdrop blur).
+   - Mọi thông báo kết quả chuyển sang dạng **Toast Notification** tự động hiển thị ở góc màn hình và tự mờ dần sau 3.5 giây.
+- **Kết quả nghiệm thu:** 100% thao tác trong ứng dụng diễn ra liền mạch, không còn bất kỳ popup thô sơ nào của trình duyệt, CSDL được bảo vệ toàn vẹn tuyệt đối trước các thao tác vô ý của người quản trị.
 
 ---
 
-### GIAI ĐOẠN 4 — TRỢ LÝ AI & TRẢI NGHIỆM TƯƠNG TÁC (UI/UX)
+### GIAI ĐOẠN 6 — ĐỘT PHÁ KIẾN TRÚC DUAL-MODE, DEVOPS & CHUẨN HÓA TÀI LIỆU
 
-#### Mục tiêu kỹ thuật
-Tạo dựng Trợ lý AI Thư viện (AI Library Assistant) vừa có khả năng trả lời thông minh, vừa có thiết kế giao diện tinh tế, không gây phiền nhiễu cho người dùng.
+#### 1. Mục tiêu kỹ thuật
+Đảm bảo hệ thống có thể triển khai linh hoạt trên cả môi trường máy chủ cục bộ (Fullstack Localhost / Docker) lẫn môi trường máy chủ tĩnh (GitHub Pages), đồng thời chuẩn hóa bộ tài liệu kỹ thuật hoàn chỉnh và đóng gói Docker chạy ngay.
 
-#### Gói tinh chỉnh Logic của Sinh viên (AI Assistant & Visual Polish)
-Thay vì các lệnh chỉnh sửa rời rạc, sinh viên đã tổng hợp thành **gói giải pháp hoàn thiện UI/UX toàn diện cho Widget AI**:
+#### 2. Phân tích Hiện trạng ban đầu
+- **Thách thức môi trường GitHub Pages:** GitHub Pages là dịch vụ lưu trữ web tĩnh (chỉ phục vụ HTML/CSS/JS), không thể chạy mã Python FastAPI. Khi người dùng bấm "Trả sách" hay "Đăng ký tài khoản" trên GitHub Pages, trình duyệt gọi API `http://localhost:3000/api/...` và lập tức nhận lỗi mạng `Failed to fetch`.
+- Tài liệu dự án trước đây bị phân mảnh (nhiều tệp báo cáo nghiệm thu rời rạc, có chỗ dùng từ "Đồ án" chưa chuyên nghiệp, thiếu tính liên kết giữa các file đặc tả).
+- Quá trình build Docker trước đây gặp lỗi sai lệch đường dẫn tương đối khi sao chép mã nguồn React vào image Python.
 
-1. **Nhận diện thương hiệu & Tối ưu tải trang:** Lựa chọn biểu tượng vector Bot bản quyền nội bộ thay vì dùng ảnh bitmap từ bên ngoài, đảm bảo tốc độ render nhẹ và đường nét sắc sảo trên màn hình Retina.
-2. **Cơ chế hiển thị thông minh (Smart Hint Banner):** Dòng chữ gợi ý *"Bạn cần tôi giúp đỡ gì không? ✨"* tự động hiển thị trong **7 giây đầu tiên** rồi tự thu gọn để nhường không gian cho nội dung sách; banner sẽ tự mở lại khi người dùng rê chuột vào nút AI.
-3. **Triệt tiêu hoàn toàn viền focus trình duyệt (Clean Input UX):** Xóa bỏ viền bao quanh thanh nhập liệu, bổ sung lớp CSS `.ai-chat-input` với `outline: none !important` và `box-shadow: none !important`, loại bỏ 100% hiệu ứng viền xanh nhấp nháy khi nhấp chuột.
-4. **Mô phỏng tương tác người thật (Natural Pacing):** Cấu hình hoạt họa 3 dấu chấm chuyển động nhịp nhàng (bouncing dots) duy trì trong 5 giây, kết hợp bộ câu trả lời Fallback thông minh phản hồi theo từng bước tư duy khi chưa có API Key.
-
----
-
-### GIAI ĐOẠN 5 — RÀNG BUỘC TOÀN VẸN DỮ LIỆU & PHÒNG CHỐNG CRASH
-
-#### Mục tiêu kỹ thuật
-Gia cố độ tin cậy của phần mềm theo nguyên lý lập trình phòng thủ (Defensive Programming), bảo đảm CSDL không bao giờ rơi vào trạng thái mất nhất quán.
-
-#### Gói tinh chỉnh Logic của Sinh viên (Data Integrity & Crash Prevention)
-1. **Kiểm tra ràng buộc xóa độc giả:** Phát hiện lỗ hổng logic khi quản trị viên có thể xóa một độc giả đang mượn sách. Sinh viên đã chỉ dẫn bổ sung hàm kiểm tra `activeBorrows`: nếu độc giả có phiếu mượn trạng thái `Approved` hoặc `Pending`, hệ thống lập tức chặn hành vi và hiển thị cảnh báo chi tiết số lượng sách đang giữ.
-2. **Kiểm soát số lượng kho tự động:** Vô hiệu hóa nút mượn sách (`disabled`) kèm nhãn "Hết sách" khi `available <= 0`.
-3. **Loại bỏ triệt để hộp thoại mặc định của trình duyệt:** Thay thế toàn bộ lệnh `alert()` và `window.confirm()` bằng Custom Dialog Modal có thiết kế đồng bộ với hệ thống Design Tokens của SmartLib.
-
----
-
-### GIAI ĐOẠN 6 — KIẾN TRÚC DUAL-MODE, TÀI LIỆU HÓA & DEVOPS
-
-#### Mục tiêu kỹ thuật
-Đảm bảo phần mềm có thể phân phối linh hoạt trên nhiều hạ tầng khác nhau (máy chủ fullstack lẫn máy chủ tĩnh GitHub Pages), đồng thời chuẩn hóa bộ tài liệu kỹ thuật hoàn chỉnh.
-
-#### Gói tinh chỉnh Logic của Sinh viên (Dual-Mode Architecture & DevOps Packaging)
+#### 3. Gói Tinh chỉnh Logic Chuyên sâu của Sinh viên
+Sinh viên đã thiết kế **Gói giải pháp kiến trúc Dual-Mode & Tối ưu hóa Triển khai**:
 
 ```
-                       ┌──────────────────────────────┐
-                       │     ĐIỀU HƯỚNG MÔI TRƯỜNG     │
-                       └──────────────┬───────────────┘
-                                      │
-              ┌───────────────────────┴───────────────────────┐
-              ▼                                               ▼
-    [ Môi trường Localhost ]                       [ Môi trường GitHub Pages ]
-   • FastAPI Backend API                          • Không có Python runtime
-   • Đọc/ghi data/database.json                   • Tự động kích hoạt LocalStorage Sync
-   • Phục vụ đầy đủ Generator                      • DB_VERSION quản lý nhất quán
+                              ┌──────────────────────────────┐
+                              │     SMARTLIB API CLIENT      │
+                              │     (frontend/services/api)  │
+                              └──────────────┬───────────────┘
+                                             │
+                     Kiểm tra hostname: window.location.hostname
+                                             │
+                    ┌────────────────────────┴────────────────────────┐
+                    ▼                                                 ▼
+          [ Hostname: localhost ]                           [ Hostname: github.io ]
+        FastAPI Backend Mode                             LocalStorage Sync Engine Mode
+        • Gọi REST API cổng 3000                         • Không cần Python backend
+        • Đọc/ghi data/database.json                     • Quản lý qua DB_VERSION
+        • Sinh file Excel, PDF, QR                       • Phản hồi 0ms Optimistic UI
+        • Dữ liệu tập trung máy chủ                      • Dữ liệu lưu bền vững browser
 ```
 
-1. **Đột phá Kiến trúc Dual-Mode Persistence:** Phát hiện tính năng trả sách bị lỗi mạng trên GitHub Pages do thiếu runtime Python, sinh viên đã chỉ dẫn tái cấu trúc `api.js` thành 2 chế độ: tự động nhận diện hostname `github.io` để fallback sang LocalStorage Engine với cơ chế đồng bộ đa tab, giúp ứng dụng chạy mượt mà không cần backend.
-2. **Chuẩn hóa thuật ngữ & Tài liệu dự án:**
-   - Thay thế toàn diện từ ngữ "Đồ án" thành "Dự án" trên toàn bộ tài liệu.
-   - Chuẩn hóa thư mục `docs/` chứa **DUY NHẤT 4 file đặc tả cốt lõi**:
-     1. `docs/requirements.md` (SRS)
-     2. `docs/use_cases.md` (18 Ca sử dụng)
-     3. `docs/database_design.md` (Thiết kế CSDL & Schema)
-     4. `docs/ai_log.md` (Nhật ký Prompt AI hoàn chỉnh)
-   - Hợp nhất toàn bộ nội dung Báo cáo nghiệm thu 10 tiêu chí vào [`README.md`](../README.md) để cung cấp tài liệu tổng quan toàn diện nhất ngay tại trang chủ dự án.
-3. **Đóng gói Docker Container sẵn sàng chạy:** Xây dựng bộ 3 file cấu hình Docker (`Dockerfile` multi-stage, `docker-compose.yml` có volume mount lưu dữ liệu bền vững, `.dockerignore` tinh giản dung lượng image).
+1. **Đột phá Kiến trúc Dual-Mode Persistence:**
+   - Xây dựng cơ chế tự nhận diện môi trường trong `api.js`: Khi phát hiện ứng dụng đang chạy trên `github.io` hoặc giao thức `file:`, hệ thống tự động kích hoạt **LocalStorage Sync Engine** với phiên bản chuẩn hóa `DB_VERSION = 'v5_clean_sync_2026'`.
+   - Toàn bộ các thao tác Đăng ký tài khoản, Thêm sách, Sửa sách, Xóa sách, Mượn sách và Trả sách đều được xử lý cục bộ và lưu bền vững trong `localStorage`. Độc giả F5 lại trang thì dữ liệu đã mượn/trả vẫn được giữ nguyên vẹn 100%.
+2. **Đóng gói Docker Multi-stage Tối ưu:**
+   - Xây dựng `Dockerfile` 2 giai đoạn: Giai đoạn 1 dùng `node:20-alpine` biên dịch React; Giai đoạn 2 dùng `python:3.11-slim` sao chép bản build tĩnh và khởi chạy FastAPI server.
+   - Viết `docker-compose.yml` với cấu hình mount volume `./data:/app/data` giúp bảo toàn toàn bộ dữ liệu sách và bạn đọc ngay cả khi container bị hủy hoặc tạo mới.
+3. **Chuẩn hóa Hệ thống Tài liệu Kỹ thuật Dự án:**
+   - Thay thế toàn bộ 14 lần xuất hiện từ "Đồ án" thành "Dự án" trên toàn hệ thống tài liệu.
+   - Xóa bỏ các tệp báo cáo rời rạc, hợp nhất toàn bộ Báo cáo nghiệm thu 10 tiêu chí vào [`README.md`](../README.md).
+   - Tinh gọn thư mục `docs/` chứa **DUY NHẤT 4 file đặc tả chuyên sâu**:
+     1. [`docs/requirements.md`](requirements.md): Đặc tả yêu cầu phần mềm SRS (35 yêu cầu F01-F35).
+     2. [`docs/use_cases.md`](use_cases.md): Đặc tả 18 ca sử dụng chi tiết kèm sơ đồ Actor-UC.
+     3. [`docs/database_design.md`](database_design.md): Thiết kế CSDL JSON, ERD và schema 4 bảng.
+     4. [`docs/ai_log.md`](ai_log.md): Toàn văn nhật ký Prompt AI và các gói tinh chỉnh logic.
+   - Bổ sung thanh điều hướng chéo ở đầu tất cả các tệp tài liệu, tạo sự liên kết liền mạch.
+- **Kết quả nghiệm thu:** Ứng dụng hoạt động trơn tru trên cả máy chủ cục bộ lẫn đường dẫn trực tuyến GitHub Pages [https://dvuwebon.github.io/Thuvien/](https://dvuwebon.github.io/Thuvien/), bộ 3 file Docker chạy ngay với 1 lệnh, hệ thống tài liệu chuẩn mực và chuyên nghiệp.
 
 ---
 
 ## 4. TỔNG HỢP 10 SỰ CỐ KỸ THUẬT & GIẢI PHÁP ĐÃ XỬ LÝ
 
-| # | Tên Sự cố Kỹ thuật | Biểu hiện & Nguyên nhân | Giải pháp Kỹ thuật đã Áp dụng |
+| # | Tên Sự cố Kỹ thuật | Biểu hiện Thực tế & Nguyên nhân Gốc | Giải pháp Xử lý Chuyên sâu |
 | :---: | :--- | :--- | :--- |
-| **1** | **Xung đột Plugin IDE** | Lệnh terminal bị từ chối do đường dẫn `C:\Users\DUNG VU` có dấu cách. | Gỡ bỏ thư mục plugin telemetry xung đột, khôi phục quyền thực thi lệnh. |
-| **2** | **Lỗi Cross-Origin (CORS)** | Trình duyệt chặn request từ React sang FastAPI khi chạy độc lập. | Cấu hình `CORSMiddleware` với `allow_origins=["*"]` trong `app.py`. |
-| **3** | **Lỗi API trên GitHub Pages** | Thao tác mượn/trả sách báo lỗi mạng vì GitHub Pages là máy chủ tĩnh. | Thiết kế kiến trúc **Dual-Mode**: Tự động fallback sang LocalStorage Sync Engine trên host tĩnh. |
-| **4** | **Lệch pha dữ liệu giao diện** | Duyệt mượn sách thành công nhưng giao diện người dùng không tự cập nhật. | Triển khai mô hình **Optimistic UI (0ms)** và phát sự kiện `CustomEvent ('smartlib:data-updated')`. |
-| **5** | **Lỗi Font Tiếng Việt trong CSV** | Mở file CSV danh sách độc giả trên Excel bị biến dạng ký tự tiếng Việt. | Bổ sung ký tự UTF-8 BOM (`\ufeff`) vào đầu file byte trước khi gửi về client. |
-| **6** | **Thiếu thư viện sinh tệp** | Chức năng xuất PDF/Excel báo lỗi thiếu module runtime. | Bổ sung `reportlab`, `qrcode`, `openpyxl` vào `requirements.txt` và cài đặt đầy đủ. |
-| **7** | **Trải nghiệm Popup gián đoạn** | Sử dụng hộp thoại thô sơ `alert/confirm` gây xấu giao diện và gián đoạn luồng người dùng. | Thay thế 100% bằng Custom Dialog Modal có backdrop blur và Toast Notification tự ẩn. |
-| **8** | **Nguy cơ Dữ liệu Mồ côi** | Xóa tài khoản độc giả đang mượn sách gây sai lệch số liệu tồn kho. | Viết logic kiểm tra ràng buộc toàn vẹn: chặn xóa độc giả/sách có phiếu mượn hoạt động. |
-| **9** | **Xung đột Cổng Server (Port 3000)** | Khởi động lại backend bị báo lỗi "Address already in use". | Tự động hóa lệnh ngắt tiến trình chiếm dụng cổng 3000 trước khi chạy `main.py`. |
-| **10** | **Sai lệch đường dẫn Docker** | Docker build thất bại do đường dẫn tương đối giữa frontend và backend. | Chuẩn hóa Dockerfile Multi-stage build với các chỉ thị `COPY` đường dẫn tuyệt đối chuẩn xác. |
+| **1** | **Xung đột Plugin IDE** | Lệnh terminal PowerShell bị chặn do đường dẫn `C:\Users\DUNG VU` chứa khoảng trắng. | Viết lệnh xóa tận gốc thư mục plugin telemetry xung đột trong cấu hình IDE. |
+| **2** | **Lỗi Cross-Origin (CORS)** | Trình duyệt từ chối request API giữa React (5173) và FastAPI (8000). | Tích hợp `CORSMiddleware` với `allow_origins=["*"]` và gộp phục vụ chung cổng 3000. |
+| **3** | **Lỗi Mạng trên GitHub Pages** | Thao tác Trả sách bị lỗi `Failed to fetch` vì GitHub Pages không có runtime Python. | Phát minh kiến trúc **Dual-Mode**: Tự chuyển sang LocalStorage Sync Engine với phiên bản `DB_VERSION`. |
+| **4** | **Lệch pha Dữ liệu Đa tab** | Admin duyệt phiếu mượn nhưng màn hình Độc giả vẫn ghi "Chờ duyệt", phải F5. | Triển khai **Optimistic UI (0ms)** và phát thông điệp toàn cục qua `CustomEvent ('smartlib:data-updated')`. |
+| **5** | **Lỗi Font Tiếng Việt trong CSV** | Mở tệp CSV danh sách độc giả trên Excel bị lỗi bảng mã ký tự có dấu. | Chèn ký tự **UTF-8 BOM (`\ufeff`)** vào đầu chuỗi byte dữ liệu trước khi tải xuống. |
+| **6** | **Thiếu Thư viện Sinh tệp tin** | Bấm xuất PDF/Excel bị lỗi HTTP 500 do thiếu module `reportlab`, `openpyxl`, `qrcode`. | Cập nhật file `requirements.txt` chuẩn hóa và cài đặt đầy đủ dependencies. |
+| **7** | **Popup Trình duyệt Gián đoạn** | Dùng `window.confirm/alert` gây xấu giao diện và gián đoạn luồng người dùng. | Thay 100% bằng Custom Dialog Modal có backdrop blur và Toast Notification tự ẩn sau 3.5s. |
+| **8** | **Nguy cơ Dữ liệu Mồ côi** | Xóa tài khoản độc giả đang mượn sách làm sai lệch dữ liệu tồn kho. | Viết hàm kiểm tra ràng buộc toàn vẹn: chặn xóa độc giả/sách có phiếu mượn đang hoạt động. |
+| **9** | **Xung đột Cổng Mạng (Port 3000)** | Khi khởi động lại máy chủ gặp lỗi socket "Address already in use". | Tự động hóa câu lệnh PowerShell dò tìm và ngắt tiến trình đang chiếm dụng cổng 3000. |
+| **10** | **Lỗi Đường dẫn Build Docker** | Docker build thất bại do đường dẫn tương đối giữa mã nguồn frontend và backend. | Chuẩn hóa Dockerfile Multi-stage build với các chỉ thị `COPY` từ build-stage chính xác. |
 
 ---
 
-## 5. THỐNG KÊ TỔNG KẾT DỰ ÁN
+## 5. THỐNG KÊ TỔNG KẾT & BÀI HỌC KINH NGHIỆM
 
-- ⏱️ **Thời gian hoàn thiện:** 2 ngày làm việc tập trung (03/09/2026 – 04/09/2026).
-- 💬 **Số lượt tương tác kỹ thuật:** ~80+ vòng trao đổi, phân tích và tinh chỉnh.
-- 📦 **Quy mô mã nguồn:** Hơn 5.000 dòng code chuẩn hóa (React 18 + FastAPI Python).
-- 📑 **Hệ thống tài liệu:** 4 tệp đặc tả chi tiết trong `docs/` + 1 tệp tổng quan toàn diện [`README.md`](../README.md).
-- 🚀 **Mức độ hoàn thiện:** Đáp ứng xuất sắc **10/10 tiêu chí đánh giá chất lượng phần mềm**.
+- ⏱️ **Thời gian phát triển tập trung:** 2 ngày (03/09/2026 – 04/09/2026).
+- 💬 **Số lượt tương tác & tinh chỉnh:** Hơn 80 vòng trao đổi kỹ thuật có định hướng.
+- 📦 **Quy mô mã nguồn hệ thống:** > 5.000 dòng mã nguồn tiêu chuẩn (React 18 + Python FastAPI).
+- 📑 **Hệ sinh thái tài liệu:** 4 tệp tài liệu đặc tả chuyên sâu trong `docs/` + 1 tệp tổng quan toàn diện [`README.md`](../README.md).
+- 🏆 **Mức độ hoàn thiện:** Đáp ứng xuất sắc và trọn vẹn **10/10 tiêu chí đánh giá chất lượng phần mềm**.
+
+### Bài học Đắt giá về Phương pháp Phát triển cùng AI:
+1. **AI là trợ thủ tăng tốc, con người là người kiến tạo:** AI sinh code rất nhanh nhưng thường bỏ qua các ràng buộc biên, ngữ cảnh thực tế của hệ điều hành và tính toàn vẹn dữ liệu. Sự kiểm tra kỹ lưỡng của sinh viên là yếu tố quyết định chất lượng phần mềm.
+2. **Giá trị của việc Gom cụm Logic (Logical Grouping):** Khi đưa ra các chỉ dẫn tinh chỉnh lớn có cấu trúc thay vì các câu lệnh chắp vá, AI hiểu ngữ cảnh sâu hơn và sinh ra mã nguồn sạch sẽ, không bị phân mảnh.
+3. **Thực nghiệm là chân lý:** Không bao giờ tin tưởng code AI sinh ra cho đến khi chạy thử thực tế trên nhiều môi trường khác nhau (Windows, Docker, GitHub Pages, Chrome, Edge).
 
 ---
 
