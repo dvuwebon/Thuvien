@@ -54,11 +54,15 @@
 
 ## 🌟 Tính Năng Nổi Bật
 
-- 🤖 **Thủ thư Trí tuệ Nhân tạo (AI Library Assistant):**
-  - Widget chat nổi góc phải màn hình, thiết kế phẳng tinh gọn, hiện đại.
+- 🤖 **Thủ thư Trí tuệ Nhân tạo (AI Library Assistant - RAG Prompt v3):**
+  - Widget chat nổi góc phải màn hình, thiết kế phẳng tinh gọn, hiện đại (Borderless Design).
   - Dòng chữ gợi ý *"Bạn cần tôi giúp đỡ gì không? ✨"* tự động hiển thị và **tự ẩn sau 7 giây**, tự hiện lại khi rê chuột.
   - Hoạt họa **3 dấu chấm chuyển động nhịp nhàng (bouncing dots)** trong 5 giây, chuyển trạng thái tự nhiên như đang chat với người thật.
-  - Hỗ trợ kết nối Google Gemini API và cơ chế **Smart Fallback** tự động giải đáp từ bộ tri thức nội bộ khi chưa có API Key.
+  - Tích hợp Prompt RAG v3: Nhận diện nhu cầu, đối soát danh mục kho sách thực tế `{{book_list}}`, giới hạn câu trả lời $\le 300$ ký tự và trả về định dạng **JSON thuần túy**.
+  - Hỗ trợ kết nối Google Gemini API và cơ chế **Smart Fallback** tự động giải đáp từ bộ tri thức nội bộ khi chưa có API Key hoặc mất mạng.
+- 📖 **AI Tóm tắt nội dung sách (AI Book Summarizer):** Nút bấm tích hợp tại Modal chi tiết sách giúp độc giả trích xuất 3 ý tưởng cốt lõi và bài học thực tiễn của cuốn sách trong vòng 3 giây.
+- 🔖 **Hàng đợi Đặt trước sách (Book Reservation Queue):** Khi sách trong kho tạm thời hết (`available = 0`), nút mượn tự động chuyển thành **"Đặt trước sách"**. Hệ thống tự động xếp hàng ưu tiên (FIFO) và gửi thông báo giữ sách 48 giờ khi có bạn đọc khác hoàn trả sách về kho.
+- 🔄 **Gia hạn mượn sách trực tuyến (Loan Renewal):** Độc giả có thể chủ động bấm "Gia hạn" thêm 7 ngày trực tiếp trên cổng cá nhân nếu sách chưa quá hạn và chưa có người khác đặt trước.
 - ⚡ **Nghiệp vụ Mượn - Trả tức thì (Optimistic UI 0ms):** Thao tác mượn sách, duyệt phiếu, trả sách cập nhật giao diện ngay lập tức mà không cần F5.
 - 🔍 **Tìm kiếm toàn cục (Live Search):** Kích hoạt nhanh bằng phím tắt `/`, lọc theo thể loại, tình trạng kho và sắp xếp đa tiêu chí.
 - 📊 **Thống kê & Xuất báo cáo chuyên nghiệp:**
@@ -138,11 +142,11 @@ py-thuvien/
 │   └── vite.config.js              # Cấu hình đóng gói Vite (base path cho GitHub Pages)
 ├── data/
 │   └── database.json               # Cơ sở dữ liệu JSON chuẩn hóa lưu trữ tập trung
-├── docs/                           # Thư mục tài liệu chi tiết (duy nhất 4 file chuẩn)
-│   ├── requirements.md             # Đặc tả yêu cầu phần mềm (SRS)
-│   ├── use_cases.md                # Đặc tả chi tiết 18 ca sử dụng (Use Cases)
-│   ├── database_design.md          # Thiết kế CSDL, ERD và chi tiết các bảng
-│   └── ai_log.md                   # Toàn bộ nhật ký Prompt AI qua các giai đoạn
+├── docs/                           # Thư mục tài liệu kỹ thuật chuẩn hóa (duy nhất 4 file)
+│   ├── requirements.md             # Đặc tả yêu cầu phần mềm SRS (35+ yêu cầu chức năng & Đặt trước sách)
+│   ├── use_cases.md                # Đặc tả 18 Ca sử dụng & Bộ 7 Test Cases kiểm thử hệ thống (TC01-TC07)
+│   ├── database_design.md          # Thiết kế CSDL ERD 7 Bảng chuẩn 3NF & Kiến trúc ánh xạ Dual-Mode
+│   └── ai_log.md                   # Nhật ký Prompt AI, Bảng tối ưu Prompt RAG v1-v3 (JSON) & Minh chứng
 ├── Dockerfile                      # Cấu hình đóng gói Multi-stage Docker
 ├── docker-compose.yml              # Cấu hình khởi chạy nhanh Docker Compose
 ├── .dockerignore                   # Danh sách loại trừ khi đóng gói Docker
@@ -363,9 +367,11 @@ Chỉ cần truy cập ngay: 👉 **[https://dvuwebon.github.io/Thuvien/](https:
 ### Cách 2: Khởi chạy bằng Docker / Docker Compose (Khuyên dùng)
 Yêu cầu: Máy tính đã cài đặt [Docker Desktop](https://www.docker.com/products/docker-desktop).
 
-1. Khởi động ứng dụng trong chế độ nền:
+1. Khởi động ứng dụng bằng lệnh Docker:
    ```bash
    docker compose up -d --build
+   # Hoặc nếu sử dụng cú pháp docker-compose cũ:
+   docker-compose up --build
    ```
 2. Mở trình duyệt truy cập:
    - 🌐 **Web App:** **[http://localhost:3000](http://localhost:3000)**
@@ -419,6 +425,8 @@ Yêu cầu: Đã cài đặt **Python 3.10+**.
 | `POST` | `/api/borrow-records` | Gửi yêu cầu mượn sách mới |
 | `PUT` | `/api/borrow-records/{id}/approve` | Phê duyệt cho mượn sách (Chỉ Admin) |
 | `PUT` | `/api/borrow-records/{id}/return` | Xác nhận hoàn tất trả sách về kho |
+| `PUT` | `/api/borrow-records/{id}/renew` | Gia hạn thời gian mượn sách thêm 7 ngày |
+| `POST` | `/api/reservations` | Đăng ký đặt trước sách khi hết kho (`available = 0`) |
 | `GET` | `/api/stats` | Thống kê số liệu KPI và tỷ lệ thể loại |
 | `GET` | `/api/reports/excel` | Tải xuống tệp báo cáo Excel (.xlsx) |
 | `GET` | `/api/reports/csv` | Tải xuống tệp danh sách độc giả CSV (.csv) |

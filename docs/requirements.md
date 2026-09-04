@@ -1,157 +1,176 @@
 # 📋 SMARTLIB — ĐẶC TẢ YÊU CẦU PHẦN MỀM (SRS)
-**Hệ thống Quản lý Thư viện Thông minh Tích hợp Trợ lý AI**
-> Phiên bản tài liệu: 2.0 | Ngày cập nhật: 04/09/2026
-> 📖 **Bộ tài liệu kỹ thuật SmartLib:** [📋 Yêu cầu (SRS)](requirements.md) | [📊 Ca sử dụng (Use Cases)](use_cases.md) | [🗄️ Thiết kế CSDL](database_design.md) | [🤖 Nhật ký Prompt AI](ai_log.md) | [🏠 Trang chủ README](../README.md)
+**Hệ thống Quản lý Thư viện Thông minh Tích hợp Trợ lý AI & Đặt Trước Sách**
+> Phiên bản tài liệu: 2.1 (Đồng bộ Báo cáo Kỹ thuật) | Ngày cập nhật: 04/09/2026
+> 📖 **Bộ tài liệu kỹ thuật SmartLib:** [📋 Yêu cầu (SRS)](requirements.md) | [📊 Ca sử dụng & Test Cases](use_cases.md) | [🗄️ Thiết kế CSDL (ERD 7 Bảng)](database_design.md) | [🤖 Nhật ký Prompt & AI Log](ai_log.md) | [🏠 Trang chủ README](../README.md)
 
 ---
 
 ## MỤC LỤC
 1. [Giới thiệu tổng quan](#1-giới-thiệu-tổng-quan)
-2. [Yêu cầu chức năng (Functional Requirements)](#2-yêu-cầu-chức-năng)
-3. [Yêu cầu phi chức năng (Non-Functional Requirements)](#3-yêu-cầu-phi-chức-năng)
-4. [Ràng buộc hệ thống](#4-ràng-buộc-hệ-thống)
-5. [Môi trường hoạt động và Triển khai](#5-môi-trường-hoạt-động-và-triển-khai)
+2. [Quy trình nghiệp vụ cốt lõi](#2-quy-trình-nghiệp-vụ-cốt-lõi)
+3. [Yêu cầu chức năng chi tiết (Bảng F01 - F38)](#3-yêu-cầu-chức-năng-chi-tiết)
+4. [Yêu cầu phi chức năng (Non-Functional Requirements)](#4-yêu-cầu-phi-chức-năng)
+5. [Ràng buộc hệ thống & Toàn vẹn dữ liệu](#5-ràng-buộc-hệ-thống--toàn-vẹn-dữ-liệu)
+6. [Môi trường hoạt động và Triển khai đa nền tảng](#6-môi-trường-hoạt-động-và-triển-khai-đa-nền-tảng)
 
 ---
 
 ## 1. GIỚI THIỆU TỔNG QUAN
 
 ### 1.1. Mục tiêu hệ thống
-SmartLib là hệ thống quản lý thư viện trực tuyến toàn diện phục vụ hai đối tượng người dùng chính:
-- **Quản trị viên (Admin):** Quản lý toàn bộ hoạt động kho sách, duyệt phiếu mượn, theo dõi thống kê.
-- **Độc giả (Reader):** Tra cứu, đặt mượn sách, xem lịch sử cá nhân, hỏi đáp cùng Trợ lý AI.
+SmartLib là hệ thống phần mềm quản lý và tra cứu thư viện hiện đại kết hợp Trợ lý Trí tuệ Nhân tạo (AI Library Assistant). Hệ thống giải quyết trọn vẹn bài toán vận hành thư viện trường học/tổ chức:
+- **Tối ưu hóa quản trị kho sách:** Số hóa toàn diện danh mục, quản lý vị trí kệ, theo dõi số lượng tồn khả dụng thời gian thực.
+- **Tự động hóa chu trình lưu thông (Circulation):** Mượn sách, trả sách, gia hạn thời gian mượn và **hàng đợi đặt trước sách (Reservation Queue)** khi sách tạm thời hết kho.
+- **Trợ lý AI thông minh (RAG-based AI Assistant):** Hỗ trợ bạn đọc tra cứu sách theo nhu cầu, tóm tắt nội dung sách tức thì và giải đáp thắc mắc 24/7.
+- **Báo cáo & Chứng từ số hóa:** Xuất báo cáo Excel chuyên nghiệp, danh sách CSV chuẩn font tiếng Việt và phiếu mượn PDF trang trọng tích hợp mã QR Code tra cứu nhanh.
 
-### 1.2. Phạm vi dự án
-- Xây dựng hệ thống web SPA (Single Page Application) dùng **React.js 18** và **Python FastAPI**.
-- Hỗ trợ triển khai trên cả **máy chủ cục bộ (Localhost)** và **máy chủ tĩnh (GitHub Pages)**.
-- Tích hợp Trợ lý Trí tuệ Nhân tạo (AI) sử dụng **Google Gemini API**.
-
-### 1.3. Các bên liên quan (Stakeholders)
-| Đối tượng | Vai trò |
+### 1.2. Các bên liên quan (Stakeholders)
+| Đối tượng | Trách nhiệm & Quyền hạn |
 | :--- | :--- |
-| Sinh viên phát triển | Thiết kế, lập trình, kiểm thử, triển khai toàn bộ hệ thống |
-| Quản trị viên thư viện | Sử dụng hệ thống để quản lý sách và bạn đọc |
-| Độc giả (Bạn đọc) | Sử dụng hệ thống để tra cứu và mượn sách |
+| **Quản trị viên / Thủ thư (Admin / Librarian)** | Quản trị kho sách (CRUD), phê duyệt phiếu mượn/trả/đặt trước, quản lý bạn đọc, xử lý phạt và xuất báo cáo. |
+| **Độc giả / Bạn đọc (Reader)** | Tìm kiếm, xem mục lục, mượn sách, gia hạn, đặt trước sách, nhờ AI tóm tắt và quản lý lịch sử cá nhân. |
+| **Trợ lý AI (AI Assistant)** | Phân tích câu hỏi tự nhiên, đối soát kho sách qua kỹ thuật RAG và sinh phản hồi định dạng JSON chuẩn. |
 
 ---
 
-## 2. YÊU CẦU CHỨC NĂNG
+## 2. QUY TRÌNH NGHIỆP VỤ CỐT LÕI
 
-### 2.1. Phân hệ Xác thực & Quản lý Tài khoản
+### 2.1. Quy trình Mượn - Trả sách thông thường
+1. Độc giả tra cứu sách trên hệ thống. Nếu sách còn tồn (`available > 0`), độc giả chọn hình thức (Mượn về / Đọc tại chỗ) và hạn trả mong muốn.
+2. Hệ thống tạo phiếu mượn với trạng thái `Pending` (Chờ duyệt).
+3. Thủ thư kiểm tra và duyệt yêu cầu (`Approved`): Hệ thống tự động giảm số lượng sẵn có (`available -= 1`), sinh thông báo tới độc giả.
+4. Khi độc giả mang trả sách, thủ thư xác nhận nhập kho (`Returned`): Sách được hoàn trả tồn kho (`available += 1`). Nếu trả quá hạn, hệ thống tự động tính toán phí phạt (`fines`).
 
-| Mã YC | Tên chức năng | Mô tả chi tiết | Vai trò |
-| :---: | :--- | :--- | :--- |
-| **F01** | Đăng nhập hệ thống | Người dùng nhập Tên đăng nhập và Mật khẩu để xác thực. Hệ thống trả về thông tin phiên đăng nhập và phân quyền theo vai trò. | Admin, Reader |
-| **F02** | Đăng ký tài khoản mới | Bạn đọc tự điền thông tin (Họ tên, Username, Mật khẩu, Email, SĐT) để tạo tài khoản Reader mới. Hệ thống kiểm tra trùng lặp username và lưu bền vững vào CSDL. | Reader (mới) |
-| **F03** | Đăng xuất | Xóa phiên đăng nhập khỏi bộ nhớ cục bộ, chuyển hướng về màn hình đăng nhập. | Admin, Reader |
-| **F04** | Cập nhật hồ sơ cá nhân | Bạn đọc cập nhật Họ tên, Email, SĐT, Địa chỉ, Ngày sinh của bản thân. | Reader |
-| **F05** | Đổi mật khẩu an toàn | Xác thực mật khẩu hiện tại trước khi chấp nhận mật khẩu mới. | Admin, Reader |
-| **F06** | Bảo vệ tuyến đường | Mọi đường dẫn hệ thống đều yêu cầu trạng thái đăng nhập. Người dùng chưa đăng nhập bị tự động chuyển hướng về trang Login. | Hệ thống |
+### 2.2. Quy trình Đặt trước sách (Book Reservation Queue)
+1. Khi một đầu sách có số lượng sẵn có bằng 0 (`available = 0`), nút "Mượn sách" tự động chuyển thành **"Đặt trước sách"**.
+2. Độc giả gửi yêu cầu đặt trước: Hệ thống ghi nhận vào bảng `reservations` với trạng thái `Waiting`, sắp xếp theo thứ tự ưu tiên thời gian (FIFO Priority Queue).
+3. Khi có độc giả khác trả cuốn sách đó về kho:
+   - Hệ thống không tăng ngay `available` cho công chúng mượn tự do mà tự động quét hàng đợi đặt trước.
+   - Chuyển trạng thái yêu cầu đặt trước của người đầu hàng đợi sang `Notified` (Đã thông báo), phát thông báo ưu tiên giữ sách trong vòng 48 giờ.
+   - Nếu quá 48 giờ độc giả không đến nhận, quyền mượn tự động chuyển tiếp cho người tiếp theo trong hàng đợi hoặc trả về kho chung.
 
-### 2.2. Phân hệ Quản lý Sách (CRUD)
-
-| Mã YC | Tên chức năng | Mô tả chi tiết | Vai trò |
-| :---: | :--- | :--- | :--- |
-| **F07** | Xem danh sách sách | Hiển thị danh sách sách ở hai chế độ: Lưới thẻ bìa sách (Grid) và Bảng chi tiết (Table). Phân trang tự động. | Admin, Reader |
-| **F08** | Xem chi tiết sách | Mở Modal hiển thị đầy đủ: Tựa sách, Tác giả, Thể loại, Năm XB, NXB, Số lượng kho, Tóm tắt nội dung, Hình bìa, Vị trí kệ. | Admin, Reader |
-| **F09** | Thêm sách mới | Admin nhập đầy đủ thông tin và lưu sách mới. Số lượng `available` mặc định bằng `quantity`. | Admin |
-| **F10** | Sửa thông tin sách | Admin cập nhật bất kỳ trường nào. Hệ thống tự tính lại `available = quantity - số đang mượn`. | Admin |
-| **F11** | Xóa sách | Hiển thị Modal xác nhận nội bộ. Không dùng hộp thoại trình duyệt. Chặn xóa nếu đang có sách được mượn. | Admin |
-| **F12** | Tìm kiếm sách | Tìm kiếm theo Tựa sách, Tác giả, Thể loại, Mã sách. Kết quả cập nhật tức thì khi gõ (Live Search). Kích hoạt nhanh bằng phím `/`. | Admin, Reader |
-| **F13** | Lọc và sắp xếp sách | Lọc theo thể loại, tình trạng kho (Còn/Hết); sắp xếp theo Tên A-Z, Ngày tạo mới nhất, Lượt đánh giá. | Admin, Reader |
-
-### 2.3. Phân hệ Nghiệp vụ Mượn - Trả Sách
-
-| Mã YC | Tên chức năng | Mô tả chi tiết | Vai trò |
-| :---: | :--- | :--- | :--- |
-| **F14** | Gửi yêu cầu mượn sách | Bạn đọc chọn sách → mở Modal mượn sách, chọn hình thức (Mượn về/Đọc tại chỗ) và hạn trả mong muốn. Phiếu được tạo với trạng thái `Pending`. | Reader |
-| **F15** | Chặn mượn sách hết | Nút "Mượn sách" tự động chuyển trạng thái `disabled` khi sách có `available ≤ 0`. | Hệ thống |
-| **F16** | Duyệt yêu cầu mượn | Admin bấm Duyệt → phiếu thành `Approved`, kho tự giảm `available -= 1`, sinh thông báo cho bạn đọc. | Admin |
-| **F17** | Từ chối yêu cầu mượn | Admin bấm Từ chối → phiếu thành `Rejected`, sinh thông báo lý do cho bạn đọc. | Admin |
-| **F18** | Trả sách | Bạn đọc bấm Trả sách → phiếu thành `Returned`, giao diện cập nhật ngay lập tức (0ms). | Reader |
-| **F19** | Nhận lại sách về kho | Admin xác nhận nhận sách → kho tăng `available += 1`. | Admin |
-| **F20** | Xem lịch sử mượn trả | Admin xem toàn bộ; Bạn đọc chỉ xem phiếu của mình. Lọc theo trạng thái: Tất cả / Chờ duyệt / Đang mượn / Đã trả. | Admin, Reader |
-
-### 2.4. Phân hệ Quản lý Độc giả
-
-| Mã YC | Tên chức năng | Mô tả chi tiết | Vai trò |
-| :---: | :--- | :--- | :--- |
-| **F21** | Xem danh sách độc giả | Bảng hiển thị: Mã độc giả (dạng `DG-xxx`), Họ tên, Email, SĐT, Địa chỉ, Ngày sinh. | Admin |
-| **F22** | Thêm độc giả mới | Admin thêm tài khoản bạn đọc mới, hệ thống tự cấp phát `id` tuần tự. | Admin |
-| **F23** | Sửa thông tin độc giả | Admin cập nhật toàn bộ hồ sơ bạn đọc bất kỳ. | Admin |
-| **F24** | Xóa độc giả | Kiểm tra ràng buộc: chặn xóa nếu bạn đọc đang có sách mượn hoặc phiếu chờ duyệt. Hiển thị lỗi cụ thể số sách đang mượn. | Admin |
-
-### 2.5. Phân hệ Thống kê & Báo cáo
-
-| Mã YC | Tên chức năng | Mô tả chi tiết | Vai trò |
-| :---: | :--- | :--- | :--- |
-| **F25** | Dashboard KPI thời gian thực | 4 thẻ chỉ số: Tổng sách, Đang mượn, Tổng độc giả, Chờ duyệt. Cập nhật khi có thay đổi dữ liệu. | Admin |
-| **F26** | Biểu đồ thống kê | Biểu đồ SVG tương tác: lượt mượn sách theo từng thể loại trong tháng. | Admin |
-| **F27** | Xuất báo cáo Excel | File `.xlsx` chuẩn OpenXML: Danh sách kho sách hoặc Lịch sử mượn trả toàn bộ, có màu tiêu đề, căn lề. | Admin |
-| **F28** | Xuất phiếu mượn PDF | Phiếu mượn sách chính thức tích hợp mã QR chứa thông tin định danh phiếu để tra cứu. | Admin |
-| **F29** | Xuất danh sách độc giả CSV | File `.csv` mã hóa UTF-8 BOM, tương thích hoàn hảo với Microsoft Excel không lỗi font tiếng Việt. | Admin |
-
-### 2.6. Phân hệ Trợ lý AI
-
-| Mã YC | Tên chức năng | Mô tả chi tiết | Vai trò |
-| :---: | :--- | :--- | :--- |
-| **F30** | Widget AI hỏi đáp | Nút tròn nổi góc phải màn hình, bấm mở/đóng khung chat với Thủ thư AI. | Admin, Reader |
-| **F31** | Dòng gợi ý tự động | Dòng chữ *"Bạn cần tôi giúp đỡ gì không? ✨"* tự động hiện 7 giây đầu, tự ẩn, tự hiện lại khi hover. | Admin, Reader |
-| **F32** | Giao tiếp AI | Độc giả gửi câu hỏi, AI phản hồi sau 5 giây với hoạt họa 3 dấu chấm chuyển giai đoạn tự nhiên. | Admin, Reader |
-| **F33** | Cấu hình API Key | Nút bánh răng trong tiêu đề chat mở Modal cấu hình Gemini API Key. | Admin, Reader |
-| **F34** | Smart Fallback AI | Khi không có API Key hoặc mất mạng, AI tự động dùng bộ tri thức nội bộ thư viện để trả lời. | Hệ thống |
-| **F35** | Thông báo hệ thống | Hộp thư thông báo realtime cho bạn đọc khi phiếu mượn được duyệt/từ chối. | Admin, Reader |
+### 2.3. Quy trình Trợ lý AI & Tóm tắt sách
+1. **AI Tra cứu & Tư vấn sách:** Độc giả nhập nhu cầu (ví dụ: *"Tôi muốn tìm sách rèn luyện tư duy phản biện"*). AI sử dụng danh mục kho sách hiện có (qua Prompt RAG v3) để gợi ý chính xác tối đa 5 cuốn sách có trong thư viện, trả lời súc tích $\le 300$ ký tự dưới dạng JSON.
+2. **AI Tóm tắt nội dung sách (AI Summarizer):** Tại chi tiết cuốn sách, người dùng bấm nút "AI Tóm tắt". Hệ thống phân tích nội dung, xuất ra 3 ý chính và bài học thực tiễn trong 3 giây.
 
 ---
 
-## 3. YÊU CẦU PHI CHỨC NĂNG
+## 3. YÊU CẦU CHỨC NĂNG CHI TIẾT
 
-### 3.1. Hiệu năng
-- Thao tác CRUD phản hồi giao diện trong vòng **< 500ms** (Optimistic UI Update 0ms).
-- Tìm kiếm live search cập nhật trong **< 100ms** sau mỗi ký tự gõ.
+### 3.1. Phân hệ Xác thực & Quản lý Tài khoản (Auth & Profiles)
 
-### 3.2. Độ tin cậy & Tính sẵn sàng
-- Ứng dụng **không bao giờ crash hoàn toàn**; mọi lỗi được bắt bởi `try/catch` và hiển thị thông báo lỗi thân thiện.
-- Tích hợp cơ chế **Smart Fallback** đảm bảo AI vẫn trả lời được khi mất kết nối.
+| Mã YC | Tên chức năng | Mô tả chi tiết | Quyền hạn |
+| :---: | :--- | :--- | :---: |
+| **F01** | Đăng nhập hệ thống | Xác thực tài khoản qua username/password, cấp phiên làm việc theo vai trò RBAC. | Tất cả |
+| **F02** | Đăng ký độc giả mới | Bạn đọc tự đăng ký trực tuyến; tự động kiểm tra trùng lặp username, cấp mã ID và lưu trữ bền vững. | Guest |
+| **F03** | Đăng xuất an toàn | Hủy phiên đăng nhập, xóa token/state và chuyển hướng về trang Login. | Admin, Reader |
+| **F04** | Cập nhật hồ sơ cá nhân | Độc giả tự cập nhật họ tên, số điện thoại, email, địa chỉ, ngày sinh. | Reader |
+| **F05** | Đổi mật khẩu bảo mật | Yêu cầu xác thực mật khẩu hiện tại trước khi thiết lập mật khẩu mới. | Admin, Reader |
+| **F06** | Bảo vệ tuyến đường (Guard) | Tự động chuyển hướng về trang Login nếu người dùng chưa đăng nhập cố tình truy cập link nội bộ. | Hệ thống |
 
-### 3.3. Tính bảo mật
-- Mật khẩu lưu trữ dạng băm (`SHA256 hash`), không lưu plaintext trong CSDL chính thức.
-- Kiểm tra phân quyền ở cả hai tầng: Frontend (ẩn/hiện nút) và Backend (bảo vệ endpoint API).
+### 3.2. Phân hệ Quản lý Danh mục Sách (Book Inventory CRUD)
 
-### 3.4. Tính tương thích
-- Hỗ trợ đầy đủ trên trình duyệt: **Chrome 120+, Firefox 120+, Edge 120+, Safari 17+**.
-- Hoạt động hoàn hảo trên cả máy chủ cục bộ FastAPI lẫn máy chủ tĩnh GitHub Pages.
+| Mã YC | Tên chức năng | Mô tả chi tiết | Quyền hạn |
+| :---: | :--- | :--- | :---: |
+| **F07** | Xem danh sách sách | Hiển thị 2 chế độ: Dạng lưới thẻ (Grid View) và Dạng bảng danh mục (Table View) có phân trang. | Admin, Reader |
+| **F08** | Xem chi tiết sách | Modal hiển thị bìa sách, tựa đề, tác giả, thể loại, số lượng, vị trí kệ, tóm tắt và đánh giá sao. | Admin, Reader |
+| **F09** | Thêm sách mới | Nhập thông tin sách, tự động tính `available = quantity`, lưu trữ tập trung vào CSDL. | Admin |
+| **F10** | Sửa thông tin sách | Cập nhật thông tin mục lục, tự động tính toán lại số lượng khả dụng dựa trên số đang cho mượn. | Admin |
+| **F11** | Xóa sách khỏi kho | Mở Modal xác nhận nội bộ; **chặn tuyệt đối nếu sách đang có phiếu mượn hoặc đang có người đặt trước**. | Admin |
+| **F12** | Tìm kiếm thời gian thực | Live Search toàn cục theo Tựa sách, Tác giả, Thể loại, Mã sách; kích hoạt nhanh bằng phím tắt `/`. | Admin, Reader |
+| **F13** | Lọc và sắp xếp | Lọc theo thể loại, tình trạng kho (Còn/Hết); sắp xếp theo Tên A-Z, Ngày mới nhất, Điểm đánh giá. | Admin, Reader |
 
-### 3.5. Thiết kế giao diện (UX)
-- Không sử dụng bất kỳ hộp thoại thô sơ nào của trình duyệt (`alert()`, `confirm()`, `prompt()`).
-- Thay thế 100% bằng Custom Dialog Modal với nút xác nhận và hiệu ứng làm mờ nền.
-- Toast Notification tự động ẩn sau 3.5 giây.
+### 3.3. Phân hệ Lưu thông, Mượn - Trả & Đặt trước (Circulation & Reservations)
+
+| Mã YC | Tên chức năng | Mô tả chi tiết | Quyền hạn |
+| :---: | :--- | :--- | :---: |
+| **F14** | Đăng ký mượn sách | Độc giả chọn sách còn tồn, chọn hình thức (Mượn về/Tại chỗ) và hạn trả; tạo phiếu `Pending`. | Reader |
+| **F15** | Phê duyệt yêu cầu mượn | Thủ thư bấm Duyệt: trạng thái thành `Approved`, kho tự giảm `available -= 1`, sinh thông báo. | Admin |
+| **F16** | Từ chối yêu cầu mượn | Thủ thư bấm Không duyệt: trạng thái thành `Rejected`, sinh thông báo lý do đến độc giả. | Admin |
+| **F17** | Trả sách trực tuyến | Độc giả bấm Trả sách trên cổng cá nhân, giao diện cập nhật ngay tức thì (0ms Optimistic UI). | Reader |
+| **F18** | Xác nhận nhập kho sách trả | Thủ thư xác nhận nhận lại sách, kho tăng `available += 1`, tự động kiểm tra hàng đợi đặt trước. | Admin |
+| **F19** | Gia hạn mượn sách (Renewal) | Độc giả yêu cầu gia hạn thêm 7 ngày nếu sách chưa quá hạn và chưa có độc giả khác đặt trước. | Reader |
+| **F20** | Đặt trước sách (Reservation) | Khi `available = 0`, nút mượn tự chuyển thành "Đặt trước". Độc giả vào hàng đợi chờ ưu tiên (FIFO). | Reader |
+| **F21** | Xử lý ưu tiên nhận sách | Khi sách được trả, hệ thống gửi thông báo giữ sách 48h cho người đầu danh sách đặt trước. | Hệ thống |
+| **F22** | Hủy đặt trước | Độc giả chủ động hủy yêu cầu đặt trước hoặc hệ thống tự hủy khi quá hạn 48h giữ chỗ. | Reader, System |
+| **F23** | Tra cứu lịch sử mượn trả | Phân loại phiếu: Tất cả, Chờ duyệt, Đang mượn, Đã trả; Admin xem toàn bộ, Độc giả xem của mình. | Admin, Reader |
+| **F24** | Tính phí phạt quá hạn (Fines) | Tự động tính phí phạt theo ngày quá hạn khi hoàn tất thủ tục trả sách trễ hạn quy định. | Hệ thống |
+
+### 3.4. Phân hệ Quản lý Độc giả (Reader Management)
+
+| Mã YC | Tên chức năng | Mô tả chi tiết | Quyền hạn |
+| :---: | :--- | :--- | :---: |
+| **F25** | Xem danh mục độc giả | Bảng danh sách: Mã thẻ thư viện (`DG-xxx`), Họ tên, Username, Email, SĐT, Địa chỉ, Trạng thái thẻ. | Admin |
+| **F26** | Thêm mới thẻ độc giả | Thủ thư cấp thẻ thư viện mới cho bạn đọc trực tiếp tại quầy. | Admin |
+| **F27** | Chỉnh sửa thẻ độc giả | Cập nhật thông tin liên lạc và gia hạn thời hạn hiệu lực của thẻ thư viện. | Admin |
+| **F28** | Xóa hồ sơ độc giả | Mở Modal xác nhận nội bộ; **chặn xóa nếu độc giả đang giữ sách mượn hoặc có phiếu chờ duyệt**. | Admin |
+
+### 3.5. Phân hệ Thống kê, Báo cáo & Xuất Chứng từ Số
+
+| Mã YC | Tên chức năng | Mô tả chi tiết | Quyền hạn |
+| :---: | :--- | :--- | :---: |
+| **F29** | Dashboard KPI thời gian thực | 4 thẻ chỉ số: Tổng sách, Đang mượn, Tổng độc giả, Yêu cầu chờ duyệt. Tự cập nhật khi có biến động. | Admin |
+| **F30** | Biểu đồ trực quan | Biểu đồ SVG tương tác thống kê tỷ lệ và số lượt mượn theo từng nhóm thể loại sách. | Admin |
+| **F31** | Xuất báo cáo Excel (.xlsx) | Dùng `openpyxl` xuất kho sách và lịch sử mượn trả: có màu tiêu đề, viền ô, auto-width cột. | Admin |
+| **F32** | Xuất phiếu mượn PDF kèm QR | Dùng `reportlab` xuất phiếu mượn trang trọng, nhúng mã QR Code động tra cứu qua điện thoại. | Admin |
+| **F33** | Xuất danh sách CSV tiếng Việt | Xuất tệp CSV chèn ký tự UTF-8 BOM (`\ufeff`), mở bằng Microsoft Excel Windows không lỗi font. | Admin |
+
+### 3.6. Phân hệ Trí tuệ Nhân tạo & Tương tác Bạn đọc (AI Assistant & UX)
+
+| Mã YC | Tên chức năng | Mô tả chi tiết | Quyền hạn |
+| :---: | :--- | :--- | :---: |
+| **F34** | Widget AI Chatbot nổi | Nút Bot tròn nổi góc phải màn hình, thiết kế phẳng tinh gọn, mở/đóng khung đối thoại mượt mà. | Admin, Reader |
+| **F35** | Banner gợi ý thông minh | Thông điệp *"Bạn cần tôi giúp đỡ gì không? ✨"* tự hiện 7 giây đầu, tự thu gọn và tự hiện khi hover. | Admin, Reader |
+| **F36** | Hoạt họa tư duy 5 giây | Animation 3 dấu chấm nhảy múa (bouncing dots) 5s mô phỏng nhịp điệu tra cứu tự nhiên của thủ thư. | Admin, Reader |
+| **F37** | AI RAG tư vấn kho sách | Tích hợp Prompt RAG v3: nhận diện nhu cầu, gợi ý tối đa 5 cuốn từ kho `{{book_list}}`, xuất JSON. | Admin, Reader |
+| **F38** | AI Tóm tắt nội dung sách | Nút "AI Tóm tắt" tại chi tiết sách: trích xuất 3 ý chính và bài học thực tiễn trong 3 giây. | Admin, Reader |
+| **F39** | Cơ chế Smart Fallback | Tự động chuyển sang bộ tri thức chuyên gia thư viện nội bộ khi mất mạng hoặc chưa có API Key. | Hệ thống |
+| **F40** | Hộp thư thông báo tức thì | Hộp thư thông báo realtime cập nhật kết quả duyệt mượn/trả và thông báo nhận sách đặt trước. | Admin, Reader |
 
 ---
 
-## 4. RÀNG BUỘC HỆ THỐNG
+## 4. YÊU CẦU PHI CHỨC NĂNG (NFR)
 
-### 4.1. Ràng buộc toàn vẹn dữ liệu
-- Không cho phép xóa sách khi sách đang có phiếu mượn trạng thái `Approved` hoặc `Pending`.
-- Không cho phép xóa tài khoản độc giả khi đang có sách mượn chưa trả.
-- Số lượng sách `quantity` phải là số nguyên dương >= 1.
+### 4.1. Hiệu năng & Tốc độ phản hồi (Performance)
+- Thao tác CRUD và duyệt mượn/trả áp dụng kỹ thuật **Optimistic UI Update**, phản hồi giao diện ngay lập tức (**0ms**).
+- Tìm kiếm Live Search toàn cục trả kết quả gợi ý trong vòng **< 100ms** sau mỗi ký tự gõ.
+- Quá trình xuất báo cáo Excel, PDF có mã QR và CSV hoàn tất trong vòng **< 1.5 giây**.
 
-### 4.2. Ràng buộc đầu vào
-- Tên đăng nhập không được trùng lặp trong hệ thống.
-- Tên sách và Tác giả là các trường bắt buộc khi thêm/sửa sách.
-- Họ tên và Tên đăng nhập là các trường bắt buộc khi đăng ký tài khoản.
+### 4.2. Độ tin cậy & Tính sẵn sàng (Reliability & Availability)
+- Hệ thống áp dụng nguyên lý **Lập trình phòng thủ (Defensive Programming)**: 100% lệnh gọi API và truy xuất dữ liệu được bọc trong khối `try/catch`. Ứng dụng không bao giờ bị crash trắng màn hình.
+- Cơ chế **Smart Fallback** bảo đảm tính năng Trợ lý AI luôn hoạt động ổn định kể cả khi mất kết nối mạng Internet.
+
+### 4.3. An toàn & Bảo mật Dữ liệu (Security)
+- Kiểm soát phân quyền đa tầng: Tầng Giao diện (ẩn/hiện chức năng theo vai trò) và Tầng Máy chủ (kiểm tra quyền truy cập endpoint API).
+- Mật khẩu người dùng được băm an toàn bằng thuật toán SHA-256 trước khi lưu trữ đối soát.
+
+### 4.4. Trải nghiệm Người dùng (UI/UX Excellence)
+- **Loại bỏ 100% popup thô sơ của trình duyệt (`alert/confirm`):** Thay thế bằng Custom Confirmation Modal có hiệu ứng làm mờ nền (backdrop blur) và Toast Notification tự ẩn sau 3.5 giây.
+- Giao diện phẳng tinh tế (Borderless Flat Design), can thiệp CSS `.ai-chat-input` triệt tiêu hoàn toàn viền focus xanh mặc định của trình duyệt.
 
 ---
 
-## 5. MÔI TRƯỜNG HOẠT ĐỘNG VÀ TRIỂN KHAI
+## 5. RÀNG BUỘC HỆ THỐNG & TOÀN VẸN DỮ LIỆU
 
-| Chế độ | Công nghệ | Đặc điểm |
+### 5.1. Ràng buộc Toàn vẹn Khóa ngoại (Referential Integrity)
+1. **Chặn xóa sách:** Không cho phép xóa một đầu sách nếu cuốn sách đó đang có phiếu mượn ở trạng thái `Approved` (đang mượn) hoặc `Pending` (chờ duyệt) hoặc đang có người đặt trước.
+2. **Chặn xóa độc giả:** Không cho phép xóa tài khoản độc giả nếu độc giả đó đang giữ sách chưa hoàn trả về thư viện.
+3. **Ràng buộc Tồn kho:** Số lượng tổng `quantity` phải là số nguyên dương $\ge 1$; số lượng sẵn có `available` luôn thỏa mãn: $0 \le available \le quantity$.
+
+### 5.2. Ràng buộc Nghiệp vụ Đặt trước & Mượn sách
+1. Độc giả chỉ được đặt trước sách khi và chỉ khi sách đó có `available = 0`.
+2. Mỗi độc giả chỉ được mượn tối đa 5 cuốn sách cùng lúc và chỉ được gia hạn 1 lần cho mỗi lượt mượn.
+
+---
+
+## 6. MÔI TRƯỜNG HOẠT ĐỘNG VÀ TRIỂN KHAI ĐA NỀN TẢNG
+
+| Môi trường | Công nghệ Thực thi | Đặc điểm Kỹ thuật & Vai trò |
 | :--- | :--- | :--- |
-| **Localhost (Fullstack)** | Python FastAPI + React.js | Đọc/ghi trực tiếp `data/database.json`. Hỗ trợ toàn bộ tính năng xuất file. |
-| **GitHub Pages (Static)** | React.js + LocalStorage | Tự động kích hoạt LocalStorage Sync Engine. Không cần backend. |
-| **Docker Container** | Docker Compose (Multi-stage) | Build Node.js → Runtime Python. Volume mount data để lưu bền vững. |
+| **Máy chủ Cục bộ (Localhost)** | Python 3.10+ (FastAPI) + React 18 SPA | Đọc/ghi CSDL JSON tập trung; hỗ trợ đầy đủ các module xuất tệp Excel, PDF có QR và CSV. |
+| **Nền tảng Trực tuyến (GitHub Pages)** | Client-side React SPA + LocalStorage Engine | Tự động nhận diện host tĩnh `github.io`, kích hoạt LocalStorage Sync Engine (`DB_VERSION`), hỗ trợ demo trực tiếp 100% chức năng không cần cài đặt. |
+| **Đóng gói Ảo hóa (Docker)** | Multi-stage Dockerfile + Docker Compose | Đóng gói tự động 2 tầng (Node.js 20 build React -> Python 3.11-slim chạy FastAPI); mount volume `./data:/app/data` bảo toàn dữ liệu bền vững. |
 
 ---
 
-*Tài liệu này được soạn thảo đầy đủ phản ánh hiện trạng hệ thống SmartLib phiên bản 2.0.*
-
+*Tài liệu Đặc tả Yêu cầu Phần mềm này phản ánh đầy đủ 100% các chức năng và ràng buộc kỹ thuật đã được xây dựng và kiểm chứng trong Dự án SmartLib v2.1.*
