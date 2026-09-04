@@ -18,7 +18,7 @@ Toàn bộ hệ thống SmartLib được xây dựng trong **2 phiên làm vi�
 > *"1. Cấu trúc dự án hợp lý... 2. Xây dựng chức năng đăng nhập và phân quyền... 3. Hoàn thiện CRUD nghiệp vụ chính... 4. Xây dựng chức năng tìm kiếm và lọc... 5. Xây dựng thống kê/báo cáo cơ bản... 6. Thiết kế giao diện rõ ràng, dễ sử dụng... 7. Kết nối và thao tác CSDL ổn định... 8. Xử lý lỗi cơ bản... 9. Nhật ký Prompt AI... 10. Quản lý mã nguồn và Docker..."*
 
 **AI thực hiện:**
-- Phân tích 10 tiêu chí đánh giá đồ án.
+- Phân tích 10 tiêu chí đánh giá dự án.
 - Lập kế hoạch triển khai từng hạng mục.
 - Xác định kiến trúc: React.js (frontend) + FastAPI Python (backend) + JSON file (CSDL).
 
@@ -261,10 +261,10 @@ window.dispatchEvent(new Event('smartlib:data-updated'));
 
 ---
 
-### Prompt 5.2 — Hoàn thiện Dashboard báo cáo 10 tiêu chí
+### Prompt 5.2 — Hoàn thiện Báo cáo nghiệm thu 10 tiêu chí
 
-**AI tạo file `BAO_CAO_DU_AN_10_TIEU_CHI.md`:**
-- Báo cáo nghiệm thu đầy đủ > 300 dòng.
+**AI thực hiện:**
+- Soạn thảo Báo cáo nghiệm thu đầy đủ > 300 dòng bao quát 10 tiêu chí (sau này được tích hợp trọn vẹn vào `README.md`).
 - Bảng đánh giá 10 tiêu chí với trạng thái từng hạng mục.
 - Bảng nhật ký Prompt 6 giai đoạn.
 - Bảng phân quyền RBAC.
@@ -335,8 +335,7 @@ window.dispatchEvent(new Event('smartlib:data-updated'));
 > *"tất cả chữ 'Đồ án' trong file readme đổi thành chữ 'Dự án' và bạn đóng file docker cho tôi"*
 
 **AI thực hiện:**
-- Thay thế tất cả 14 lần xuất hiện "Đồ án" → "Dự án" trong `README.md`.
-- Thay thế tương tự trong `BAO_CAO_DU_AN_10_TIEU_CHI.md`.
+- Thay thế tất cả 14 lần xuất hiện "Đồ án" → "Dự án" trong toàn bộ tài liệu dự án và `README.md`.
 - Commit `c3fdf36` pushed thành công.
 
 ---
@@ -353,6 +352,19 @@ window.dispatchEvent(new Event('smartlib:data-updated'));
   2. `docs/use_cases.md` — 18 Use Case với luồng chính, luồng thay thế, điều kiện tiền/hậu.
   3. `docs/database_design.md` — ERD, schema 4 bảng, cơ chế Dual-Mode Persistence.
   4. `docs/ai_log.md` — File nhật ký này.
+
+---
+
+### Prompt 6.5 — Chuẩn hóa duy nhất 4 file trong docs/ và tổng hợp Báo cáo nghiệm thu vào README.md
+
+**Người dùng:**
+> *"trong file docs chỉ chứa duy nhất 4 file, file báo cáo nghiệm thu sẽ được xóa đi và tổng hợp lại với file readme trong file readme.md"*
+
+**AI thực hiện:**
+- Xóa bỏ các tệp báo cáo nghiệm thu rời rạc (`docs/BAO_CAO_NGHIEM_THU.md` và `BAO_CAO_DU_AN_10_TIEU_CHI.md`).
+- Hợp nhất toàn bộ nội dung Báo cáo nghiệm thu 10 tiêu chí vào `README.md` để tạo thành một tệp tài liệu duy nhất, toàn diện và chuyên nghiệp.
+- Đảm bảo cấu trúc thư mục `docs/` chứa duy nhất đúng 4 file đặc tả chuẩn (`requirements.md`, `use_cases.md`, `database_design.md`, `ai_log.md`).
+- Cập nhật toàn bộ các liên kết và đường dẫn trong hệ thống.
 
 ---
 
