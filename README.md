@@ -1,4 +1,4 @@
-# 📚 SmartLib - Hệ Thống Quản Lý Thư Viện Thông Minh Tích Hợp Trợ Lý AI
+﻿# 📚 SmartLib - Hệ Thống Quản Lý Thư Viện Thông Minh Tích Hợp Trợ Lý AI
 ## BÁO CÁO NGHIỆM THU DỰ ÁN & HƯỚNG DẪN SỬ DỤNG HỆ THỐNG
 ### ĐÁP ỨNG TOÀN DIỆN 10 TIÊU CHÍ ĐÁNH GIÁ CHẤT LƯỢNG PHẦN MỀM
 

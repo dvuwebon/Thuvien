@@ -1,6 +1,7 @@
 # 📋 SMARTLIB — ĐẶC TẢ YÊU CẦU PHẦN MỀM (SRS)
 **Hệ thống Quản lý Thư viện Thông minh Tích hợp Trợ lý AI**
 > Phiên bản tài liệu: 2.0 | Ngày cập nhật: 04/09/2026
+> 📖 **Bộ tài liệu kỹ thuật SmartLib:** [📋 Yêu cầu (SRS)](requirements.md) | [📊 Ca sử dụng (Use Cases)](use_cases.md) | [🗄️ Thiết kế CSDL](database_design.md) | [🤖 Nhật ký Prompt AI](ai_log.md) | [🏠 Trang chủ README](../README.md)
 
 ---
 

@@ -1,6 +1,7 @@
 # 🗄️ SMARTLIB — THIẾT KẾ CƠ SỞ DỮ LIỆU
 **Hệ thống Quản lý Thư viện Thông minh — SmartLib v2.0**
 > Ngày soạn: 04/09/2026 | Định dạng CSDL: JSON File (NoSQL-style)
+> 📖 **Bộ tài liệu kỹ thuật SmartLib:** [📋 Yêu cầu (SRS)](requirements.md) | [📊 Ca sử dụng (Use Cases)](use_cases.md) | [🗄️ Thiết kế CSDL](database_design.md) | [🤖 Nhật ký Prompt AI](ai_log.md) | [🏠 Trang chủ README](../README.md)
 
 ---
 

@@ -1,6 +1,7 @@
 # 🤖 SMARTLIB — NHẬT KÝ PROMPT AI (AI Development Log)
 **Ghi chép có hệ thống quá trình kiến tạo, kiểm thử và tinh chỉnh dự án cùng Trợ lý AI**
 > Dự án: SmartLib v2.0 | Thời gian thực hiện: 03/09/2026 – 04/09/2026
+> 📖 **Bộ tài liệu kỹ thuật SmartLib:** [📋 Yêu cầu (SRS)](requirements.md) | [📊 Ca sử dụng (Use Cases)](use_cases.md) | [🗄️ Thiết kế CSDL](database_design.md) | [🤖 Nhật ký Prompt AI](ai_log.md) | [🏠 Trang chủ README](../README.md)
 
 ---
 
