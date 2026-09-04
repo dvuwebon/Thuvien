@@ -296,3 +296,4 @@ window.dispatchEvent(new Event('smartlib:data-updated'));
 ---
 
 *Tài liệu thiết kế CSDL này phản ánh chính xác schema hiện tại của SmartLib v2.0 tại file `data/database.json`.*
+

@@ -153,3 +153,4 @@ SmartLib là hệ thống quản lý thư viện trực tuyến toàn diện ph�
 ---
 
 *Tài liệu này được soạn thảo đầy đủ phản ánh hiện trạng hệ thống SmartLib phiên bản 2.0.*
+
