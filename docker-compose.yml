@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  smartlib:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: smartlib_app
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+      - ENV=production
+      - DATABASE_PATH=data/database.json
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    volumes:
+      # Mount thư mục data để CSDL database.json được lưu bền vững trên máy chủ
+      - ./data:/app/data
+    restart: unless-stopped

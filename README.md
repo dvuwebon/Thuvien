@@ -1,8 +1,9 @@
 # 📚 SmartLib - Hệ Thống Quản Lý Thư Viện Thông Minh Tích Hợp Trợ Lý AI
 
-> Dự án đồ án phần mềm được thiết kế và xây dựng theo chuẩn mực 10 tiêu chí đánh giá chất lượng phần mềm, kết hợp giữa **React.js 18** hiện đại và **Python FastAPI**, tích hợp Trợ lý Trí tuệ Nhân tạo hỗ trợ độc giả 24/7.
+> Dự án phần mềm được thiết kế và xây dựng theo chuẩn mực 10 tiêu chí đánh giá chất lượng phần mềm, kết hợp giữa **React.js 18** hiện đại và **Python FastAPI**, tích hợp Trợ lý Trí tuệ Nhân tạo hỗ trợ độc giả 24/7.
 
 [![GitHub Pages](https://img.shields.io/badge/Demo-GitHub%20Pages-blue?style=for-the-badge&logo=github)](https://dvuwebon.github.io/Thuvien/)
+[![Docker](https://img.shields.io/badge/Docker-Supported-2496ED?style=for-the-badge&logo=docker)](https://www.docker.com/)
 [![FastAPI](https://img.shields.io/badge/Backend-FastAPI-009688?style=for-the-badge&logo=fastapi)](http://localhost:3000/docs)
 [![React](https://img.shields.io/badge/Frontend-React_18-61DAFB?style=for-the-badge&logo=react)](http://localhost:3000)
 
@@ -19,7 +20,7 @@
 7. 💾 **Cơ chế lưu trữ Dual-mode bền vững**: Hoạt động hoàn hảo trên cả máy chủ cục bộ (FastAPI + JSON DB) và máy chủ tĩnh (GitHub Pages + LocalStorage Sync Engine).
 8. 🛡️ **Phòng thủ lỗi toàn diện**: Validation input, ràng buộc toàn vẹn dữ liệu, Smart AI Fallback khi mất mạng/chưa có key.
 9. 🤖 **Minh chứng ứng dụng AI khi lập trình**: Có nhật ký Prompt đầy đủ, đối chiếu code AI sinh ra và phần sinh viên tự kiểm tra, gỡ lỗi và tinh chỉnh.
-10. 📖 **Tài liệu nghiệm thu toàn diện**: Đầy đủ file [.env.example](.env.example), [BAO_CAO_DU_AN_10_TIEU_CHI.md](BAO_CAO_DU_AN_10_TIEU_CHI.md) và commit Git rõ ràng.
+10. 📖 **Tài liệu nghiệm thu toàn diện**: Đầy đủ file [.env.example](.env.example), [BAO_CAO_DU_AN_10_TIEU_CHI.md](BAO_CAO_DU_AN_10_TIEU_CHI.md), hỗ trợ đóng gói Docker và commit Git rõ ràng.
 
 ---
 
@@ -28,7 +29,29 @@
 ### 1. Trải nghiệm trực tuyến trên GitHub Pages (Không cần cài đặt)
 👉 **Truy cập ngay:** **[https://dvuwebon.github.io/Thuvien/](https://dvuwebon.github.io/Thuvien/)**
 
-### 2. Khởi chạy trên máy tính cục bộ (Localhost)
+---
+
+### 2. Khởi chạy bằng Docker / Docker Compose (Khuyên dùng)
+Yêu cầu: Đã cài đặt [Docker Desktop](https://www.docker.com/products/docker-desktop).
+
+Chỉ cần 1 lệnh duy nhất để build và chạy toàn bộ ứng dụng:
+
+```bash
+# Khởi động container ở chế độ nền
+docker compose up -d --build
+```
+
+👉 Web App: **[http://localhost:3000](http://localhost:3000)**  
+👉 Swagger API Docs: **[http://localhost:3000/docs](http://localhost:3000/docs)**  
+
+Để dừng hệ thống:
+```bash
+docker compose down
+```
+
+---
+
+### 3. Khởi chạy trên máy tính cục bộ (Python Localhost)
 Yêu cầu: Python 3.10+ đã được cài đặt.
 
 ```bash

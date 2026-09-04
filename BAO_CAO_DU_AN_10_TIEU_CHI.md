@@ -1,4 +1,4 @@
-# 📚 BÁO CÁO NGHIỆM THU ĐỒ ÁN: HỆ THỐNG QUẢN LÝ THƯ VIỆN THÔNG MINH (SMARTLIB)
+# 📚 BÁO CÁO NGHIỆM THU DỰ ÁN: HỆ THỐNG QUẢN LÝ THƯ VIỆN THÔNG MINH (SMARTLIB)
 ## ĐÁP ỨNG TOÀN DIỆN 10 TIÊU CHÍ ĐÁNH GIÁ CHẤT LƯỢNG PHẦN MỀM
 
 ---
@@ -287,7 +287,7 @@ python main.py
 ---
 
 ## KẾT LUẬN VÀ ĐÁNH GIÁ
-Đồ án **SmartLib - Hệ thống Quản lý Thư viện Thông minh** đã hoàn thành xuất sắc và đáp ứng trọn vẹn, vượt mức yêu cầu của cả **10 tiêu chí đánh giá chất lượng phần mềm**:
+DỰ ÁN **SmartLib - Hệ thống Quản lý Thư viện Thông minh** đã hoàn thành xuất sắc và đáp ứng trọn vẹn, vượt mức yêu cầu của cả **10 tiêu chí đánh giá chất lượng phần mềm**:
 1. Cấu trúc thư mục module hóa sạch sẽ, chuẩn mực.
 2. Phân quyền và xác thực người dùng an toàn, chặt chẽ.
 3. CRUD toàn bộ các thực thể sách, độc giả, mượn trả trơn tru, phản hồi tức thì.
@@ -298,3 +298,4 @@ python main.py
 8. Phòng thủ lỗi toàn diện, không để xảy ra hiện tượng crash ứng dụng.
 9. Minh chứng nhật ký ứng dụng AI đầy đủ, thể hiện năng lực làm chủ, kiểm tra và tinh chỉnh mã nguồn của sinh viên.
 10. Mã nguồn quản lý bài bản trên GitHub, có tài liệu hướng dẫn và biến môi trường mẫu chi tiết.
+
