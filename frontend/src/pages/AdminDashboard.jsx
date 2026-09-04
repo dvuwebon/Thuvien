@@ -347,6 +347,9 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
   const [bookToDelete, setBookToDelete] = useState(null);
   const [deleteBookError, setDeleteBookError] = useState('');
   const [isDeletingBook, setIsDeletingBook] = useState(false);
+  const [readerToDelete, setReaderToDelete] = useState(null);
+  const [deleteReaderError, setDeleteReaderError] = useState('');
+  const [isDeletingReader, setIsDeletingReader] = useState(false);
   const [borrowActionModal, setBorrowActionModal] = useState(null); // { type: 'approve' | 'reject', record }
   const [isProcessingBorrowAction, setIsProcessingBorrowAction] = useState(false);
   const [borrowActionError, setBorrowActionError] = useState('');
@@ -454,14 +457,26 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
     loadData();
   };
 
-  const handleDeleteReader = async (readerId) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa độc giả này?')) {
-      try {
-        await api.deleteReader(readerId);
-        loadData();
-      } catch (err) {
-        alert(err.message);
+  const handleConfirmDeleteReader = async () => {
+    if (!readerToDelete) return;
+    setIsDeletingReader(true);
+    setDeleteReaderError('');
+    try {
+      // Kiểm tra xem độc giả có sách đang mượn chưa trả không
+      const activeBorrows = (borrowRecords || []).filter(
+        b => Number(b.readerId) === Number(readerToDelete.id) && (b.status === 'Approved' || b.status === 'Pending')
+      );
+      if (activeBorrows.length > 0) {
+        throw new Error(`Không thể xóa độc giả này vì đang có ${activeBorrows.length} sách đang mượn hoặc chờ duyệt!`);
       }
+      await api.deleteReader(readerToDelete.id);
+      setReaderToDelete(null);
+      showToast('✓ Đã xóa tài khoản độc giả thành công!');
+      await loadData();
+    } catch (err) {
+      setDeleteReaderError(err.message || 'Không thể xóa độc giả này.');
+    } finally {
+      setIsDeletingReader(false);
     }
   };
 
@@ -1311,7 +1326,7 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
                               <Edit2 size={14} />
                             </button>
                             <button
-                              onClick={() => handleDeleteReader(r.id)}
+                              onClick={() => { setReaderToDelete(r); setDeleteReaderError(''); }}
                               className="btn btn-outline"
                               style={{ padding: '4px 8px', fontSize: '12px', color: '#ef4444' }}
                               title="Xóa độc giả"
@@ -1541,6 +1556,106 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
                 }}
               >
                 {isDeletingBook ? 'Đang xóa...' : 'Xác nhận xóa'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal xác nhận Xóa Độc giả (Không dùng alert/confirm trình duyệt) */}
+      {readerToDelete && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+          onClick={() => !isDeletingReader && setReaderToDelete(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '26px 28px',
+              maxWidth: '430px',
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+              textAlign: 'center'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: '54px',
+                height: '54px',
+                borderRadius: '50%',
+                background: '#fee2e2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto'
+              }}
+            >
+              <Trash2 size={28} color="#dc2626" />
+            </div>
+
+            <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: '0 0 8px 0' }}>
+              Xác nhận xóa độc giả?
+            </h3>
+
+            <p style={{ fontSize: '13.5px', color: '#64748b', lineHeight: 1.6, margin: '0 0 20px 0' }}>
+              Bạn có chắc chắn muốn xóa tài khoản độc giả <strong style={{ color: '#0f172a' }}>"{readerToDelete.fullName || readerToDelete.username}"</strong>? Thao tác này sẽ xóa hồ sơ và không thể hoàn tác.
+            </p>
+
+            {deleteReaderError && (
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  color: '#b91c1c',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  marginBottom: '16px',
+                  textAlign: 'left'
+                }}
+              >
+                {deleteReaderError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => { setReaderToDelete(null); setDeleteReaderError(''); }}
+                disabled={isDeletingReader}
+                className="btn btn-outline"
+                style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteReader}
+                disabled={isDeletingReader}
+                className="btn btn-primary"
+                style={{
+                  padding: '8px 22px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  background: '#dc2626',
+                  borderColor: '#dc2626'
+                }}
+              >
+                {isDeletingReader ? 'Đang xóa...' : 'Xác nhận xóa'}
               </button>
             </div>
           </div>
