@@ -4,7 +4,7 @@ import initialDb from '../../../data/database.json';
 const API_BASE = '/api';
 
 // Local storage fallback database helper with in-memory singleton
-const DB_VERSION = 'v9_fix_return_and_notifs_2026';
+const DB_VERSION = 'v12_github_pages_flawless_2026';
 
 // Singleton BroadcastChannel for 0ms instantaneous cross-tab synchronization
 const syncChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
@@ -149,32 +149,34 @@ export const api = {
   // Auth
   login: async (username, password) => {
     const trimmedUsername = (username || '').trim();
-    try {
-      const res = await fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: trimmedUsername, password })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // Đồng bộ người dùng vào localDb để offline / GitHub Pages cũng đăng nhập được
-        try {
-          const db = getLocalDb();
-          const existingUsers = (db.users || []).filter(
-            u => u.username && u.username.toLowerCase() !== trimmedUsername.toLowerCase()
-          );
-          existingUsers.push({ ...data.user, password });
-          db.users = existingUsers;
-          saveLocalDb(db);
-        } catch (e) {}
-        return data;
-      } else if (res.status === 401 || res.status === 400) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Tên đăng nhập hoặc mật khẩu không chính xác!');
-      }
-    } catch (e) {
-      if (e.message && e.message !== 'Failed to fetch' && !e.message.includes('NetworkError')) {
-        throw e;
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: trimmedUsername, password })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          // Đồng bộ người dùng vào localDb để offline / GitHub Pages cũng đăng nhập được
+          try {
+            const db = getLocalDb();
+            const existingUsers = (db.users || []).filter(
+              u => u.username && u.username.toLowerCase() !== trimmedUsername.toLowerCase()
+            );
+            existingUsers.push({ ...data.user, password });
+            db.users = existingUsers;
+            saveLocalDb(db);
+          } catch (e) {}
+          return data;
+        } else if (res.status === 401 || res.status === 400) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Tên đăng nhập hoặc mật khẩu không chính xác!');
+        }
+      } catch (e) {
+        if (e.message && e.message !== 'Failed to fetch' && !e.message.includes('NetworkError')) {
+          throw e;
+        }
       }
     }
 
@@ -223,41 +225,42 @@ export const api = {
 
   register: async (userData) => {
     const trimmedUsername = (userData.username || '').trim();
-    try {
-      const res = await fetch(`${API_BASE}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...userData, username: trimmedUsername })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        // LƯU NGAY VÀO LOCAL DATABASE ĐỂ OFFLINE / GITHUB PAGES CŨNG ĐỒNG BỘ
-        try {
-          const db = getLocalDb();
-          const newUser = {
-            id: data.user?.id || Date.now(),
-            UserID: data.user?.id || Date.now(),
-            ...userData,
-            username: trimmedUsername,
-            role: 'Reader',
-            Role: 'Reader'
-          };
-          db.users = [
-            ...(db.users || []).filter(u => u.username && u.username.toLowerCase() !== trimmedUsername.toLowerCase()),
-            newUser
-          ];
-          saveLocalDb(db);
-        } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...userData, username: trimmedUsername })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          try {
+            const db = getLocalDb();
+            const newUser = {
+              id: data.user?.id || Date.now(),
+              UserID: data.user?.id || Date.now(),
+              ...userData,
+              username: trimmedUsername,
+              role: 'Reader',
+              Role: 'Reader'
+            };
+            db.users = [
+              ...(db.users || []).filter(u => u.username && u.username.toLowerCase() !== trimmedUsername.toLowerCase()),
+              newUser
+            ];
+            saveLocalDb(db);
+          } catch (e) {}
 
-        notifyDataUpdated('reader');
-        return data;
-      } else if (res.status === 400) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Tên đăng nhập đã tồn tại!');
-      }
-    } catch (e) {
-      if (e.message && e.message !== 'Failed to fetch' && !e.message.includes('NetworkError')) {
-        throw e;
+          notifyDataUpdated('reader');
+          return data;
+        } else if (res.status === 400) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Tên đăng nhập đã tồn tại!');
+        }
+      } catch (e) {
+        if (e.message && e.message !== 'Failed to fetch' && !e.message.includes('NetworkError')) {
+          throw e;
+        }
       }
     }
 
@@ -282,14 +285,16 @@ export const api = {
   },
 
   updateProfile: async (userId, data) => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/profile/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) return await res.json();
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/profile/${userId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     db.users = (db.users || []).map(u => Number(u.id) === Number(userId) ? { ...u, ...data } : u);
@@ -298,14 +303,16 @@ export const api = {
   },
 
   changePassword: async (userId, currentPassword, newPassword) => {
-    try {
-      const res = await fetch(`${API_BASE}/auth/change-password/${userId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentPassword, newPassword })
-      });
-      if (res.ok) return await res.json();
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/auth/change-password/${userId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ currentPassword, newPassword })
+        });
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     db.users = (db.users || []).map(u => Number(u.id) === Number(userId) ? { ...u, password: newPassword } : u);
@@ -315,26 +322,30 @@ export const api = {
 
   // Books
   getBooks: async () => {
-    try {
-      const res = await fetch(`${API_BASE}/books`);
-      if (res.ok) return await res.json();
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/books`);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
     return getLocalDb().books || [];
   },
 
   createBook: async (bookData) => {
-    try {
-      const res = await fetch(`${API_BASE}/books`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookData)
-      });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('book');
-        return result;
-      }
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/books`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bookData)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('book');
+          return result;
+        }
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     const newId = Math.max(0, ...(db.books || []).map(b => Number(b.id) || 0)) + 1;
@@ -346,18 +357,20 @@ export const api = {
   },
 
   updateBook: async (bookId, bookData) => {
-    try {
-      const res = await fetch(`${API_BASE}/books/${bookId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(bookData)
-      });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('book');
-        return result;
-      }
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/books/${bookId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bookData)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('book');
+          return result;
+        }
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     db.books = (db.books || []).map(b => Number(b.id) === Number(bookId) ? { ...b, ...bookData } : b);
@@ -367,14 +380,16 @@ export const api = {
   },
 
   deleteBook: async (bookId) => {
-    try {
-      const res = await fetch(`${API_BASE}/books/${bookId}`, { method: 'DELETE' });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('book');
-        return result;
-      }
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/books/${bookId}`, { method: 'DELETE' });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('book');
+          return result;
+        }
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     db.books = (db.books || []).filter(b => Number(b.id) !== Number(bookId));
@@ -385,27 +400,31 @@ export const api = {
 
   // Readers
   getReaders: async () => {
-    try {
-      const res = await fetch(`${API_BASE}/readers`);
-      if (res.ok) return await res.json();
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/readers`);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
     const db = getLocalDb();
     return (db.users || []).filter(u => u.role === 'Reader');
   },
 
   createReader: async (readerData) => {
-    try {
-      const res = await fetch(`${API_BASE}/readers`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(readerData)
-      });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('reader');
-        return result;
-      }
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/readers`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(readerData)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('reader');
+          return result;
+        }
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     const newId = Math.max(0, ...(db.users || []).map(u => Number(u.id) || 0)) + 1;
@@ -417,18 +436,20 @@ export const api = {
   },
 
   updateReader: async (readerId, readerData) => {
-    try {
-      const res = await fetch(`${API_BASE}/readers/${readerId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(readerData)
-      });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('reader');
-        return result;
-      }
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/readers/${readerId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(readerData)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('reader');
+          return result;
+        }
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     db.users = (db.users || []).map(u => Number(u.id) === Number(readerId) ? { ...u, ...readerData } : u);
@@ -438,14 +459,16 @@ export const api = {
   },
 
   deleteReader: async (readerId) => {
-    try {
-      const res = await fetch(`${API_BASE}/readers/${readerId}`, { method: 'DELETE' });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('reader');
-        return result;
-      }
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/readers/${readerId}`, { method: 'DELETE' });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('reader');
+          return result;
+        }
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     db.users = (db.users || []).filter(u => Number(u.id) !== Number(readerId));
@@ -456,26 +479,30 @@ export const api = {
 
   // Borrow Records
   getBorrowRecords: async () => {
-    try {
-      const res = await fetch(`${API_BASE}/borrow-records`);
-      if (res.ok) return await res.json();
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/borrow-records`);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
     return getLocalDb().borrowRecords || [];
   },
 
   createBorrowRecord: async (data) => {
-    try {
-      const res = await fetch(`${API_BASE}/borrow-records`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('borrow');
-        return result;
-      }
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/borrow-records`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('borrow');
+          return result;
+        }
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     const newId = Math.max(0, ...(db.borrowRecords || []).map(r => Number(r.id) || 0)) + 1;
@@ -534,14 +561,16 @@ export const api = {
   },
 
   approveBorrow: async (recordId) => {
-    try {
-      const res = await fetch(`${API_BASE}/borrow-records/${recordId}/approve`, { method: 'PUT' });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('borrow');
-        return result;
-      }
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/borrow-records/${recordId}/approve`, { method: 'PUT' });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('borrow');
+          return result;
+        }
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     let approvedRec = null;
@@ -579,14 +608,16 @@ export const api = {
   },
 
   rejectBorrow: async (recordId) => {
-    try {
-      const res = await fetch(`${API_BASE}/borrow-records/${recordId}/reject`, { method: 'PUT' });
-      if (res.ok) {
-        const result = await res.json();
-        notifyDataUpdated('borrow');
-        return result;
-      }
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/borrow-records/${recordId}/reject`, { method: 'PUT' });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('borrow');
+          return result;
+        }
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     let rejectedRec = null;
@@ -754,13 +785,15 @@ export const api = {
 
   // Notifications
   getNotifications: async (role, userId) => {
-    try {
-      const params = new URLSearchParams();
-      if (role) params.append('role', role);
-      if (userId) params.append('userId', userId);
-      const res = await fetch(`${API_BASE}/notifications?${params.toString()}`);
-      if (res.ok) return await res.json();
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const params = new URLSearchParams();
+        if (role) params.append('role', role);
+        if (userId) params.append('userId', userId);
+        const res = await fetch(`${API_BASE}/notifications?${params.toString()}`);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     let notifs = db.notifications || [];
@@ -774,10 +807,12 @@ export const api = {
   },
 
   readNotification: async (notifId) => {
-    try {
-      const res = await fetch(`${API_BASE}/notifications/${notifId}/read`, { method: 'PUT' });
-      if (res.ok) return await res.json();
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/notifications/${notifId}/read`, { method: 'PUT' });
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     db.notifications = (db.notifications || []).map(n => Number(n.id) === Number(notifId) ? { ...n, isRead: true } : n);
@@ -786,14 +821,16 @@ export const api = {
   },
 
   readAllNotifications: async (role, userId) => {
-    try {
-      const res = await fetch(`${API_BASE}/notifications/read-all`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ role, userId })
-      });
-      if (res.ok) return await res.json();
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/notifications/read-all`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role, userId })
+        });
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     db.notifications = (db.notifications || []).map(n => ({ ...n, isRead: true }));
@@ -803,10 +840,12 @@ export const api = {
 
   // Stats
   getStats: async () => {
-    try {
-      const res = await fetch(`${API_BASE}/stats`);
-      if (res.ok) return await res.json();
-    } catch (e) {}
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/stats`);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
 
     const db = getLocalDb();
     const books = db.books || [];
