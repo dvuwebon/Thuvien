@@ -657,7 +657,7 @@
       "title": "Xác nhận trả sách thành công",
       "message": "Bạn đã hoàn tất trả cuốn sách \"Giáo Trình Triết Học Mác - Lênin\". Cảm ơn bạn đã giữ gìn sách cẩn thận!",
       "type": "book_returned",
-      "isRead": false,
+      "isRead": true,
       "createdAt": "2026-09-06T21:46:44.871924",
       "meta": {
         "recordId": 2,
@@ -695,7 +695,7 @@
       "title": "Xác nhận trả sách thành công",
       "message": "Bạn đã hoàn tất trả cuốn sách \"Tư Duy Mở\". Cảm ơn bạn đã giữ gìn sách cẩn thận!",
       "type": "book_returned",
-      "isRead": false,
+      "isRead": true,
       "createdAt": "2026-09-06T21:46:41.938874",
       "meta": {
         "recordId": 1,

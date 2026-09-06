@@ -194,14 +194,15 @@ function MonthlyTrendChart() {
 
 function CategoryDonutChart() {
   const categories = [
-    { name: 'Khoa học', color: '#06b6d4', percent: 22 },
-    { name: 'Kỳ ảo', color: '#8b5cf6', percent: 14 },
-    { name: 'Lịch sử', color: '#10b981', percent: 18 },
-    { name: 'Phát triển', color: '#f59e0b', percent: 18 },
-    { name: 'Tiểu thuyết', color: '#3b82f6', percent: 28 }
+    { name: 'Khoa học', color: '#06b6d4', percent: 22, count: 11 },
+    { name: 'Kỳ ảo', color: '#8b5cf6', percent: 14, count: 7 },
+    { name: 'Lịch sử', color: '#10b981', percent: 18, count: 9 },
+    { name: 'Phát triển', color: '#f59e0b', percent: 18, count: 9 },
+    { name: 'Tiểu thuyết', color: '#3b82f6', percent: 28, count: 14 }
   ];
 
   const [animProgress, setAnimProgress] = useState(0);
+  const [hoveredCat, setHoveredCat] = useState(null);
 
   useEffect(() => {
     let start = null;
@@ -239,6 +240,7 @@ function CategoryDonutChart() {
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'space-between',
+      position: 'relative',
       opacity: Math.min(1, animProgress * 1.5),
       transform: `translateY(${(1 - animProgress) * 14}px)`,
       transition: 'box-shadow 0.2s ease, border-color 0.2s ease'
@@ -264,6 +266,8 @@ function CategoryDonutChart() {
             const strokeOffset = -((accumulatedPercent / 100) * circumference) - 2;
             accumulatedPercent += currentCatPercent;
 
+            const isHovered = hoveredCat === i;
+
             return (
               <circle
                 key={i}
@@ -272,42 +276,91 @@ function CategoryDonutChart() {
                 r={radius}
                 fill="transparent"
                 stroke={cat.color}
-                strokeWidth={strokeWidth}
+                strokeWidth={isHovered ? strokeWidth + 4 : strokeWidth}
                 strokeDasharray={`${strokeLength} ${circumference}`}
                 strokeDashoffset={strokeOffset}
-                style={{ transition: 'stroke-dasharray 0.1s linear, stroke-dashoffset 0.1s linear', cursor: 'pointer' }}
+                opacity={hoveredCat === null || isHovered ? 1 : 0.4}
+                onMouseEnter={() => setHoveredCat(i)}
+                onMouseLeave={() => setHoveredCat(null)}
+                style={{
+                  transition: 'stroke-width 0.2s ease, opacity 0.2s ease, stroke-dasharray 0.1s linear',
+                  cursor: 'pointer'
+                }}
               >
-                <title>{cat.name}: {cat.percent}%</title>
+                <title>{cat.name}: {cat.count} cuốn ({cat.percent}%)</title>
               </circle>
             );
           })}
         </svg>
 
-        {/* Số % tổng tâm vòng tròn chuyển động lớn dần */}
-        <div style={{
-          position: 'absolute',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          pointerEvents: 'none',
-          opacity: animProgress,
-          transform: `scale(${0.6 + 0.4 * animProgress})`
-        }}>
-          <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
-            {Math.round(100 * animProgress)}%
-          </span>
-          <span style={{ fontSize: '9.5px', fontWeight: 600, color: '#94a3b8', marginTop: '2px' }}>
-            Tỉ lệ
-          </span>
-        </div>
+        {/* Khi di chuột vào từng phần: Hiện số sách và thể loại tương ứng ở tâm */}
+        {hoveredCat !== null && (
+          <div style={{
+            position: 'absolute',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none',
+            textAlign: 'center',
+            zIndex: 5
+          }}>
+            <span style={{ fontSize: '18px', fontWeight: 800, color: categories[hoveredCat].color, lineHeight: 1 }}>
+              {categories[hoveredCat].count} cuốn
+            </span>
+            <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#475569', marginTop: '3px' }}>
+              {categories[hoveredCat].name} ({categories[hoveredCat].percent}%)
+            </span>
+          </div>
+        )}
+
+        {/* Tooltip nổi bật khi di chuột */}
+        {hoveredCat !== null && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '-8px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: '#0f172a',
+              color: '#ffffff',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              fontSize: '11px',
+              fontWeight: 600,
+              pointerEvents: 'none',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              whiteSpace: 'nowrap',
+              zIndex: 10
+            }}
+          >
+            {categories[hoveredCat].name}: {categories[hoveredCat].count} cuốn ({categories[hoveredCat].percent}%)
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 12px', marginTop: '8px', opacity: animProgress }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px 10px', marginTop: '8px', opacity: animProgress }}>
         {categories.map((cat, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 500, color: '#475569' }}>
+          <div
+            key={i}
+            onMouseEnter={() => setHoveredCat(i)}
+            onMouseLeave={() => setHoveredCat(null)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+              fontSize: '11px',
+              fontWeight: hoveredCat === i ? 700 : 500,
+              color: hoveredCat === i ? '#0f172a' : '#475569',
+              cursor: 'pointer',
+              padding: '2px 6px',
+              borderRadius: '6px',
+              background: hoveredCat === i ? '#f1f5f9' : 'transparent',
+              transition: 'all 0.15s ease'
+            }}
+          >
             <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: cat.color, display: 'inline-block' }} />
-            <span>{cat.name}</span>
+            <span>{cat.name} ({cat.count})</span>
           </div>
         ))}
       </div>
