@@ -32,6 +32,11 @@ export default function NotificationDropdown({ isOpen, onClose }) {
   useEffect(() => {
     if (isOpen) {
       loadBorrows();
+      const handleUpdate = () => {
+        loadBorrows();
+      };
+      window.addEventListener('smartlib:data-updated', handleUpdate);
+      return () => window.removeEventListener('smartlib:data-updated', handleUpdate);
     }
   }, [isOpen, role]);
 

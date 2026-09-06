@@ -83,8 +83,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     };
     window.addEventListener('storage', handleStorageUpdate);
 
-    // 3. Polling ngầm mỗi 2.5s để cập nhật ngay khi Admin duyệt mà không cần F5
-    const interval = setInterval(() => loadData(true), 2500);
+    // 3. Polling ngầm mỗi 1.5s để cập nhật ngay khi Admin duyệt mà không cần F5
+    const interval = setInterval(() => loadData(true), 1500);
 
     return () => {
       window.removeEventListener('smartlib:data-updated', handleDataUpdate);

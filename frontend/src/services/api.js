@@ -6,19 +6,46 @@ const API_BASE = '/api';
 // Local storage fallback database helper with in-memory singleton
 const DB_VERSION = 'v9_fix_return_and_notifs_2026';
 
+// Singleton BroadcastChannel for 0ms instantaneous cross-tab synchronization
+const syncChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
+  ? new BroadcastChannel('smartlib_realtime_sync')
+  : null;
+
 let memoryDb = null;
+let memoryDbTimestamp = 0;
+
+if (syncChannel && typeof window !== 'undefined') {
+  syncChannel.onmessage = (event) => {
+    // Invalidate in-memory database cache so next read loads latest data from localStorage
+    memoryDb = null;
+    memoryDbTimestamp = 0;
+    window.dispatchEvent(new CustomEvent('smartlib:data-updated', { detail: event.data }));
+  };
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'smartlib_db' || e.key === 'smartlib_db_timestamp' || e.key === 'smartlib_last_update') {
+      memoryDb = null;
+      memoryDbTimestamp = 0;
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated', { detail: { type: 'storage' } }));
+    }
+  });
+}
 
 const isStaticHost = typeof window !== 'undefined' && (
   window.location.hostname.includes('github.io') ||
   window.location.protocol === 'file:'
 );
 
-const getLocalDb = () => {
-  if (memoryDb) {
-    return memoryDb;
-  }
-
+const getLocalDb = (forceFresh = false) => {
   try {
+    const storedTime = Number(localStorage.getItem('smartlib_db_timestamp') || 0);
+    // If cache is valid and no external update occurred, return memoryDb
+    if (!forceFresh && memoryDb && storedTime > 0 && storedTime === memoryDbTimestamp) {
+      return memoryDb;
+    }
+
     const savedVersion = localStorage.getItem('smartlib_db_version');
     const raw = localStorage.getItem('smartlib_db');
     if (raw && savedVersion === DB_VERSION) {
@@ -33,6 +60,7 @@ const getLocalDb = () => {
           };
         });
         memoryDb = parsed;
+        memoryDbTimestamp = storedTime;
         return memoryDb;
       }
     }
@@ -73,8 +101,11 @@ const getLocalDb = () => {
 
 const saveLocalDb = (db) => {
   memoryDb = db;
+  const now = Date.now();
+  memoryDbTimestamp = now;
   try {
     localStorage.setItem('smartlib_db_version', DB_VERSION);
+    localStorage.setItem('smartlib_db_timestamp', String(now));
     // Để không bao giờ bị tràn quota LocalStorage (5MB limit, trong khi ảnh base64 chiếm 1.25MB),
     // chúng ta lưu phiên bản nhẹ của books (ảnh được lấy từ bundle initialDb)
     const lightDb = {
@@ -91,14 +122,26 @@ const saveLocalDb = (db) => {
 };
 
 // Global Real-time Data Synchronization Broadcaster
-export const notifyDataUpdated = (type = 'all') => {
+export const notifyDataUpdated = (type = 'all', meta = {}) => {
   if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('smartlib:data-updated', { detail: { type, timestamp: Date.now() } }));
+    const payload = { type, timestamp: Date.now(), meta };
+    
+    // Invalidate local memory cache immediately
+    memoryDb = null;
+    memoryDbTimestamp = 0;
+
+    // 1. Dispatch custom event for current window
+    window.dispatchEvent(new CustomEvent('smartlib:data-updated', { detail: payload }));
+    
+    // 2. BroadcastChannel to all other tabs (0ms instant event)
     try {
-      localStorage.setItem('smartlib_last_update', JSON.stringify({ type, timestamp: Date.now() }));
-    } catch (e) {
-      // ignore
-    }
+      syncChannel?.postMessage(payload);
+    } catch (e) {}
+    
+    // 3. Storage event fallback for other windows
+    try {
+      localStorage.setItem('smartlib_last_update', JSON.stringify(payload));
+    } catch (e) {}
   }
 };
 

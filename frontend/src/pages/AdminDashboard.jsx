@@ -411,8 +411,8 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
     };
     window.addEventListener('storage', handleStorageUpdate);
 
-    // 3. Polling ngầm mỗi 2.5s đảm bảo dữ liệu luôn mới nhất
-    const interval = setInterval(() => loadData(true), 2500);
+    // 3. Polling ngầm mỗi 1.5s đảm bảo dữ liệu luôn mới nhất
+    const interval = setInterval(() => loadData(true), 1500);
 
     return () => {
       window.removeEventListener('smartlib:data-updated', handleDataUpdate);
