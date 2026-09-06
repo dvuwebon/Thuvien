@@ -76,6 +76,7 @@ export default function App() {
       loadBooks();
     } catch (e) {
       console.error('Lỗi mượn sách App:', e);
+      throw e;
     }
   };
 

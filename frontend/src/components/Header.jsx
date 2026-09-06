@@ -117,7 +117,7 @@ export default function Header({ activeTab, onTabChange, onOpenExport }) {
               />
             )}
           </button>
-          <NotificationDropdown isOpen={showNotifs} onClose={() => setShowNotifs(false)} />
+          <NotificationDropdown isOpen={showNotifs} onClose={() => setShowNotifs(false)} align="right" />
         </div>
 
         {/* User Profile Menu */}

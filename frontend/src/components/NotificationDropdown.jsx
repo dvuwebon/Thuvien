@@ -7,7 +7,7 @@ import {
   MessageSquare, Check, X
 } from 'lucide-react';
 
-export default function NotificationDropdown({ isOpen, onClose }) {
+export default function NotificationDropdown({ isOpen, onClose, align = 'left' }) {
   const { notifications, unreadCount, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
   const { role } = useAuth();
   const dropdownRef = useRef(null);
@@ -109,7 +109,7 @@ export default function NotificationDropdown({ isOpen, onClose }) {
         style={{
           position: 'absolute',
           top: 'calc(100% + 8px)',
-          left: 0,
+          ...(align === 'right' ? { right: 0 } : { left: 0 }),
           width: '360px',
           maxWidth: '92vw',
           background: '#ffffff',
