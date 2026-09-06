@@ -1,8 +1,30 @@
-import React from 'react';
-import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2, Download } from 'lucide-react';
+import QRCode from 'qrcode';
 import { exportApi } from '../services/exportApi';
 
 export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin }) {
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
+
+  useEffect(() => {
+    if (book) {
+      const qrPayload = `SMARTLIB-BOOK-ID:${book.id}|${book.title}|Tác giả:${book.author || 'Chưa rõ'}|Thể loại:${book.category || 'Khác'}`;
+      QRCode.toDataURL(qrPayload, {
+        width: 220,
+        margin: 1,
+        color: {
+          dark: '#1e40af',
+          light: '#ffffff'
+        }
+      })
+        .then(url => setQrCodeDataUrl(url))
+        .catch(err => {
+          console.error('Lỗi tạo mã QR client-side:', err);
+          setQrCodeDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrPayload)}`);
+        });
+    }
+  }, [book]);
+
   if (!isOpen || !book) return null;
 
   const qty = Number(book.quantity) || 1;
@@ -45,16 +67,46 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
               </div>
 
               {/* QR Code */}
-              <div style={{ marginTop: '16px', textAlign: 'center', background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <img
-                  src={exportApi.getBookQrUrl(book.id)}
-                  alt="QR Code"
-                  style={{ width: '90px', height: '90px', margin: '0 auto', display: 'block' }}
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, display: 'block', marginTop: '4px' }}>
+              <div style={{ marginTop: '16px', textAlign: 'center', background: '#f8fafc', padding: '12px 10px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                <div style={{ background: '#ffffff', padding: '6px', borderRadius: '8px', display: 'inline-block', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
+                  {qrCodeDataUrl ? (
+                    <img
+                      src={qrCodeDataUrl}
+                      alt={`Mã QR Sách #${book.id}`}
+                      style={{ width: '96px', height: '96px', display: 'block' }}
+                    />
+                  ) : (
+                    <div style={{ width: '96px', height: '96px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                      <QrCode size={36} />
+                    </div>
+                  )}
+                </div>
+                <span style={{ fontSize: '11.5px', color: '#0f172a', fontWeight: 700, display: 'block', marginTop: '6px' }}>
                   Mã QR Sách #{book.id}
                 </span>
+                {qrCodeDataUrl && (
+                  <a
+                    href={qrCodeDataUrl}
+                    download={`SmartLib_QR_Sach_${book.id}.png`}
+                    style={{
+                      fontSize: '11px',
+                      color: '#2563eb',
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      marginTop: '4px',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      background: '#eff6ff'
+                    }}
+                    title="Nhấp để tải ảnh mã QR (PNG) về máy"
+                  >
+                    <Download size={11} /> Tải mã QR
+                  </a>
+                )}
               </div>
             </div>
 

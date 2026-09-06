@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, Star, StarHalf } from 'lucide-react';
+import { BookOpen, Star, StarHalf, QrCode } from 'lucide-react';
 
 // Hệ thống tự động đánh giá số sao cho từng cuốn sách (từ 3.5 đến 5.0 sao)
 function getSystemRating(book) {
@@ -243,16 +243,35 @@ export default function BookCard({ book, onSelect, onBorrow, isAdmin }) {
             </span>
           </div>
 
-          <span
-            style={{
-              color: '#2563eb',
-              fontWeight: 700,
-              fontSize: '12px',
-              letterSpacing: '0.2px'
-            }}
-          >
-            Xem »
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '2.5px',
+                color: '#0f766e',
+                background: '#f0fdfa',
+                border: '1px solid #ccfbf1',
+                padding: '2px 5px',
+                borderRadius: '4px',
+                fontSize: '10.5px',
+                fontWeight: 700
+              }}
+              title={`Mã QR Sách #${book.id}`}
+            >
+              <QrCode size={11} /> QR
+            </span>
+            <span
+              style={{
+                color: '#2563eb',
+                fontWeight: 700,
+                fontSize: '12px',
+                letterSpacing: '0.2px'
+              }}
+            >
+              Xem »
+            </span>
+          </div>
         </div>
       </div>
     </div>

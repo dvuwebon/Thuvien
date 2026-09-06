@@ -10,7 +10,7 @@ import ExportReportModal from '../components/ExportReportModal';
 import {
   BookOpen, Users, Clock, AlertTriangle, CheckCircle, Search, Plus,
   FileSpreadsheet, Filter, Grid, List, Check, X, Printer, Edit2, Trash2, BookMarked, Eye,
-  TrendingUp, BookmarkCheck, XCircle
+  TrendingUp, BookmarkCheck, XCircle, QrCode
 } from 'lucide-react';
 
 const getReaderCode = (id) => {
@@ -1421,6 +1421,16 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
                                     <BookMarked size={13} /> Cho mượn
                                   </button>
                                 )}
+
+                                {/* Nút Xem / Tải mã QR */}
+                                <button
+                                  onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                  className="btn btn-outline"
+                                  style={{ padding: '4px 10px', fontSize: '12px', color: '#0f766e', borderColor: '#99f6e4', background: '#f0fdfa', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                  title="Xem và tải mã QR của cuốn sách này"
+                                >
+                                  <QrCode size={13} /> Mã QR
+                                </button>
 
                                 {/* Nút Chỉnh sửa */}
                                 <button
