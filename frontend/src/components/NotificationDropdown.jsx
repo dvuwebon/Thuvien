@@ -128,8 +128,25 @@ export default function NotificationDropdown({ isOpen, onClose }) {
           </div>
           {unreadCount > 0 && (
             <button
-              onClick={markAllAsRead}
-              style={{ border: 'none', background: 'none', color: '#2563eb', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                markAllAsRead();
+              }}
+              style={{
+                border: 'none',
+                background: '#eff6ff',
+                color: '#2563eb',
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = '#eff6ff'; }}
+              title="Đánh dấu tất cả thông báo là đã đọc"
             >
               Đọc tất cả
             </button>

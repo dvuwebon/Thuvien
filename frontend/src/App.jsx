@@ -71,8 +71,12 @@ export default function App() {
   };
 
   const handleBorrowRequest = async (formData) => {
-    await api.createBorrowRecord(formData);
-    loadBooks();
+    try {
+      await api.createBorrowRecord(formData);
+      loadBooks();
+    } catch (e) {
+      console.error('Lỗi mượn sách App:', e);
+    }
   };
 
   return (

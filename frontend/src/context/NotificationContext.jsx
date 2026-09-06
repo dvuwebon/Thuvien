@@ -148,20 +148,22 @@ export const NotificationProvider = ({ children }) => {
   }, [liveToast]);
 
   const markAsRead = async (notifId) => {
+    // Cập nhật giao diện tức thì (0ms latency)
+    setNotifications(prev => prev.map(n => Number(n.id) === Number(notifId) ? { ...n, isRead: true } : n));
+    setUnreadCount(prev => Math.max(0, prev - 1));
     try {
       await api.readNotification(notifId);
-      setNotifications(prev => prev.map(n => n.id === notifId ? { ...n, isRead: true } : n));
-      setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (e) {
       console.error('Lỗi markAsRead:', e);
     }
   };
 
   const markAllAsRead = async () => {
+    // Cập nhật giao diện tức thì (0ms latency)
+    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    setUnreadCount(0);
     try {
       await api.readAllNotifications(role, user ? user.id : null);
-      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
-      setUnreadCount(0);
     } catch (e) {
       console.error('Lỗi markAllAsRead:', e);
     }

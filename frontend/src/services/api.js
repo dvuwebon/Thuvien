@@ -489,32 +489,58 @@ export const api = {
   },
 
   createBorrowRecord: async (data) => {
+    const db = getLocalDb();
+    const targetBook = (db.books || []).find(b => Number(b.id) === Number(data.bookId));
+    const finalBookTitle = data.bookTitle || targetBook?.title || 'Sách thư viện';
+    const finalReaderName = data.readerName || 'Trần Thị Mai';
+    const finalReaderId = Number(data.readerId || data.userId || 2);
+    const enrichedData = {
+      ...data,
+      bookId: Number(data.bookId),
+      bookTitle: finalBookTitle,
+      readerId: finalReaderId,
+      userId: finalReaderId,
+      readerName: finalReaderName
+    };
+
     if (!isStaticHost) {
       try {
         const res = await fetch(`${API_BASE}/borrow-records`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data)
+          body: JSON.stringify(enrichedData)
         });
         if (res.ok) {
           const result = await res.json();
+          const localRecord = result.record || {
+            id: result.id || Date.now(),
+            bookId: enrichedData.bookId,
+            bookTitle: finalBookTitle,
+            readerId: finalReaderId,
+            readerName: finalReaderName,
+            borrowDate: new Date().toISOString(),
+            returnDate: new Date(Date.now() + 14 * 86400000).toISOString().substring(0, 10),
+            borrowType: data.borrowType || 'Mượn về nhà',
+            status: 'Chờ duyệt'
+          };
+          db.borrowRecords = [localRecord, ...(db.borrowRecords || []).filter(r => Number(r.id) !== Number(localRecord.id))];
+          saveLocalDb(db);
           notifyDataUpdated('borrow');
           return result;
         }
       } catch (e) {}
     }
 
-    const db = getLocalDb();
     const newId = Math.max(0, ...(db.borrowRecords || []).map(r => Number(r.id) || 0)) + 1;
     const now = new Date();
     const returnD = new Date();
     returnD.setDate(now.getDate() + 14);
     const newRecord = {
       id: newId,
-      bookId: data.bookId,
-      bookTitle: data.bookTitle,
-      readerId: data.readerId || 2,
-      readerName: data.readerName || 'Trần Thị Mai',
+      bookId: enrichedData.bookId,
+      bookTitle: finalBookTitle,
+      readerId: finalReaderId,
+      readerName: finalReaderName,
       borrowDate: now.toISOString(),
       returnDate: returnD.toISOString().substring(0, 10),
       borrowType: data.borrowType || 'Mượn về nhà',
@@ -529,13 +555,13 @@ export const api = {
       {
         id: notifId1,
         recipientRole: 'Reader',
-        recipientUserId: newRecord.readerId || 2,
+        recipientUserId: finalReaderId,
         title: 'Yêu cầu mượn sách đang chờ duyệt',
-        message: `Yêu cầu mượn cuốn sách "${newRecord.bookTitle}" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.`,
+        message: `Yêu cầu mượn cuốn sách "${finalBookTitle}" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.`,
         type: 'borrow_request',
         recordId: newId,
-        bookId: data.bookId,
-        bookTitle: data.bookTitle,
+        bookId: enrichedData.bookId,
+        bookTitle: finalBookTitle,
         isRead: false,
         createdAt: now.toISOString()
       },
@@ -543,12 +569,12 @@ export const api = {
         id: notifId2,
         recipientRole: 'Admin',
         title: 'Yêu cầu mượn sách mới',
-        message: `Độc giả ${newRecord.readerName} vừa gửi yêu cầu mượn cuốn sách "${newRecord.bookTitle}" (${newRecord.borrowType}).`,
+        message: `Độc giả ${finalReaderName} vừa gửi yêu cầu mượn cuốn sách "${finalBookTitle}" (${newRecord.borrowType}).`,
         type: 'borrow_request',
         recordId: newId,
-        bookId: data.bookId,
-        bookTitle: data.bookTitle,
-        readerName: newRecord.readerName,
+        bookId: enrichedData.bookId,
+        bookTitle: finalBookTitle,
+        readerName: finalReaderName,
         isRead: false,
         createdAt: now.toISOString()
       },
@@ -809,32 +835,40 @@ export const api = {
   readNotification: async (notifId) => {
     if (!isStaticHost) {
       try {
-        const res = await fetch(`${API_BASE}/notifications/${notifId}/read`, { method: 'PUT' });
-        if (res.ok) return await res.json();
+        await fetch(`${API_BASE}/notifications/${notifId}/read`, { method: 'PUT' });
       } catch (e) {}
     }
 
     const db = getLocalDb();
     db.notifications = (db.notifications || []).map(n => Number(n.id) === Number(notifId) ? { ...n, isRead: true } : n);
     saveLocalDb(db);
+    notifyDataUpdated('notification');
     return { success: true };
   },
 
   readAllNotifications: async (role, userId) => {
     if (!isStaticHost) {
       try {
-        const res = await fetch(`${API_BASE}/notifications/read-all`, {
+        await fetch(`${API_BASE}/notifications/read-all`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role, userId })
+          body: JSON.stringify({ role, userId: userId ? Number(userId) : null })
         });
-        if (res.ok) return await res.json();
       } catch (e) {}
     }
 
     const db = getLocalDb();
-    db.notifications = (db.notifications || []).map(n => ({ ...n, isRead: true }));
+    db.notifications = (db.notifications || []).map(n => {
+      if (!role || n.recipientRole === role) {
+        if (role === 'Reader' && userId && n.recipientUserId != null) {
+          if (Number(n.recipientUserId) !== Number(userId)) return n;
+        }
+        return { ...n, isRead: true };
+      }
+      return n;
+    });
     saveLocalDb(db);
+    notifyDataUpdated('notification');
     return { success: true };
   },
 

@@ -365,9 +365,8 @@ def create_borrow_record(req: BorrowRequestCreate):
     users = db.get("users", [])
     records = db.get("borrowRecords", [])
 
-    book = next((b for b in books if int(b.get("id", 0)) == req.bookId), None)
-    if not book:
-        raise HTTPException(status_code=404, detail="Không tìm thấy sách.")
+    book = next((b for b in books if b.get("id") is not None and int(b.get("id")) == int(req.bookId)), None)
+    book_title = book["title"] if book else (req.bookTitle or "Sách thư viện")
 
     b_type = "Mượn tại thư viện" if req.borrowType == "Mượn tại thư viện" else "Mượn về nhà"
     init_status = req.status or "Chờ duyệt"
@@ -378,9 +377,10 @@ def create_borrow_record(req: BorrowRequestCreate):
     else:
         due_date = now + timedelta(days=14)
 
+    target_user_id = req.readerId or req.userId
     target_user = None
-    if req.userId:
-        target_user = next((u for u in users if int(u.get("id", 0)) == req.userId), None)
+    if target_user_id:
+        target_user = next((u for u in users if u.get("id") is not None and int(u.get("id")) == int(target_user_id)), None)
     if not target_user and req.readerName:
         target_user = next((u for u in users if u.get("fullName", "").lower() == req.readerName.strip().lower()), None)
     if not target_user:
@@ -390,7 +390,7 @@ def create_borrow_record(req: BorrowRequestCreate):
     new_record = {
         "id": new_id,
         "bookId": req.bookId,
-        "bookTitle": book["title"],
+        "bookTitle": book_title,
         "readerId": target_user["id"],
         "readerName": target_user["fullName"],
         "borrowDate": now.isoformat(),
@@ -405,9 +405,9 @@ def create_borrow_record(req: BorrowRequestCreate):
     db_manager.add_notification(
         recipient_role="Admin",
         title="Yêu cầu mượn sách mới",
-        message=f"Độc giả {target_user['fullName']} vừa gửi yêu cầu mượn cuốn sách \"{book['title']}\" ({b_type}).",
+        message=f"Độc giả {target_user['fullName']} vừa gửi yêu cầu mượn cuốn sách \"{book_title}\" ({b_type}).",
         notif_type="borrow_request",
-        meta={"recordId": new_id, "bookId": req.bookId, "bookTitle": book["title"], "readerName": target_user["fullName"]}
+        meta={"recordId": new_id, "bookId": req.bookId, "bookTitle": book_title, "readerName": target_user["fullName"]}
     )
 
     return {"message": "Đã gửi yêu cầu mượn sách thành công!", "record": new_record}
@@ -572,8 +572,11 @@ def read_all_notifications(req: NotificationReadRequest):
     notifs = db.get("notifications", [])
     for n in notifs:
         if not req.role or n.get("recipientRole") == req.role:
-            if req.role != "Reader" or not req.userId or int(n.get("recipientUserId", 0)) == req.userId:
-                n["isRead"] = True
+            if req.role == "Reader":
+                rec_id = n.get("recipientUserId")
+                if req.userId and rec_id is not None and int(rec_id) != req.userId:
+                    continue
+            n["isRead"] = True
     db_manager.save_db(db)
     return {"message": "OK"}
 

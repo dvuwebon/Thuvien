@@ -52,11 +52,16 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       
       // Filter borrows for current logged-in reader
       if (user) {
-        const myFiltered = (brRes || []).filter(r => 
-          (r.readerId && Number(r.readerId) === Number(user.id)) ||
-          (r.readerName && user.fullName && r.readerName.toLowerCase() === user.fullName.toLowerCase()) ||
-          (user?.username && r.readerName && r.readerName.toLowerCase() === user.username.toLowerCase())
-        );
+        const uId = user.id ? Number(user.id) : 2;
+        const uName = (user.fullName || '').toLowerCase().trim();
+        const uUsername = (user.username || '').toLowerCase().trim();
+        const myFiltered = (brRes || []).filter(r => {
+          const rId = r.readerId ? Number(r.readerId) : null;
+          const rName = (r.readerName || '').toLowerCase().trim();
+          return (rId && rId === uId) ||
+                 (uName && rName && rName === uName) ||
+                 (uUsername && rName && rName === uUsername);
+        });
         setMyBorrows(myFiltered);
       }
     } catch (e) {
@@ -126,8 +131,15 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   };
 
   const handleBorrowRequest = async (formData) => {
-    await api.createBorrowRecord(formData);
-    loadData();
+    try {
+      await api.createBorrowRecord(formData);
+      showToast(`✓ Đã gửi yêu cầu mượn cuốn sách "${formData.bookTitle || 'sách'}" thành công!`);
+      await loadData(true);
+    } catch (err) {
+      console.error('Lỗi gửi yêu cầu mượn:', err);
+      showToast(err.message || 'Lỗi khi gửi yêu cầu mượn sách');
+      await loadData(true);
+    }
   };
 
   const handleConfirmReturn = async () => {

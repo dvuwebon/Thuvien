@@ -32,6 +32,7 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, book, readers,
         const firstR = readers && readers.length > 0 ? readers[0] : null;
         setFormData({
           bookId: book.id,
+          bookTitle: book.title,
           readerId: firstR ? firstR.id : null,
           readerCode: firstR ? formatReaderCode(firstR.id) : 'DG-001',
           readerName: firstR ? firstR.fullName : '',
@@ -42,14 +43,18 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, book, readers,
           status: 'Đang mượn' // Admin creates borrow directly approved
         });
       } else {
+        const defaultName = (user?.fullName && user.fullName !== 'Độc giả') 
+          ? user.fullName 
+          : (user?.username === 'reader' ? 'Trần Thị Mai' : (user?.fullName || user?.username || 'Trần Thị Mai'));
         setFormData({
           bookId: book.id,
-          readerId: user ? user.id : null,
+          bookTitle: book.title,
+          readerId: user ? user.id : 2,
           readerCode: user ? formatReaderCode(user.id) : 'DG-001',
-          readerName: user ? (user.fullName || user.username) : '',
-          phone: user ? (user.phone || '') : '',
-          email: user ? (user.email || '') : '',
-          address: user ? (user.address || '') : '',
+          readerName: defaultName,
+          phone: user?.phone || '0901 234 567',
+          email: user?.email || 'mai.tran@smartlib.edu.vn',
+          address: user?.address || 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội',
           borrowType: 'Mượn về nhà',
           status: 'Chờ duyệt'
         });
@@ -83,15 +88,18 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, book, readers,
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.readerName.trim()) {
-      setError('Vui lòng nhập tên độc giả mượn sách.');
-      return;
-    }
-
+    const finalName = (formData.readerName || '').trim() || (user?.fullName || 'Trần Thị Mai');
     setLoading(true);
     setError('');
     try {
-      await onConfirm(formData);
+      const payload = {
+        ...formData,
+        bookId: Number(book.id),
+        bookTitle: book.title,
+        readerName: finalName,
+        readerId: Number(formData.readerId || user?.id || 2)
+      };
+      await onConfirm(payload);
       setIsSuccess(true);
     } catch (err) {
       setError(err.message || 'Lỗi khi gửi yêu cầu mượn sách');
@@ -200,6 +208,20 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, book, readers,
                   }}
                 />
               </div>
+
+              {!isAdmin && (
+                <div className="form-group">
+                  <label>Họ và tên độc giả *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.readerName}
+                    onChange={(e) => setFormData({ ...formData, readerName: e.target.value })}
+                    placeholder="Họ và tên..."
+                    style={{ fontWeight: 600 }}
+                  />
+                </div>
+              )}
 
               <div className="form-group">
                 <label>Số điện thoại</label>

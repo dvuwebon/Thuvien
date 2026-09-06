@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field
 from typing import Optional, List, Any
 from datetime import datetime
 
@@ -61,7 +61,9 @@ class ReaderUpdate(BaseModel):
 class BorrowRequestCreate(BaseModel):
     bookId: int
     userId: Optional[int] = None
+    readerId: Optional[int] = None
     readerName: Optional[str] = None
+    bookTitle: Optional[str] = None
     phone: Optional[str] = None
     email: Optional[str] = None
     address: Optional[str] = None
