@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
 import { exportApi } from '../services/exportApi';
 import BookCard from '../components/BookCard';
@@ -332,6 +332,20 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
   const [borrowSearch, setBorrowSearch] = useState('');
   const [readerSearch, setReaderSearch] = useState('');
 
+  // Refs for smooth scroll to tables
+  const borrowTableRef = useRef(null);
+  const booksTableRef = useRef(null);
+
+  const handleFilterAndScrollBorrows = (status) => {
+    setBorrowStatusFilter(status);
+    setTimeout(() => {
+      const target = borrowTableRef.current || document.getElementById('borrow-records-table');
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 50);
+  };
+
   // Modals state
   const [selectedBook, setSelectedBook] = useState(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -603,20 +617,21 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '22px' }}>
             {/* Card 1: Tổng số sách */}
             <div
-              onClick={() => setBorrowStatusFilter('All')}
+              onClick={() => handleFilterAndScrollBorrows('All')}
               style={{
                 background: '#ffffff',
                 borderRadius: '16px',
-                border: '1px solid #eef2f6',
+                border: borrowStatusFilter === 'All' ? '2px solid #2563eb' : '1px solid #eef2f6',
                 padding: '20px 22px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                boxShadow: borrowStatusFilter === 'All' ? '0 4px 14px rgba(37,99,235,0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = borrowStatusFilter === 'All' ? '0 4px 14px rgba(37,99,235,0.12)' : '0 2px 8px rgba(0,0,0,0.02)'; }}
+              title="Nhấn để cuộn xuống xem danh sách tất cả phiếu mượn"
             >
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
@@ -636,7 +651,12 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
 
             {/* Card 2: Độc giả hoạt động */}
             <div
-              onClick={() => onTabChange('readers')}
+              onClick={() => {
+                onTabChange('readers');
+                setTimeout(() => {
+                  document.getElementById('readers-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+              }}
               style={{
                 background: '#ffffff',
                 borderRadius: '16px',
@@ -650,6 +670,7 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
               }}
               onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.05)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)'; }}
+              title="Nhấn để xem danh sách độc giả"
             >
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
@@ -669,20 +690,21 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
 
             {/* Card 3: Sách đang mượn */}
             <div
-              onClick={() => setBorrowStatusFilter('Đang mượn')}
+              onClick={() => handleFilterAndScrollBorrows('Đang mượn')}
               style={{
                 background: '#ffffff',
                 borderRadius: '16px',
-                border: '1px solid #eef2f6',
+                border: borrowStatusFilter === 'Đang mượn' ? '2px solid #0284c7' : '1px solid #eef2f6',
                 padding: '20px 22px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                boxShadow: borrowStatusFilter === 'Đang mượn' ? '0 4px 14px rgba(2,132,199,0.15)' : '0 2px 8px rgba(0,0,0,0.02)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = borrowStatusFilter === 'Đang mượn' ? '0 4px 14px rgba(2,132,199,0.15)' : '0 2px 8px rgba(0,0,0,0.02)'; }}
+              title="Nhấn để cuộn xuống bảng sách đang mượn"
             >
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
@@ -702,20 +724,21 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
 
             {/* Card 4: Sách quá hạn */}
             <div
-              onClick={() => setBorrowStatusFilter('Quá hạn')}
+              onClick={() => handleFilterAndScrollBorrows('Quá hạn')}
               style={{
                 background: '#ffffff',
                 borderRadius: '16px',
-                border: '1px solid #eef2f6',
+                border: borrowStatusFilter === 'Quá hạn' ? '2px solid #ef4444' : '1px solid #eef2f6',
                 padding: '20px 22px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                boxShadow: borrowStatusFilter === 'Quá hạn' ? '0 4px 14px rgba(239,68,68,0.15)' : '0 2px 8px rgba(0,0,0,0.02)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = borrowStatusFilter === 'Quá hạn' ? '0 4px 14px rgba(239,68,68,0.15)' : '0 2px 8px rgba(0,0,0,0.02)'; }}
+              title="Nhấn để cuộn xuống bảng sách quá hạn"
             >
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
@@ -744,10 +767,10 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
           {/* Banner thông báo khi có yêu cầu mượn chờ duyệt */}
           {borrowRecords.filter(r => r.status === 'Chờ duyệt').length > 0 && (
             <div
-              onClick={() => setBorrowStatusFilter('Chờ duyệt')}
+              onClick={() => handleFilterAndScrollBorrows('Chờ duyệt')}
               style={{
                 background: '#fffbeb',
-                border: '1px solid #fde68a',
+                border: borrowStatusFilter === 'Chờ duyệt' ? '2px solid #f59e0b' : '1px solid #fde68a',
                 borderRadius: '12px',
                 padding: '12px 18px',
                 marginBottom: '18px',
@@ -759,6 +782,7 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = '#fef3c7'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = '#fffbeb'; }}
+              title="Nhấn để cuộn xuống xem danh sách yêu cầu chờ duyệt"
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#b45309', fontSize: '13.5px', fontWeight: 600 }}>
                 <Clock size={18} color="#d97706" />
@@ -773,9 +797,47 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
           )}
 
           {/* Borrow Records Table Section */}
-          <div className="card">
+          <div
+            ref={borrowTableRef}
+            id="borrow-records-table"
+            className="card"
+            style={{ scrollMarginTop: '24px' }}
+          >
             <div className="card-header">
-              <span>Danh sách Phiếu Mượn & Quản lý Trả Sách ({filteredBorrows.length})</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <span>
+                  Danh sách Phiếu Mượn & Quản lý Trả Sách
+                  {borrowStatusFilter !== 'All' ? ` - ${borrowStatusFilter}` : ''} ({filteredBorrows.length})
+                </span>
+                <button
+                  onClick={() => {
+                    onTabChange('books');
+                    setTimeout(() => {
+                      document.getElementById('books-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                  }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: '#2563eb',
+                    background: '#eff6ff',
+                    border: '1px solid #bfdbfe',
+                    borderRadius: '8px',
+                    padding: '4px 10px',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#eff6ff'; }}
+                  title="Chuyển sang tab Quản lý Kho sách để xem toàn bộ 50 đầu sách"
+                >
+                  <BookOpen size={13} />
+                  <span>Xem Kho sách ({books.length} đầu sách) →</span>
+                </button>
+              </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ position: 'relative', width: '220px' }}>
                   <input
@@ -931,7 +993,7 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
           </div>
 
           {/* Table Container Card (Thiết kế chuẩn theo Ảnh phiếu mượn) */}
-          <div className="card">
+          <div ref={booksTableRef} id="books-table" className="card" style={{ scrollMarginTop: '24px' }}>
             <div className="card-header">
               <span>Danh sách Kho Sách & Quản lý Tồn Kho ({filteredBooks.length})</span>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -1269,7 +1331,7 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
             </button>
           </div>
 
-          <div className="card">
+          <div id="readers-table" className="card" style={{ scrollMarginTop: '24px' }}>
             <div className="card-header">
               <span>Danh sách Độc giả ({filteredReaders.length})</span>
               <div style={{ position: 'relative', width: '260px' }}>
