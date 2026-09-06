@@ -72,26 +72,66 @@ const getLocalDb = (forceFresh = false) => {
   memoryDb = clone;
   saveLocalDb(clone);
 
-  // Tự động đồng bộ lại currentUser nếu đang có phiên đăng nhập reader cũ
+  // Tự động đồng bộ lại currentUser nếu đang có phiên đăng nhập cũ
   try {
     const rawUser = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+    const rawRole = localStorage.getItem('currentUserRole') || sessionStorage.getItem('currentUserRole');
     if (rawUser) {
       const u = JSON.parse(rawUser);
-      if (u && (u.username === 'reader' || Number(u.id) === 2)) {
-        const freshReader = (clone.users || []).find(usr => usr.username === 'reader') || {
-          id: 2,
-          username: 'reader',
-          role: 'Reader',
-          Role: 'Reader',
-          fullName: 'Trần Thị Mai',
-          FullName: 'Trần Thị Mai',
-          email: 'mai.tran@smartlib.edu.vn',
-          phone: '0901 234 567',
-          address: 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội'
-        };
-        const merged = { ...u, ...freshReader };
-        localStorage.setItem('currentUser', JSON.stringify(merged));
-        sessionStorage.setItem('currentUser', JSON.stringify(merged));
+      if (u) {
+        if (u.username === 'admin' || u.role === 'Admin' || rawRole === 'Admin') {
+          const freshAdmin = (clone.users || []).find(usr => usr.username === 'admin') || {
+            id: 1,
+            username: 'admin',
+            role: 'Admin',
+            Role: 'Admin',
+            fullName: 'Quản trị viên',
+            FullName: 'Quản trị viên',
+            email: 'admin@smartlib.edu.vn',
+            phone: '0987 654 321',
+            address: 'Phòng Quản lý Thư viện, ĐHQG Hà Nội',
+            birthDate: '1990-01-01'
+          };
+          const merged = { ...freshAdmin, ...u, id: 1, UserID: 1, username: 'admin', role: 'Admin', Role: 'Admin' };
+          if (merged.fullName === 'Trần Thị Mai' || merged.fullName === 'Độc giả') {
+            merged.fullName = 'Quản trị viên';
+            merged.FullName = 'Quản trị viên';
+          }
+          if (merged.email && merged.email.includes('mai.tran')) merged.email = 'admin@smartlib.edu.vn';
+          if (merged.phone === '0901 234 567') merged.phone = '0987 654 321';
+          if (merged.address && merged.address.includes('Mễ Trì')) merged.address = 'Phòng Quản lý Thư viện, ĐHQG Hà Nội';
+          if (merged.birthDate === '2002-10-20') merged.birthDate = '1990-01-01';
+          localStorage.setItem('currentUser', JSON.stringify(merged));
+          sessionStorage.setItem('currentUser', JSON.stringify(merged));
+          localStorage.setItem('currentUserRole', 'Admin');
+          sessionStorage.setItem('currentUserRole', 'Admin');
+        } else if (u.username === 'reader' || Number(u.id) === 2 || u.role === 'Reader') {
+          const freshReader = (clone.users || []).find(usr => usr.username === 'reader') || {
+            id: 2,
+            username: 'reader',
+            role: 'Reader',
+            Role: 'Reader',
+            fullName: 'Trần Thị Mai',
+            FullName: 'Trần Thị Mai',
+            email: 'mai.tran@smartlib.edu.vn',
+            phone: '0901 234 567',
+            address: 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội',
+            birthDate: '2002-10-20'
+          };
+          const merged = { ...freshReader, ...u, id: 2, UserID: 2, username: 'reader', role: 'Reader', Role: 'Reader' };
+          if (!merged.fullName || merged.fullName === 'Độc giả' || merged.fullName === 'Quản trị viên') {
+            merged.fullName = 'Trần Thị Mai';
+            merged.FullName = 'Trần Thị Mai';
+          }
+          if (merged.email && merged.email.includes('admin')) merged.email = 'mai.tran@smartlib.edu.vn';
+          if (merged.phone === '0987 654 321') merged.phone = '0901 234 567';
+          if (merged.address && merged.address.includes('ĐHQG')) merged.address = 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội';
+          if (merged.birthDate === '1990-01-01') merged.birthDate = '2002-10-20';
+          localStorage.setItem('currentUser', JSON.stringify(merged));
+          sessionStorage.setItem('currentUser', JSON.stringify(merged));
+          localStorage.setItem('currentUserRole', 'Reader');
+          sessionStorage.setItem('currentUserRole', 'Reader');
+        }
       }
     }
   } catch (e) {}

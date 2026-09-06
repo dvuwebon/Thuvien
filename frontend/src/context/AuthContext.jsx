@@ -3,83 +3,149 @@ import { api } from '../services/api';
 
 const AuthContext = createContext();
 
+export const DEFAULT_ADMIN = {
+  id: 1,
+  UserID: 1,
+  username: 'admin',
+  role: 'Admin',
+  Role: 'Admin',
+  fullName: 'Quản trị viên',
+  FullName: 'Quản trị viên',
+  email: 'admin@smartlib.edu.vn',
+  phone: '0987 654 321',
+  address: 'Phòng Quản lý Thư viện, ĐHQG Hà Nội',
+  birthDate: '1990-01-01'
+};
+
+export const DEFAULT_READER = {
+  id: 2,
+  UserID: 2,
+  username: 'reader',
+  role: 'Reader',
+  Role: 'Reader',
+  fullName: 'Trần Thị Mai',
+  FullName: 'Trần Thị Mai',
+  email: 'mai.tran@smartlib.edu.vn',
+  phone: '0901 234 567',
+  address: 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội',
+  birthDate: '2002-10-20'
+};
+
+const normalizeUser = (loaded, loadedRole) => {
+  if (!loaded) return null;
+
+  // Xác định vai trò chính xác
+  const isAdm = loadedRole === 'Admin' || loaded.role === 'Admin' || loaded.Role === 'Admin' || loaded.username === 'admin';
+
+  if (isAdm) {
+    const adminUser = {
+      ...DEFAULT_ADMIN,
+      ...loaded,
+      id: 1,
+      UserID: 1,
+      username: 'admin',
+      role: 'Admin',
+      Role: 'Admin'
+    };
+    if (adminUser.fullName === 'Trần Thị Mai' || adminUser.fullName === 'Độc giả') {
+      adminUser.fullName = 'Quản trị viên';
+      adminUser.FullName = 'Quản trị viên';
+    }
+    if (adminUser.email && adminUser.email.includes('mai.tran')) {
+      adminUser.email = 'admin@smartlib.edu.vn';
+    }
+    if (adminUser.phone === '0901 234 567') {
+      adminUser.phone = '0987 654 321';
+    }
+    if (adminUser.address && adminUser.address.includes('Mễ Trì')) {
+      adminUser.address = 'Phòng Quản lý Thư viện, ĐHQG Hà Nội';
+    }
+    if (adminUser.birthDate === '2002-10-20') {
+      adminUser.birthDate = '1990-01-01';
+    }
+    return adminUser;
+  }
+
+  // Tài khoản Độc giả
+  const readerUser = {
+    ...DEFAULT_READER,
+    ...loaded,
+    id: loaded.id && Number(loaded.id) !== 1 ? Number(loaded.id) : 2,
+    UserID: loaded.id && Number(loaded.id) !== 1 ? Number(loaded.id) : 2,
+    username: loaded.username === 'admin' ? 'reader' : (loaded.username || 'reader'),
+    role: 'Reader',
+    Role: 'Reader'
+  };
+  if (!readerUser.fullName || readerUser.fullName === 'Độc giả' || readerUser.fullName === 'Quản trị viên') {
+    readerUser.fullName = 'Trần Thị Mai';
+    readerUser.FullName = 'Trần Thị Mai';
+  }
+  if (readerUser.email && readerUser.email.includes('admin')) {
+    readerUser.email = 'mai.tran@smartlib.edu.vn';
+  }
+  if (readerUser.phone === '0987 654 321') {
+    readerUser.phone = '0901 234 567';
+  }
+  if (readerUser.address && readerUser.address.includes('ĐHQG')) {
+    readerUser.address = 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội';
+  }
+  if (readerUser.birthDate === '1990-01-01') {
+    readerUser.birthDate = '2002-10-20';
+  }
+  return readerUser;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
       let loaded = null;
+      let loadedRole = null;
       if (typeof window !== 'undefined' && window.location.hostname.includes('github.io')) {
         const sessionUser = sessionStorage.getItem('currentUser');
         loaded = sessionUser ? JSON.parse(sessionUser) : null;
+        loadedRole = sessionStorage.getItem('currentUserRole');
       } else {
         const saved = localStorage.getItem('currentUser');
         loaded = saved ? JSON.parse(saved) : null;
+        loadedRole = localStorage.getItem('currentUserRole');
       }
-      if (loaded && loaded.username === 'reader' && (!loaded.fullName || loaded.fullName === 'Độc giả')) {
-        loaded.fullName = 'Trần Thị Mai';
-        loaded.FullName = 'Trần Thị Mai';
-      }
-      return loaded;
+      return normalizeUser(loaded, loadedRole);
     } catch {
       return null;
     }
   });
 
   const [role, setRole] = useState(() => {
-    if (typeof window !== 'undefined' && window.location.hostname.includes('github.io')) {
-      const sessionRole = sessionStorage.getItem('currentUserRole');
-      return sessionRole || (user ? (user.Role || user.role || 'Reader') : null);
-    }
-    return localStorage.getItem('currentUserRole') || (user ? (user.Role || user.role || 'Reader') : null);
+    if (!user) return null;
+    return user.role || user.Role || (user.username === 'admin' ? 'Admin' : 'Reader');
   });
 
-  // Tự động kiểm tra và đồng bộ lại họ tên chính xác từ database
+  // Tự động kiểm tra và đồng bộ hai chiều chính xác giữa user và role
   useEffect(() => {
     if (user) {
-      let shouldUpdate = false;
-      let freshUser = { ...user };
-
-      if (user.username === 'reader' && (!user.fullName || user.fullName === 'Độc giả')) {
-        freshUser.fullName = 'Trần Thị Mai';
-        freshUser.FullName = 'Trần Thị Mai';
-        shouldUpdate = true;
+      const actualRole = user.role || user.Role || (user.username === 'admin' ? 'Admin' : 'Reader');
+      if (role !== actualRole) {
+        setRole(actualRole);
       }
-
-      try {
-        const raw = localStorage.getItem('smartlib_db');
-        if (raw) {
-          const db = JSON.parse(raw);
-          if (db && Array.isArray(db.users)) {
-            const dbUser = db.users.find(u => 
-              (user.id && Number(u.id) === Number(user.id)) || 
-              (u.username && u.username.toLowerCase() === (user.username || '').toLowerCase())
-            );
-            if (dbUser && dbUser.fullName && dbUser.fullName !== user.fullName) {
-              freshUser = { ...freshUser, ...dbUser };
-              shouldUpdate = true;
-            }
-          }
-        }
-      } catch (e) {}
-
-      if (shouldUpdate) {
-        setUser(freshUser);
-        sessionStorage.setItem('currentUser', JSON.stringify(freshUser));
-        localStorage.setItem('currentUser', JSON.stringify(freshUser));
-      }
+      sessionStorage.setItem('currentUser', JSON.stringify(user));
+      sessionStorage.setItem('currentUserRole', actualRole);
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      localStorage.setItem('currentUserRole', actualRole);
     }
-  }, [user]);
+  }, [user, role]);
 
   const login = async (username, password) => {
     const res = await api.login(username, password);
     if (res && res.user) {
-      const uRole = res.user.Role || res.user.role || 'Reader';
-      setUser(res.user);
+      const uRole = res.user.Role || res.user.role || (res.user.username === 'admin' ? 'Admin' : 'Reader');
+      const normalized = normalizeUser(res.user, uRole);
+      setUser(normalized);
       setRole(uRole);
-      sessionStorage.setItem('currentUser', JSON.stringify(res.user));
+      sessionStorage.setItem('currentUser', JSON.stringify(normalized));
       sessionStorage.setItem('currentUserRole', uRole);
-      localStorage.setItem('currentUser', JSON.stringify(res.user));
+      localStorage.setItem('currentUser', JSON.stringify(normalized));
       localStorage.setItem('currentUserRole', uRole);
-      return res.user;
+      return normalized;
     }
     throw new Error('Đăng nhập không thành công');
   };
@@ -87,13 +153,14 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     const res = await api.register(userData);
     if (res && res.user) {
-      setUser(res.user);
+      const normalized = normalizeUser(res.user, 'Reader');
+      setUser(normalized);
       setRole('Reader');
-      sessionStorage.setItem('currentUser', JSON.stringify(res.user));
+      sessionStorage.setItem('currentUser', JSON.stringify(normalized));
       sessionStorage.setItem('currentUserRole', 'Reader');
-      localStorage.setItem('currentUser', JSON.stringify(res.user));
+      localStorage.setItem('currentUser', JSON.stringify(normalized));
       localStorage.setItem('currentUserRole', 'Reader');
-      return res.user;
+      return normalized;
     }
     return res;
   };
@@ -109,8 +176,11 @@ export const AuthProvider = ({ children }) => {
 
   const updateUser = (updatedData) => {
     const merged = { ...user, ...updatedData };
-    setUser(merged);
-    sessionStorage.setItem('currentUser', JSON.stringify(merged));
+    const actualRole = merged.role || merged.Role || role || 'Reader';
+    const normalized = normalizeUser(merged, actualRole);
+    setUser(normalized);
+    sessionStorage.setItem('currentUser', JSON.stringify(normalized));
+    localStorage.setItem('currentUser', JSON.stringify(normalized));
   };
 
   return (

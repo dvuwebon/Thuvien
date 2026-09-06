@@ -1,18 +1,46 @@
-import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect } from 'react';
+import { useAuth, DEFAULT_ADMIN, DEFAULT_READER } from '../context/AuthContext';
 import { api } from '../services/api';
 import { User, Mail, Phone, MapPin, Calendar, ArrowLeft, Shield, CheckCircle } from 'lucide-react';
 
 export default function ProfilePage({ onBack }) {
   const { user, role, updateUser } = useAuth();
+  const isAdmin = role === 'Admin' || user?.role === 'Admin' || user?.username === 'admin';
 
-  const [profileData, setProfileData] = useState({
-    fullName: user?.fullName || user?.FullName || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
-    address: user?.address || '',
-    birthDate: user?.birthDate || ''
-  });
+  const getInitialProfile = () => {
+    if (isAdmin) {
+      return {
+        fullName: (user?.username === 'admin' && user?.fullName && user?.fullName !== 'Trần Thị Mai' && user?.fullName !== 'Độc giả') 
+          ? user.fullName 
+          : DEFAULT_ADMIN.fullName,
+        email: (user?.username === 'admin' && user?.email && !user?.email.includes('mai.tran')) 
+          ? user.email 
+          : DEFAULT_ADMIN.email,
+        phone: (user?.username === 'admin' && user?.phone && user?.phone !== '0901 234 567') 
+          ? user.phone 
+          : DEFAULT_ADMIN.phone,
+        address: (user?.username === 'admin' && user?.address && !user?.address.includes('Mễ Trì')) 
+          ? user.address 
+          : DEFAULT_ADMIN.address,
+        birthDate: (user?.username === 'admin' && user?.birthDate && user?.birthDate !== '2002-10-20') 
+          ? user.birthDate 
+          : DEFAULT_ADMIN.birthDate
+      };
+    }
+    return {
+      fullName: user?.fullName || DEFAULT_READER.fullName,
+      email: user?.email || DEFAULT_READER.email,
+      phone: user?.phone || DEFAULT_READER.phone,
+      address: user?.address || DEFAULT_READER.address,
+      birthDate: user?.birthDate || DEFAULT_READER.birthDate
+    };
+  };
+
+  const [profileData, setProfileData] = useState(getInitialProfile);
+
+  useEffect(() => {
+    setProfileData(getInitialProfile());
+  }, [user, role]);
 
   const [profileMsg, setProfileMsg] = useState('');
   const [profileErr, setProfileErr] = useState('');
@@ -29,10 +57,15 @@ export default function ProfilePage({ onBack }) {
     setProfileMsg('');
     setProfileErr('');
     try {
-      if (user?.id) {
-        await api.updateProfile(user.id, profileData);
-      }
-      updateUser(profileData);
+      const targetId = isAdmin ? 1 : (user?.id || 2);
+      const payload = {
+        ...profileData,
+        id: targetId,
+        username: isAdmin ? 'admin' : (user?.username || 'reader'),
+        role: isAdmin ? 'Admin' : 'Reader'
+      };
+      await api.updateProfile(targetId, payload);
+      updateUser(payload);
       setProfileMsg('✓ Cập nhật thông tin cá nhân thành công!');
     } catch (err) {
       setProfileErr(err.message || 'Lỗi khi cập nhật thông tin');
@@ -94,7 +127,7 @@ export default function ProfilePage({ onBack }) {
 
               <div className="form-group">
                 <label>Tên đăng nhập (Username)</label>
-                <input type="text" value={user?.username || ''} disabled />
+                <input type="text" value={isAdmin ? 'admin' : (user?.username || 'reader')} disabled />
               </div>
 
               <div className="form-group">
