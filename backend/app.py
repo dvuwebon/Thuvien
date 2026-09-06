@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 
 # Ensure backend dir is in sys.path
@@ -567,9 +567,13 @@ def get_stats():
         "totalCopies": total_copies,
         "totalReaders": total_readers,
         "borrowingCount": borrowing_count,
+        "activeBorrows": borrowing_count,
         "overdueCount": overdue_count,
+        "overdueBorrows": overdue_count,
         "pendingCount": pending_count,
-        "returnedCount": returned_count
+        "pendingBorrows": pending_count,
+        "returnedCount": returned_count,
+        "returnedBooks": returned_count
     }
 
 

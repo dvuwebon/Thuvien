@@ -4,7 +4,7 @@ import initialDb from '../../../data/database.json';
 const API_BASE = '/api';
 
 // Local storage fallback database helper
-const DB_VERSION = 'v5_clean_sync_2026';
+const DB_VERSION = 'v6_clean_data_2026';
 
 const isStaticHost = typeof window !== 'undefined' && (
   window.location.hostname.includes('github.io') ||
