@@ -651,29 +651,45 @@ export const api = {
         });
       }
 
-      const notifId1 = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0)) + 1;
-      const notifId2 = notifId1 + 1;
+      const maxId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0));
+      const nowStr = new Date().toISOString();
+      const notifAdmin = {
+        id: maxId + 2,
+        recipientRole: 'Admin',
+        title: 'Độc giả đã trả sách',
+        message: `Độc giả ${updated.readerName || 'Trần Thị Mai'} đã trả cuốn sách "${updated.bookTitle}".`,
+        type: 'book_returned',
+        recordId: updated.id,
+        bookId: updated.bookId,
+        bookTitle: updated.bookTitle,
+        readerName: updated.readerName || 'Trần Thị Mai',
+        isRead: false,
+        createdAt: nowStr
+      };
+      const notifReader = {
+        id: maxId + 1,
+        recipientRole: 'Reader',
+        recipientUserId: updated.readerId || 2,
+        title: 'Xác nhận trả sách thành công',
+        message: `Bạn đã hoàn tất trả cuốn sách "${updated.bookTitle}". Cảm ơn bạn đã giữ gìn sách cẩn thận!`,
+        type: 'book_returned',
+        recordId: updated.id,
+        bookId: updated.bookId,
+        bookTitle: updated.bookTitle,
+        isRead: false,
+        createdAt: nowStr
+      };
+      db.notifications = [notifAdmin, notifReader, ...(db.notifications || [])];
+    } else if (status === 'Đã hủy' && updated) {
+      const maxId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0));
       const nowStr = new Date().toISOString();
       db.notifications = [
         {
-          id: notifId1,
-          recipientRole: 'Reader',
-          recipientUserId: updated.readerId || 2,
-          title: 'Xác nhận trả sách thành công',
-          message: `Bạn đã hoàn tất trả cuốn sách "${updated.bookTitle}". Cảm ơn bạn đã giữ gìn sách cẩn thận!`,
-          type: 'book_returned',
-          recordId: updated.id,
-          bookId: updated.bookId,
-          bookTitle: updated.bookTitle,
-          isRead: false,
-          createdAt: nowStr
-        },
-        {
-          id: notifId2,
+          id: maxId + 2,
           recipientRole: 'Admin',
-          title: 'Độc giả đã trả sách',
-          message: `Độc giả ${updated.readerName || 'Trần Thị Mai'} đã trả cuốn sách "${updated.bookTitle}".`,
-          type: 'book_returned',
+          title: 'Độc giả đã hủy yêu cầu mượn',
+          message: `Độc giả ${updated.readerName || 'Trần Thị Mai'} đã hủy yêu cầu mượn cuốn sách "${updated.bookTitle}".`,
+          type: 'borrow_rejected',
           recordId: updated.id,
           bookId: updated.bookId,
           bookTitle: updated.bookTitle,
@@ -681,14 +697,8 @@ export const api = {
           isRead: false,
           createdAt: nowStr
         },
-        ...(db.notifications || [])
-      ];
-    } else if (status === 'Đã hủy' && updated) {
-      const notifId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0)) + 1;
-      const nowStr = new Date().toISOString();
-      db.notifications = [
         {
-          id: notifId,
+          id: maxId + 1,
           recipientRole: 'Reader',
           recipientUserId: updated.readerId || 2,
           title: 'Đã hủy yêu cầu mượn sách',
@@ -706,7 +716,6 @@ export const api = {
 
     saveLocalDb(db);
     notifyDataUpdated('borrow');
-    notifyDataUpdated('book');
 
     // 2. Nếu có máy chủ backend, đồng bộ sang backend
     if (!isStaticHost) {
@@ -717,7 +726,9 @@ export const api = {
           body: JSON.stringify({ status })
         });
         if (res.ok) {
-          return await res.json();
+          const result = await res.json();
+          notifyDataUpdated('borrow');
+          return result;
         }
       } catch (e) {}
     }

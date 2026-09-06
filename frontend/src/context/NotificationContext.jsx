@@ -5,36 +5,40 @@ import { Bell, CheckCircle, XCircle, X, BookOpen } from 'lucide-react';
 
 const NotificationContext = createContext();
 
+let lastSoundTime = 0;
 const playNotificationSound = () => {
+  const now = Date.now();
+  if (now - lastSoundTime < 1500) return;
+  lastSoundTime = now;
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
     const ctx = new AudioContext();
-    const now = ctx.currentTime;
+    const t = ctx.currentTime;
     
     // Note 1 (E5 - 659.25Hz)
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.type = 'sine';
-    osc1.frequency.setValueAtTime(659.25, now);
-    gain1.gain.setValueAtTime(0.12, now);
-    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    osc1.frequency.setValueAtTime(659.25, t);
+    gain1.gain.setValueAtTime(0.12, t);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
     osc1.connect(gain1);
     gain1.connect(ctx.destination);
-    osc1.start(now);
-    osc1.stop(now + 0.22);
+    osc1.start(t);
+    osc1.stop(t + 0.22);
 
     // Note 2 (B5 - 987.77Hz)
     const osc2 = ctx.createOscillator();
     const gain2 = ctx.createGain();
     osc2.type = 'sine';
-    osc2.frequency.setValueAtTime(987.77, now + 0.1);
-    gain2.gain.setValueAtTime(0.15, now + 0.1);
-    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc2.frequency.setValueAtTime(987.77, t + 0.1);
+    gain2.gain.setValueAtTime(0.15, t + 0.1);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
     osc2.connect(gain2);
     gain2.connect(ctx.destination);
-    osc2.start(now + 0.1);
-    osc2.stop(now + 0.4);
+    osc2.start(t + 0.1);
+    osc2.stop(t + 0.4);
   } catch (e) {
     // Audio might be blocked if user hasn't clicked page yet, safe to ignore
   }
@@ -45,25 +49,45 @@ export const NotificationProvider = ({ children }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [liveToast, setLiveToast] = useState(null);
-  const lastNotifIdRef = useRef(null);
+
+  // Set lưu danh sách ID thông báo đã thấy để không bao giờ thông báo lặp lại
+  const seenNotifIdsRef = useRef(new Set());
+  const isInitializedRef = useRef(false);
+
+  // Khi thay đổi vai trò hoặc tài khoản (Admin <-> Reader), reset lại bộ nhớ thông báo
+  useEffect(() => {
+    isInitializedRef.current = false;
+    seenNotifIdsRef.current = new Set();
+    setLiveToast(null);
+  }, [user?.id, role]);
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
     try {
       const res = await api.getNotifications(role, user.id);
       if (res && res.notifications) {
-        const firstId = res.notifications[0]?.id;
-        
-        // Kiểm tra xem có thông báo MỚI vừa đến hay không
-        if (lastNotifIdRef.current !== null && firstId && firstId !== lastNotifIdRef.current) {
-          const newNotif = res.notifications[0];
-          if (newNotif && !newNotif.isRead) {
-            playNotificationSound();
-            setLiveToast(newNotif);
-          }
+        // 1. Lần đầu tải ứng dụng: Ghi nhận tất cả thông báo hiện có để không báo lại các thông báo cũ
+        if (!isInitializedRef.current) {
+          res.notifications.forEach(n => seenNotifIdsRef.current.add(n.id));
+          isInitializedRef.current = true;
+          setNotifications(res.notifications);
+          setUnreadCount(res.unreadCount || 0);
+          return;
         }
-        
-        lastNotifIdRef.current = firstId || 0;
+
+        // 2. Các lần cập nhật sau: Tìm chính xác thông báo MỚI CHƯA TỪNG THẤY và chưa đọc
+        const brandNewNotifs = res.notifications.filter(
+          n => !seenNotifIdsRef.current.has(n.id) && !n.isRead
+        );
+
+        if (brandNewNotifs.length > 0) {
+          const newest = brandNewNotifs[0];
+          playNotificationSound();
+          setLiveToast(newest);
+        }
+
+        // Đánh dấu tất cả thông báo hiện có vào Set đã thấy
+        res.notifications.forEach(n => seenNotifIdsRef.current.add(n.id));
         setNotifications(res.notifications);
         setUnreadCount(res.unreadCount || 0);
       }
@@ -93,12 +117,12 @@ export const NotificationProvider = ({ children }) => {
     };
   }, [fetchNotifications]);
 
-  // Tự động ẩn Toast thông báo thời gian thực sau 6 giây
+  // Tự động ẩn Toast thông báo thời gian thực sau 5 giây
   useEffect(() => {
     if (liveToast) {
       const timer = setTimeout(() => {
         setLiveToast(null);
-      }, 6000);
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [liveToast]);
@@ -124,19 +148,19 @@ export const NotificationProvider = ({ children }) => {
   };
 
   const getToastBorderColor = (type) => {
-    if (type === 'borrow_approved') return '#10b981';
+    if (type === 'borrow_approved' || type === 'book_returned') return '#10b981';
     if (type === 'borrow_rejected') return '#ef4444';
     return '#3b82f6';
   };
 
   const getToastIconBg = (type) => {
-    if (type === 'borrow_approved') return '#064e3b';
+    if (type === 'borrow_approved' || type === 'book_returned') return '#064e3b';
     if (type === 'borrow_rejected') return '#7f1d1d';
     return '#1e3a8a';
   };
 
   const getToastIconColor = (type) => {
-    if (type === 'borrow_approved') return '#34d399';
+    if (type === 'borrow_approved' || type === 'book_returned') return '#34d399';
     if (type === 'borrow_rejected') return '#f87171';
     return '#60a5fa';
   };
@@ -180,7 +204,7 @@ export const NotificationProvider = ({ children }) => {
               color: getToastIconColor(liveToast.type)
             }}
           >
-            {liveToast.type === 'borrow_approved' ? <CheckCircle size={20} /> :
+            {liveToast.type === 'borrow_approved' || liveToast.type === 'book_returned' ? <CheckCircle size={20} /> :
              liveToast.type === 'borrow_rejected' ? <XCircle size={20} /> :
              liveToast.type === 'borrow_request' ? <BookOpen size={20} /> :
              <Bell size={20} />}

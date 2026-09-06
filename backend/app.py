@@ -491,21 +491,35 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
                 target_book["borrowed"] = max(0, int(target_book.get("borrowed", 1)) - 1)
                 target_book["available"] = min(int(target_book.get("quantity", 1)), int(target_book.get("available", 0)) + 1)
 
+    # 1. Lưu thay đổi trạng thái mượn và số lượng sách vào CSDL trước
+    db_manager.save_db(db)
+
+    # 2. Sau đó mới thêm thông báo để không bị save_db ghi đè mất
+    if req.status == "Đã trả":
         db_manager.add_notification(
             recipient_role="Reader",
             recipient_user_id=record.get("readerId"),
             title="Xác nhận trả sách thành công",
-            message=f"Bạn đã hoàn tất trả cuốn sách \"{record.get('bookTitle')}\". Cảm ơn bạn!",
-            notif_type="book_returned"
+            message=f"Bạn đã hoàn tất trả cuốn sách \"{record.get('bookTitle')}\". Cảm ơn bạn đã giữ gìn sách cẩn thận!",
+            notif_type="book_returned",
+            meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle")}
         )
         db_manager.add_notification(
             recipient_role="Admin",
             title="Độc giả đã trả sách",
             message=f"Độc giả {record.get('readerName')} đã trả cuốn sách \"{record.get('bookTitle')}\".",
-            notif_type="book_returned"
+            notif_type="book_returned",
+            meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle"), "readerName": record.get("readerName")}
+        )
+    elif req.status == "Đã hủy":
+        db_manager.add_notification(
+            recipient_role="Admin",
+            title="Độc giả đã hủy yêu cầu mượn",
+            message=f"Độc giả {record.get('readerName')} đã hủy yêu cầu mượn cuốn sách \"{record.get('bookTitle')}\".",
+            notif_type="borrow_rejected",
+            meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle")}
         )
 
-    db_manager.save_db(db)
     return {"message": "Cập nhật trạng thái mượn sách thành công!"}
 
 
