@@ -23,6 +23,27 @@ function MonthlyTrendChart() {
   const baseData = [38, 65, 76, 62, 92, 85, 110, 98, 120, 105, 88, 130];
   const months = ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'];
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [animProgress, setAnimProgress] = useState(0);
+
+  useEffect(() => {
+    let start = null;
+    const duration = 1200;
+    let frameId;
+
+    const step = (timestamp) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      // easeOutCubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setAnimProgress(eased);
+      if (progress < 1) {
+        frameId = requestAnimationFrame(step);
+      }
+    };
+
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
 
   const width = 360;
   const height = 180;
@@ -34,17 +55,34 @@ function MonthlyTrendChart() {
   const chartW = width - paddingLeft - paddingRight;
   const chartH = height - paddingTop - paddingBottom;
   const maxY = 140;
+  const baselineY = paddingTop + chartH;
 
+  // Tính tọa độ động theo tiến trình sóng lượn (staggered wave)
   const points = baseData.map((val, idx) => {
     const x = paddingLeft + idx * (chartW / (baseData.length - 1));
-    const y = paddingTop + chartH - (val / maxY) * chartH;
-    return { x, y, val, month: months[idx] };
+    const pointProgress = Math.max(0, Math.min(1, (animProgress - (idx / baseData.length) * 0.35) / 0.65));
+    const currentVal = val * pointProgress;
+    const y = baselineY - (currentVal / maxY) * chartH;
+    return { x, y, val, month: months[idx], pointProgress };
   });
 
   const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
+  const areaPoints = `${points[0].x},${baselineY} ` + polylinePoints + ` ${points[points.length - 1].x},${baselineY}`;
 
   return (
-    <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #eef2f6', padding: '20px 22px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+    <div style={{
+      background: '#ffffff',
+      borderRadius: '16px',
+      border: '1px solid #eef2f6',
+      padding: '20px 22px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      opacity: Math.min(1, animProgress * 1.5),
+      transform: `translateY(${(1 - animProgress) * 14}px)`,
+      transition: 'box-shadow 0.2s ease, border-color 0.2s ease'
+    }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Xu hướng Mượn theo Tháng</h3>
         <span style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8' }}>Năm 2026</span>
@@ -52,6 +90,13 @@ function MonthlyTrendChart() {
 
       <div style={{ width: '100%', position: 'relative' }}>
         <svg viewBox={`0 0 ${width} ${height}`} style={{ width: '100%', height: 'auto', overflow: 'visible' }}>
+          <defs>
+            <linearGradient id="trendAreaGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#2563eb" stopOpacity="0.18" />
+              <stop offset="100%" stopColor="#2563eb" stopOpacity="0.0" />
+            </linearGradient>
+          </defs>
+
           {[140, 105, 70, 35, 0].map(level => {
             const y = paddingTop + chartH - (level / maxY) * chartH;
             return (
@@ -72,6 +117,14 @@ function MonthlyTrendChart() {
             );
           })}
 
+          {/* Vùng diện tích gradient lượn sóng */}
+          <polygon
+            points={areaPoints}
+            fill="url(#trendAreaGradient)"
+            style={{ opacity: animProgress }}
+          />
+
+          {/* Đường biểu đồ sóng vẽ mượt */}
           <polyline
             fill="none"
             stroke="#2563eb"
@@ -91,7 +144,7 @@ function MonthlyTrendChart() {
               <circle
                 cx={p.x}
                 cy={p.y}
-                r={hoveredIndex === i ? 5.5 : 3.5}
+                r={(hoveredIndex === i ? 5.5 : 3.5) * p.pointProgress}
                 fill="#ffffff"
                 stroke="#2563eb"
                 strokeWidth="2.5"
@@ -104,6 +157,7 @@ function MonthlyTrendChart() {
                 fontSize="9.5"
                 fill={hoveredIndex === i ? '#2563eb' : '#64748b'}
                 fontWeight={hoveredIndex === i ? '700' : '500'}
+                opacity={Math.min(1, p.pointProgress * 1.5)}
               >
                 {p.month}
               </text>
@@ -147,6 +201,27 @@ function CategoryDonutChart() {
     { name: 'Tiểu thuyết', color: '#3b82f6', percent: 28 }
   ];
 
+  const [animProgress, setAnimProgress] = useState(0);
+
+  useEffect(() => {
+    let start = null;
+    const duration = 1200;
+    let frameId;
+
+    const step = (timestamp) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setAnimProgress(eased);
+      if (progress < 1) {
+        frameId = requestAnimationFrame(step);
+      }
+    };
+
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
   const size = 170;
   const strokeWidth = 22;
   const radius = 48;
@@ -155,18 +230,39 @@ function CategoryDonutChart() {
   let accumulatedPercent = 0;
 
   return (
-    <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #eef2f6', padding: '20px 22px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+    <div style={{
+      background: '#ffffff',
+      borderRadius: '16px',
+      border: '1px solid #eef2f6',
+      padding: '20px 22px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      opacity: Math.min(1, animProgress * 1.5),
+      transform: `translateY(${(1 - animProgress) * 14}px)`,
+      transition: 'box-shadow 0.2s ease, border-color 0.2s ease'
+    }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Tỉ lệ Thể loại Sách</h3>
         <span style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8' }}>5 thể loại</span>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '136px' }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '136px', position: 'relative' }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          style={{
+            transform: `rotate(${-90 + (1 - animProgress) * 60}deg)`,
+            transition: 'transform 0.1s linear'
+          }}
+        >
           {categories.map((cat, i) => {
-            const strokeLength = (cat.percent / 100) * circumference - 4;
+            const currentCatPercent = cat.percent * animProgress;
+            const strokeLength = Math.max(0, (currentCatPercent / 100) * circumference - (animProgress > 0.8 ? 4 : 0));
             const strokeOffset = -((accumulatedPercent / 100) * circumference) - 2;
-            accumulatedPercent += cat.percent;
+            accumulatedPercent += currentCatPercent;
 
             return (
               <circle
@@ -177,18 +273,37 @@ function CategoryDonutChart() {
                 fill="transparent"
                 stroke={cat.color}
                 strokeWidth={strokeWidth}
-                strokeDasharray={`${strokeLength} ${circumference - strokeLength}`}
+                strokeDasharray={`${strokeLength} ${circumference}`}
                 strokeDashoffset={strokeOffset}
-                style={{ transition: 'all 0.3s ease', cursor: 'pointer' }}
+                style={{ transition: 'stroke-dasharray 0.1s linear, stroke-dashoffset 0.1s linear', cursor: 'pointer' }}
               >
                 <title>{cat.name}: {cat.percent}%</title>
               </circle>
             );
           })}
         </svg>
+
+        {/* Số % tổng tâm vòng tròn chuyển động lớn dần */}
+        <div style={{
+          position: 'absolute',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none',
+          opacity: animProgress,
+          transform: `scale(${0.6 + 0.4 * animProgress})`
+        }}>
+          <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', lineHeight: 1 }}>
+            {Math.round(100 * animProgress)}%
+          </span>
+          <span style={{ fontSize: '9.5px', fontWeight: 600, color: '#94a3b8', marginTop: '2px' }}>
+            Tỉ lệ
+          </span>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 12px', marginTop: '8px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '8px 12px', marginTop: '8px', opacity: animProgress }}>
         {categories.map((cat, i) => (
           <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', fontWeight: 500, color: '#475569' }}>
             <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: cat.color, display: 'inline-block' }} />
@@ -209,6 +324,27 @@ function CategoryBorrowBarChart() {
     { name: 'Kỳ ảo', value: 12, color: '#8b5cf6' }
   ];
 
+  const [animProgress, setAnimProgress] = useState(0);
+
+  useEffect(() => {
+    let start = null;
+    const duration = 1200;
+    let frameId;
+
+    const step = (timestamp) => {
+      if (!start) start = timestamp;
+      const progress = Math.min((timestamp - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setAnimProgress(eased);
+      if (progress < 1) {
+        frameId = requestAnimationFrame(step);
+      }
+    };
+
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
   const width = 310;
   const height = 180;
   const paddingLeft = 30;
@@ -224,7 +360,20 @@ function CategoryBorrowBarChart() {
   const barWidth = 18;
 
   return (
-    <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #eef2f6', padding: '20px 22px', boxShadow: '0 2px 8px rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', position: 'relative' }}>
+    <div style={{
+      background: '#ffffff',
+      borderRadius: '16px',
+      border: '1px solid #eef2f6',
+      padding: '20px 22px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between',
+      position: 'relative',
+      opacity: Math.min(1, animProgress * 1.5),
+      transform: `translateY(${(1 - animProgress) * 14}px)`,
+      transition: 'box-shadow 0.2s ease, border-color 0.2s ease'
+    }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Lượt Mượn theo Thể loại</h3>
       </div>
@@ -254,7 +403,9 @@ function CategoryBorrowBarChart() {
           {data.map((item, i) => {
             const slotW = chartW / data.length;
             const x = paddingLeft + i * slotW + (slotW - barWidth) / 2;
-            const bHeight = (item.value / maxY) * chartH;
+            // Hiệu ứng mọc cột so le (staggered bar growth)
+            const barProgress = Math.max(0, Math.min(1, (animProgress - (i / data.length) * 0.35) / 0.65));
+            const bHeight = Math.max(0, (item.value / maxY) * chartH * barProgress);
             const y = paddingTop + chartH - bHeight;
 
             return (
@@ -273,7 +424,7 @@ function CategoryBorrowBarChart() {
                   ry="5"
                   fill={item.color}
                   opacity={hoveredBar === null || hoveredBar === i ? '1' : '0.65'}
-                  style={{ transition: 'all 0.2s ease' }}
+                  style={{ transition: 'opacity 0.2s ease' }}
                 />
                 <text
                   x={x + barWidth / 2}
@@ -282,6 +433,7 @@ function CategoryBorrowBarChart() {
                   fontSize="9.5"
                   fill={hoveredBar === i ? '#0f172a' : '#64748b'}
                   fontWeight={hoveredBar === i ? '700' : '500'}
+                  opacity={Math.min(1, barProgress * 1.5)}
                 >
                   {item.name}
                 </text>
