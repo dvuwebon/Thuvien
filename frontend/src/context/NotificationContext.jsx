@@ -80,8 +80,28 @@ export const NotificationProvider = ({ children }) => {
           n => !seenNotifIdsRef.current.has(n.id) && !n.isRead
         );
 
-        if (brandNewNotifs.length > 0) {
-          const newest = brandNewNotifs[0];
+        // Thu thập các mã phiếu mượn đã hoàn tất trả sách
+        const returnedRecordIds = new Set(
+          res.notifications
+            .filter(n => n.type === 'book_returned')
+            .map(n => Number(n.recordId || n.meta?.recordId))
+            .filter(Boolean)
+        );
+
+        // Lọc bỏ thông báo duyệt mượn hoặc yêu cầu mượn của các cuốn sách ĐÃ HOÀN TẤT TRẢ
+        // (Khắc phục triệt để lỗi vừa bấm trả sách lại bị nhảy thông báo mượn sách thành công)
+        const validNewNotifs = brandNewNotifs.filter(n => {
+          if (n.type === 'borrow_approved' || n.type === 'borrow_request') {
+            const recId = Number(n.recordId || n.meta?.recordId);
+            if (recId && returnedRecordIds.has(recId)) {
+              return false;
+            }
+          }
+          return true;
+        });
+
+        if (validNewNotifs.length > 0) {
+          const newest = validNewNotifs[0];
           playNotificationSound();
           setLiveToast(newest);
         }

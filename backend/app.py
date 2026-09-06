@@ -491,6 +491,16 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
                 target_book["borrowed"] = max(0, int(target_book.get("borrowed", 1)) - 1)
                 target_book["available"] = min(int(target_book.get("quantity", 1)), int(target_book.get("available", 0)) + 1)
 
+        # Đánh dấu ĐÃ ĐỌC tất cả thông báo mượn/chờ duyệt/duyệt cũ của lượt mượn này
+        for n in db.get("notifications", []):
+            if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id):
+                n["isRead"] = True
+    elif req.status == "Đã hủy":
+        # Đánh dấu ĐÃ ĐỌC tất cả thông báo mượn trước đó của lượt mượn này
+        for n in db.get("notifications", []):
+            if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id):
+                n["isRead"] = True
+
     # 1. Lưu thay đổi trạng thái mượn và số lượng sách vào CSDL trước
     db_manager.save_db(db)
 

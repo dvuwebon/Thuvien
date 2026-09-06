@@ -651,6 +651,14 @@ export const api = {
         });
       }
 
+      // Đánh dấu đã đọc tất cả thông báo mượn/chờ duyệt/duyệt cũ của lượt mượn này
+      db.notifications = (db.notifications || []).map(n => {
+        if (Number(n.recordId) === Number(recordId) || (n.meta && Number(n.meta.recordId) === Number(recordId))) {
+          return { ...n, isRead: true };
+        }
+        return n;
+      });
+
       const maxId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0));
       const nowStr = new Date().toISOString();
       const notifAdmin = {
@@ -681,6 +689,14 @@ export const api = {
       };
       db.notifications = [notifAdmin, notifReader, ...(db.notifications || [])];
     } else if (status === 'Đã hủy' && updated) {
+      // Đánh dấu đã đọc tất cả thông báo cũ của lượt mượn này
+      db.notifications = (db.notifications || []).map(n => {
+        if (Number(n.recordId) === Number(recordId) || (n.meta && Number(n.meta.recordId) === Number(recordId))) {
+          return { ...n, isRead: true };
+        }
+        return n;
+      });
+
       const maxId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0));
       const nowStr = new Date().toISOString();
       db.notifications = [
@@ -753,7 +769,8 @@ export const api = {
     } else if (role === 'Reader') {
       notifs = notifs.filter(n => n.recipientRole === 'Reader' && (!userId || !n.recipientUserId || Number(n.recipientUserId) === Number(userId)));
     }
-    return notifs;
+    const unreadCount = notifs.filter(n => !n.isRead).length;
+    return { notifications: notifs, unreadCount };
   },
 
   readNotification: async (notifId) => {
