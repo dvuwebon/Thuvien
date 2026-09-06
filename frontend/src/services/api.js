@@ -4,7 +4,7 @@ import initialDb from '../../../data/database.json';
 const API_BASE = '/api';
 
 // Local storage fallback database helper
-const DB_VERSION = 'v6_clean_data_2026';
+const DB_VERSION = 'v7_single_reader_2026';
 
 const isStaticHost = typeof window !== 'undefined' && (
   window.location.hostname.includes('github.io') ||
@@ -87,7 +87,16 @@ export const api = {
       }
     }
 
-    // Local / GitHub Pages fallback
+    // Ưu tiên tra cứu từ Local Database (đã đồng bộ chuẩn theo database.json)
+    const db = getLocalDb();
+    const found = (db.users || []).find(
+      u => u.username && u.username.toLowerCase() === trimmedUsername.toLowerCase() && u.password === password
+    );
+    if (found) {
+      return { user: found };
+    }
+
+    // Local / GitHub Pages fallback an toàn cho 2 tài khoản chính thức: admin và reader
     if (trimmedUsername.toLowerCase() === 'admin' && password === '123') {
       const adminUser = {
         id: 1,
@@ -97,9 +106,9 @@ export const api = {
         Role: 'Admin',
         fullName: 'Quản trị viên',
         FullName: 'Quản trị viên',
-        email: 'admin@smartlib.com',
+        email: 'admin@smartlib.edu.vn',
         phone: '0987 654 321',
-        address: 'Hà Nội'
+        address: 'Phòng Quản lý Thư viện, ĐHQG Hà Nội'
       };
       return { user: adminUser };
     } else if ((trimmedUsername.toLowerCase() === 'reader' || trimmedUsername.toLowerCase() === 'docgia') && password === '123') {
@@ -109,21 +118,13 @@ export const api = {
         username: 'reader',
         role: 'Reader',
         Role: 'Reader',
-        fullName: 'Độc giả',
-        FullName: 'Độc giả',
-        email: 'reader@smartlib.com',
-        phone: '0912 345 678',
-        address: 'Hà Nội'
+        fullName: 'Trần Thị Mai',
+        FullName: 'Trần Thị Mai',
+        email: 'mai.tran@smartlib.edu.vn',
+        phone: '0901 234 567',
+        address: 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội'
       };
       return { user: readerUser };
-    }
-
-    const db = getLocalDb();
-    const found = (db.users || []).find(
-      u => u.username && u.username.toLowerCase() === trimmedUsername.toLowerCase() && u.password === password
-    );
-    if (found) {
-      return { user: found };
     }
 
     throw new Error('Tên đăng nhập hoặc mật khẩu không chính xác!');
@@ -395,7 +396,7 @@ export const api = {
       bookId: data.bookId,
       bookTitle: data.bookTitle,
       readerId: data.readerId || 2,
-      readerName: data.readerName || 'Độc giả',
+      readerName: data.readerName || 'Trần Thị Mai',
       borrowDate: now.toISOString(),
       returnDate: returnD.toISOString().substring(0, 10),
       borrowType: data.borrowType || 'Mượn về nhà',
@@ -531,8 +532,57 @@ export const api = {
       }
       return r;
     });
+
+    // Khi trả sách thành công, khôi phục số lượng sách và gửi thông báo
+    if (status === 'Đã trả' && updated) {
+      if (updated.bookId) {
+        db.books = (db.books || []).map(b => {
+          if (Number(b.id) === Number(updated.bookId)) {
+            const newBorrowed = Math.max(0, (Number(b.borrowed) || 1) - 1);
+            const newAvailable = Math.min(Number(b.quantity) || 1, (Number(b.available) || 0) + 1);
+            return { ...b, borrowed: newBorrowed, available: newAvailable };
+          }
+          return b;
+        });
+      }
+
+      const notifId1 = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0)) + 1;
+      const notifId2 = notifId1 + 1;
+      const nowStr = new Date().toISOString();
+      db.notifications = [
+        {
+          id: notifId1,
+          recipientRole: 'Reader',
+          recipientUserId: updated.readerId || 2,
+          title: 'Xác nhận trả sách thành công',
+          message: `Bạn đã hoàn tất trả cuốn sách "${updated.bookTitle}". Cảm ơn bạn đã giữ gìn sách cẩn thận!`,
+          type: 'book_returned',
+          recordId: updated.id,
+          bookId: updated.bookId,
+          bookTitle: updated.bookTitle,
+          isRead: false,
+          createdAt: nowStr
+        },
+        {
+          id: notifId2,
+          recipientRole: 'Admin',
+          title: 'Độc giả đã trả sách',
+          message: `Độc giả ${updated.readerName || 'Trần Thị Mai'} đã trả cuốn sách "${updated.bookTitle}".`,
+          type: 'book_returned',
+          recordId: updated.id,
+          bookId: updated.bookId,
+          bookTitle: updated.bookTitle,
+          readerName: updated.readerName || 'Trần Thị Mai',
+          isRead: false,
+          createdAt: nowStr
+        },
+        ...(db.notifications || [])
+      ];
+    }
+
     saveLocalDb(db);
     notifyDataUpdated('borrow');
+    notifyDataUpdated('book');
 
     // 2. Nếu có máy chủ backend, đồng bộ sang backend
     if (!isStaticHost) {

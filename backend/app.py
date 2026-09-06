@@ -482,6 +482,15 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
     record["status"] = req.status
     if req.status == "Đã trả":
         record["actualReturnDate"] = datetime.now().isoformat()
+        # Khôi phục số lượng sách trong kho
+        book_id = record.get("bookId")
+        if book_id:
+            books = db.get("books", [])
+            target_book = next((b for b in books if int(b.get("id", 0)) == int(book_id)), None)
+            if target_book:
+                target_book["borrowed"] = max(0, int(target_book.get("borrowed", 1)) - 1)
+                target_book["available"] = min(int(target_book.get("quantity", 1)), int(target_book.get("available", 0)) + 1)
+
         db_manager.add_notification(
             recipient_role="Reader",
             recipient_user_id=record.get("readerId"),
