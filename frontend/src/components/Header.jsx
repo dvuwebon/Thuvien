@@ -11,6 +11,15 @@ export default function Header({ activeTab, onTabChange, onOpenExport }) {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
 
+  const isAdmin = role === 'Admin';
+  const displayName = isAdmin 
+    ? 'Quản trị viên' 
+    : (user?.fullName && user.fullName !== 'Độc giả' 
+        ? user.fullName 
+        : (user?.username === 'reader' ? 'Trần Thị Mai' : (user?.fullName || user?.username || 'Trần Thị Mai')));
+
+  const initial = displayName ? displayName.charAt(0).toUpperCase() : (isAdmin ? 'A' : 'T');
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target)) {
@@ -142,10 +151,10 @@ export default function Header({ activeTab, onTabChange, onOpenExport }) {
                 color: 'white'
               }}
             >
-              {user?.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
+              {initial}
             </div>
             <span style={{ fontSize: '13px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {user?.fullName || user?.username || 'Tài khoản'}
+              {displayName}
             </span>
             <ChevronDown size={14} style={{ color: '#64748b' }} />
           </div>

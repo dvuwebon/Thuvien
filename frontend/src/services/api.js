@@ -4,7 +4,7 @@ import initialDb from '../../../data/database.json';
 const API_BASE = '/api';
 
 // Local storage fallback database helper
-const DB_VERSION = 'v7_single_reader_2026';
+const DB_VERSION = 'v8_tran_thi_mai_2026';
 
 const isStaticHost = typeof window !== 'undefined' && (
   window.location.hostname.includes('github.io') ||
@@ -28,6 +28,30 @@ const getLocalDb = () => {
   try {
     localStorage.setItem('smartlib_db', JSON.stringify(clone));
     localStorage.setItem('smartlib_db_version', DB_VERSION);
+
+    // Tự động đồng bộ lại currentUser nếu đang có phiên đăng nhập reader cũ
+    const rawUser = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+    if (rawUser) {
+      try {
+        const u = JSON.parse(rawUser);
+        if (u && (u.username === 'reader' || Number(u.id) === 2)) {
+          const freshReader = (clone.users || []).find(usr => usr.username === 'reader') || {
+            id: 2,
+            username: 'reader',
+            role: 'Reader',
+            Role: 'Reader',
+            fullName: 'Trần Thị Mai',
+            FullName: 'Trần Thị Mai',
+            email: 'mai.tran@smartlib.edu.vn',
+            phone: '0901 234 567',
+            address: 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội'
+          };
+          const merged = { ...u, ...freshReader };
+          localStorage.setItem('currentUser', JSON.stringify(merged));
+          sessionStorage.setItem('currentUser', JSON.stringify(merged));
+        }
+      } catch (e) {}
+    }
   } catch (e) {
     // ignore
   }

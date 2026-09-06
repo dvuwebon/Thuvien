@@ -6,13 +6,19 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
-      // Khi truy cập qua GitHub Pages, luôn bắt đầu bằng form Đăng nhập cho phiên mới
+      let loaded = null;
       if (typeof window !== 'undefined' && window.location.hostname.includes('github.io')) {
         const sessionUser = sessionStorage.getItem('currentUser');
-        return sessionUser ? JSON.parse(sessionUser) : null;
+        loaded = sessionUser ? JSON.parse(sessionUser) : null;
+      } else {
+        const saved = localStorage.getItem('currentUser');
+        loaded = saved ? JSON.parse(saved) : null;
       }
-      const saved = localStorage.getItem('currentUser');
-      return saved ? JSON.parse(saved) : null;
+      if (loaded && loaded.username === 'reader' && (!loaded.fullName || loaded.fullName === 'Độc giả')) {
+        loaded.fullName = 'Trần Thị Mai';
+        loaded.FullName = 'Trần Thị Mai';
+      }
+      return loaded;
     } catch {
       return null;
     }
@@ -25,6 +31,43 @@ export const AuthProvider = ({ children }) => {
     }
     return localStorage.getItem('currentUserRole') || (user ? (user.Role || user.role || 'Reader') : null);
   });
+
+  // Tự động kiểm tra và đồng bộ lại họ tên chính xác từ database
+  useEffect(() => {
+    if (user) {
+      let shouldUpdate = false;
+      let freshUser = { ...user };
+
+      if (user.username === 'reader' && (!user.fullName || user.fullName === 'Độc giả')) {
+        freshUser.fullName = 'Trần Thị Mai';
+        freshUser.FullName = 'Trần Thị Mai';
+        shouldUpdate = true;
+      }
+
+      try {
+        const raw = localStorage.getItem('smartlib_db');
+        if (raw) {
+          const db = JSON.parse(raw);
+          if (db && Array.isArray(db.users)) {
+            const dbUser = db.users.find(u => 
+              (user.id && Number(u.id) === Number(user.id)) || 
+              (u.username && u.username.toLowerCase() === (user.username || '').toLowerCase())
+            );
+            if (dbUser && dbUser.fullName && dbUser.fullName !== user.fullName) {
+              freshUser = { ...freshUser, ...dbUser };
+              shouldUpdate = true;
+            }
+          }
+        }
+      } catch (e) {}
+
+      if (shouldUpdate) {
+        setUser(freshUser);
+        sessionStorage.setItem('currentUser', JSON.stringify(freshUser));
+        localStorage.setItem('currentUser', JSON.stringify(freshUser));
+      }
+    }
+  }, [user]);
 
   const login = async (username, password) => {
     const res = await api.login(username, password);

@@ -52,9 +52,13 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
   const [showNotifs, setShowNotifs] = useState(false);
 
   const isAdmin = role === 'Admin';
-  const initial = user?.fullName
-    ? user.fullName.charAt(0).toUpperCase()
-    : (isAdmin ? 'A' : 'Đ');
+  const displayName = isAdmin 
+    ? 'Quản trị viên' 
+    : (user?.fullName && user.fullName !== 'Độc giả' 
+        ? user.fullName 
+        : (user?.username === 'reader' ? 'Trần Thị Mai' : (user?.fullName || user?.username || 'Trần Thị Mai')));
+
+  const initial = displayName ? displayName.charAt(0).toUpperCase() : (isAdmin ? 'A' : 'T');
 
   return (
     <aside
@@ -225,7 +229,7 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user?.fullName || user?.username || 'Độc giả'}
+              {displayName}
             </div>
             <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#2563eb', letterSpacing: '0.02em' }}>
               {isAdmin ? 'Quản trị viên' : (user ? `DG-${String(user.id === 2 ? 1 : (user.id || 1)).padStart(3, '0')}` : 'DG-001')}
