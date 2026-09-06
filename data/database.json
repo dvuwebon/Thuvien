@@ -581,6 +581,17 @@
   ],
   "borrowRecords": [
     {
+      "id": 4,
+      "bookId": 1,
+      "bookTitle": "Giáo Trình Triết Học Mác - Lênin",
+      "readerId": 2,
+      "readerName": "Trần Thị Mai",
+      "borrowDate": "2026-09-06T20:24:27.785201",
+      "returnDate": "2026-09-20T20:24:17.555617",
+      "status": "Đang mượn",
+      "borrowType": "Mượn về nhà"
+    },
+    {
       "id": 1,
       "bookId": 2,
       "bookTitle": "Tư Duy Mở",
@@ -588,8 +599,9 @@
       "readerName": "Trần Thị Mai",
       "borrowDate": "2026-09-01T08:30:00",
       "returnDate": "2026-09-15T17:00:00",
-      "status": "Đang mượn",
-      "borrowType": "Mượn về nhà"
+      "status": "Đã trả",
+      "borrowType": "Mượn về nhà",
+      "actualReturnDate": "2026-09-06T20:24:00.132873"
     },
     {
       "id": 2,
@@ -597,10 +609,11 @@
       "bookTitle": "Giáo Trình Triết Học Mác - Lênin",
       "readerId": 2,
       "readerName": "Trần Thị Mai",
-      "borrowDate": "2026-09-06T09:00:00",
+      "borrowDate": "2026-09-06T20:23:50.919135",
       "returnDate": "2026-09-20T17:00:00",
-      "status": "Chờ duyệt",
-      "borrowType": "Mượn về nhà"
+      "status": "Đã trả",
+      "borrowType": "Mượn về nhà",
+      "actualReturnDate": "2026-09-06T20:24:03.776425"
     },
     {
       "id": 3,
@@ -629,13 +642,69 @@
   ],
   "notifications": [
     {
+      "id": 9,
+      "recipientRole": "Reader",
+      "recipientUserId": 2,
+      "title": "Yêu cầu mượn sách đã được duyệt",
+      "message": "Yêu cầu mượn cuốn sách \"Giáo Trình Triết Học Mác - Lênin\" của bạn đã được duyệt thành công!",
+      "type": "borrow_approved",
+      "isRead": true,
+      "createdAt": "2026-09-06T20:24:27.862958",
+      "meta": {
+        "recordId": 4,
+        "bookId": 1,
+        "bookTitle": "Giáo Trình Triết Học Mác - Lênin"
+      },
+      "recordId": 4,
+      "bookId": 1,
+      "bookTitle": "Giáo Trình Triết Học Mác - Lênin"
+    },
+    {
+      "id": 8,
+      "recipientRole": "Admin",
+      "recipientUserId": null,
+      "title": "Yêu cầu mượn sách mới",
+      "message": "Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách \"Giáo Trình Triết Học Mác - Lênin\" (Mượn về nhà).",
+      "type": "borrow_request",
+      "isRead": true,
+      "createdAt": "2026-09-06T20:24:17.617884",
+      "meta": {
+        "recordId": 4,
+        "bookId": 1,
+        "bookTitle": "Giáo Trình Triết Học Mác - Lênin",
+        "readerName": "Trần Thị Mai"
+      },
+      "recordId": 4,
+      "bookId": 1,
+      "bookTitle": "Giáo Trình Triết Học Mác - Lênin",
+      "readerName": "Trần Thị Mai"
+    },
+    {
+      "id": 7,
+      "recipientRole": "Reader",
+      "recipientUserId": 2,
+      "title": "Yêu cầu mượn sách đã được duyệt",
+      "message": "Yêu cầu mượn cuốn sách \"Giáo Trình Triết Học Mác - Lênin\" của bạn đã được duyệt thành công!",
+      "type": "borrow_approved",
+      "isRead": false,
+      "createdAt": "2026-09-06T20:23:50.983135",
+      "meta": {
+        "recordId": 2,
+        "bookId": 1,
+        "bookTitle": "Giáo Trình Triết Học Mác - Lênin"
+      },
+      "recordId": 2,
+      "bookId": 1,
+      "bookTitle": "Giáo Trình Triết Học Mác - Lênin"
+    },
+    {
       "id": 1,
       "recipientRole": "Admin",
       "recipientUserId": null,
       "title": "Hệ thống SmartLib v2.1",
       "message": "Chào mừng bạn đến với hệ thống Quản lý Thư viện Thông minh SmartLib. Hệ thống đã sẵn sàng phục vụ!",
       "type": "system",
-      "isRead": false,
+      "isRead": true,
       "createdAt": "2026-09-06T08:00:00"
     },
     {
@@ -659,7 +728,7 @@
       "bookId": 1,
       "bookTitle": "Giáo Trình Triết Học Mác - Lênin",
       "readerName": "Trần Thị Mai",
-      "isRead": false,
+      "isRead": true,
       "createdAt": "2026-09-06T09:00:00"
     },
     {
