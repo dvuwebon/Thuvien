@@ -666,6 +666,19 @@
       "id": 4,
       "recipientRole": "Reader",
       "recipientUserId": 2,
+      "title": "Yêu cầu mượn sách đang chờ duyệt",
+      "message": "Yêu cầu mượn cuốn sách \"Giáo Trình Triết Học Mác - Lênin\" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.",
+      "type": "borrow_request",
+      "recordId": 2,
+      "bookId": 1,
+      "bookTitle": "Giáo Trình Triết Học Mác - Lênin",
+      "isRead": false,
+      "createdAt": "2026-09-06T09:00:00"
+    },
+    {
+      "id": 5,
+      "recipientRole": "Reader",
+      "recipientUserId": 2,
       "title": "Yêu cầu mượn sách đã được duyệt",
       "message": "Yêu cầu mượn cuốn sách \"Tư Duy Mở\" của bạn đã được duyệt thành công! Hạn trả: 15/09/2026.",
       "type": "borrow_approved",
@@ -676,7 +689,7 @@
       "createdAt": "2026-09-06T08:35:00"
     },
     {
-      "id": 5,
+      "id": 6,
       "recipientRole": "Reader",
       "recipientUserId": 2,
       "title": "Xác nhận trả sách thành công",

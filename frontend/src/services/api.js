@@ -3,8 +3,10 @@ import initialDb from '../../../data/database.json';
 
 const API_BASE = '/api';
 
-// Local storage fallback database helper
-const DB_VERSION = 'v8_tran_thi_mai_2026';
+// Local storage fallback database helper with in-memory singleton
+const DB_VERSION = 'v9_fix_return_and_notifs_2026';
+
+let memoryDb = null;
 
 const isStaticHost = typeof window !== 'undefined' && (
   window.location.hostname.includes('github.io') ||
@@ -12,57 +14,79 @@ const isStaticHost = typeof window !== 'undefined' && (
 );
 
 const getLocalDb = () => {
+  if (memoryDb) {
+    return memoryDb;
+  }
+
   try {
     const savedVersion = localStorage.getItem('smartlib_db_version');
     const raw = localStorage.getItem('smartlib_db');
     if (raw && savedVersion === DB_VERSION) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.books) && parsed.books.length > 0) {
-        return parsed;
+        // Khôi phục lại imageUrl gốc từ initialDb nếu trong LocalStorage đã được rút gọn nhẹ
+        parsed.books = parsed.books.map((b, i) => {
+          const orig = initialDb.books?.[i] || initialDb.books?.find(x => x.id === b.id);
+          return {
+            ...b,
+            imageUrl: (orig && orig.imageUrl) || b.imageUrl
+          };
+        });
+        memoryDb = parsed;
+        return memoryDb;
       }
     }
   } catch (e) {
     // ignore
   }
-  const clone = JSON.parse(JSON.stringify(initialDb));
-  try {
-    localStorage.setItem('smartlib_db', JSON.stringify(clone));
-    localStorage.setItem('smartlib_db_version', DB_VERSION);
 
-    // Tự động đồng bộ lại currentUser nếu đang có phiên đăng nhập reader cũ
+  const clone = JSON.parse(JSON.stringify(initialDb));
+  memoryDb = clone;
+  saveLocalDb(clone);
+
+  // Tự động đồng bộ lại currentUser nếu đang có phiên đăng nhập reader cũ
+  try {
     const rawUser = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
     if (rawUser) {
-      try {
-        const u = JSON.parse(rawUser);
-        if (u && (u.username === 'reader' || Number(u.id) === 2)) {
-          const freshReader = (clone.users || []).find(usr => usr.username === 'reader') || {
-            id: 2,
-            username: 'reader',
-            role: 'Reader',
-            Role: 'Reader',
-            fullName: 'Trần Thị Mai',
-            FullName: 'Trần Thị Mai',
-            email: 'mai.tran@smartlib.edu.vn',
-            phone: '0901 234 567',
-            address: 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội'
-          };
-          const merged = { ...u, ...freshReader };
-          localStorage.setItem('currentUser', JSON.stringify(merged));
-          sessionStorage.setItem('currentUser', JSON.stringify(merged));
-        }
-      } catch (e) {}
+      const u = JSON.parse(rawUser);
+      if (u && (u.username === 'reader' || Number(u.id) === 2)) {
+        const freshReader = (clone.users || []).find(usr => usr.username === 'reader') || {
+          id: 2,
+          username: 'reader',
+          role: 'Reader',
+          Role: 'Reader',
+          fullName: 'Trần Thị Mai',
+          FullName: 'Trần Thị Mai',
+          email: 'mai.tran@smartlib.edu.vn',
+          phone: '0901 234 567',
+          address: 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội'
+        };
+        const merged = { ...u, ...freshReader };
+        localStorage.setItem('currentUser', JSON.stringify(merged));
+        sessionStorage.setItem('currentUser', JSON.stringify(merged));
+      }
     }
-  } catch (e) {
-    // ignore
-  }
-  return clone;
+  } catch (e) {}
+
+  return memoryDb;
 };
 
 const saveLocalDb = (db) => {
+  memoryDb = db;
   try {
-    localStorage.setItem('smartlib_db', JSON.stringify(db));
+    localStorage.setItem('smartlib_db_version', DB_VERSION);
+    // Để không bao giờ bị tràn quota LocalStorage (5MB limit, trong khi ảnh base64 chiếm 1.25MB),
+    // chúng ta lưu phiên bản nhẹ của books (ảnh được lấy từ bundle initialDb)
+    const lightDb = {
+      ...db,
+      books: (db.books || []).map(b => {
+        const { imageUrl, ...rest } = b;
+        return rest;
+      })
+    };
+    localStorage.setItem('smartlib_db', JSON.stringify(lightDb));
   } catch (e) {
-    // ignore
+    console.error('LocalStorage write error:', e);
   }
 };
 
@@ -428,11 +452,25 @@ export const api = {
     };
     db.borrowRecords = [newRecord, ...(db.borrowRecords || [])];
 
-    // Notification for Admin
-    const notifId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0)) + 1;
+    // Notification for both Reader and Admin
+    const notifId1 = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0)) + 1;
+    const notifId2 = notifId1 + 1;
     db.notifications = [
       {
-        id: notifId,
+        id: notifId1,
+        recipientRole: 'Reader',
+        recipientUserId: newRecord.readerId || 2,
+        title: 'Yêu cầu mượn sách đang chờ duyệt',
+        message: `Yêu cầu mượn cuốn sách "${newRecord.bookTitle}" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.`,
+        type: 'borrow_request',
+        recordId: newId,
+        bookId: data.bookId,
+        bookTitle: data.bookTitle,
+        isRead: false,
+        createdAt: now.toISOString()
+      },
+      {
+        id: notifId2,
         recipientRole: 'Admin',
         title: 'Yêu cầu mượn sách mới',
         message: `Độc giả ${newRecord.readerName} vừa gửi yêu cầu mượn cuốn sách "${newRecord.bookTitle}" (${newRecord.borrowType}).`,
@@ -597,6 +635,25 @@ export const api = {
           bookId: updated.bookId,
           bookTitle: updated.bookTitle,
           readerName: updated.readerName || 'Trần Thị Mai',
+          isRead: false,
+          createdAt: nowStr
+        },
+        ...(db.notifications || [])
+      ];
+    } else if (status === 'Đã hủy' && updated) {
+      const notifId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0)) + 1;
+      const nowStr = new Date().toISOString();
+      db.notifications = [
+        {
+          id: notifId,
+          recipientRole: 'Reader',
+          recipientUserId: updated.readerId || 2,
+          title: 'Đã hủy yêu cầu mượn sách',
+          message: `Bạn đã hủy thành công yêu cầu mượn cuốn sách "${updated.bookTitle}".`,
+          type: 'borrow_rejected',
+          recordId: updated.id,
+          bookId: updated.bookId,
+          bookTitle: updated.bookTitle,
           isRead: false,
           createdAt: nowStr
         },

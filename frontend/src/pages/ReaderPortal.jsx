@@ -136,16 +136,14 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     const targetTitle = returnConfirmRecord.bookTitle;
     setIsReturning(true);
 
-    // Cập nhật giao diện ngay lập tức 0ms để sách biến mất khỏi danh sách đang mượn ngay
-    setMyBorrows(prev => prev.map(r => 
-      Number(r.id) === Number(targetId) 
-        ? { ...r, status: 'Đã trả', actualReturnDate: new Date().toISOString().substring(0, 10) }
-        : r
-    ));
-    setReturnConfirmRecord(null);
-
     try {
       await api.updateBorrowStatus(targetId, 'Đã trả');
+      setMyBorrows(prev => prev.map(r => 
+        Number(r.id) === Number(targetId) 
+          ? { ...r, status: 'Đã trả', actualReturnDate: new Date().toISOString().substring(0, 10) }
+          : r
+      ));
+      setReturnConfirmRecord(null);
       showToast(`✓ Đã hoàn tất trả cuốn sách "${targetTitle}" về thư viện thành công!`);
       await loadData(true);
     } catch (err) {
@@ -154,6 +152,18 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       await loadData(true);
     } finally {
       setIsReturning(false);
+    }
+  };
+
+  const handleCancelBorrow = async (recordId, bookTitle) => {
+    try {
+      await api.updateBorrowStatus(recordId, 'Đã hủy');
+      setMyBorrows(prev => prev.filter(r => Number(r.id) !== Number(recordId)));
+      showToast(`✓ Đã hủy yêu cầu mượn cuốn sách "${bookTitle}" thành công!`);
+      await loadData(true);
+    } catch (err) {
+      console.error(err);
+      showToast('Có lỗi xảy ra khi hủy yêu cầu.');
     }
   };
 
@@ -370,6 +380,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                   r.borrowType.toLowerCase().includes('tại chỗ')
                 );
                 const canReturn = r.status === 'Đang mượn' || r.status === 'Quá hạn';
+                const canCancel = r.status === 'Chờ duyệt';
 
                 return (
                   <div key={r.id} className="card" style={{ padding: '20px', margin: 0, borderLeft: `4px solid ${r.status === 'Đang mượn' ? '#16a34a' : r.status === 'Quá hạn' ? '#ef4444' : '#f59e0b'}` }}>
@@ -429,6 +440,26 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                           title="Trả sách về thư viện"
                         >
                           Trả sách
+                        </button>
+                      ) : null}
+
+                      {/* Nút Hủy yêu cầu cho sách đang Chờ duyệt */}
+                      {canCancel ? (
+                        <button
+                          onClick={() => handleCancelBorrow(r.id, r.bookTitle)}
+                          className="btn btn-outline"
+                          style={{
+                            padding: '6px 14px',
+                            fontSize: '12.5px',
+                            color: '#dc2626',
+                            borderColor: '#fca5a5',
+                            background: '#fef2f2',
+                            cursor: 'pointer',
+                            fontWeight: 600
+                          }}
+                          title="Hủy yêu cầu mượn cuốn sách này"
+                        >
+                          Hủy yêu cầu
                         </button>
                       ) : null}
                     </div>
