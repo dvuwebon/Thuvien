@@ -1364,6 +1364,78 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
             {/* Content: Bảng hoặc Lưới */}
             {bookViewMode === 'table' ? (
               <div className="table-responsive">
+                <style>{`
+                  .btn-action-cell {
+                    width: 95px;
+                    height: 32px;
+                    border-radius: 8px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 5px;
+                    cursor: pointer;
+                    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    outline: none;
+                    box-sizing: border-box;
+                  }
+                  .btn-action-borrow {
+                    background: #0284c7;
+                    color: #ffffff;
+                    border: 1px solid #0284c7;
+                    box-shadow: 0 1px 3px rgba(2, 132, 199, 0.25);
+                  }
+                  .btn-action-borrow:hover:not(:disabled) {
+                    background: #0369a1;
+                    border-color: #0369a1;
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+                  }
+                  .btn-action-borrow:disabled {
+                    background: #f1f5f9;
+                    color: #94a3b8;
+                    border: 1px solid #e2e8f0;
+                    cursor: not-allowed;
+                    box-shadow: none;
+                  }
+                  .btn-action-edit {
+                    background: #eff6ff;
+                    color: #2563eb;
+                    border: 1px solid #bfdbfe;
+                  }
+                  .btn-action-edit:hover {
+                    background: #2563eb;
+                    color: #ffffff;
+                    border-color: #2563eb;
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+                  }
+                  .btn-action-qr {
+                    background: #f0fdfa;
+                    color: #0d9488;
+                    border: 1px solid #99f6e4;
+                  }
+                  .btn-action-qr:hover {
+                    background: #0d9488;
+                    color: #ffffff;
+                    border-color: #0d9488;
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(13, 148, 136, 0.35);
+                  }
+                  .btn-action-delete {
+                    background: #fef2f2;
+                    color: #ef4444;
+                    border: 1px solid #fecaca;
+                  }
+                  .btn-action-delete:hover {
+                    background: #ef4444;
+                    color: #ffffff;
+                    border-color: #ef4444;
+                    transform: translateY(-2px);
+                    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+                  }
+                `}</style>
                 <table>
                   <thead>
                     <tr>
@@ -1373,7 +1445,7 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
                       <th>Thể Loại</th>
                       <th style={{ whiteSpace: 'nowrap' }}>Số Lượng</th>
                       <th>Trạng Thái</th>
-                      <th style={{ textAlign: 'center', minWidth: '180px' }}>Thao Tác</th>
+                      <th style={{ textAlign: 'center', minWidth: '220px' }}>Thao Tác</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1491,12 +1563,12 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
                               )}
                             </td>
 
-                            {/* Cột 7: Thao tác (Căn giữa, lưới 2x2: Cho mượn & Sửa ở trên, Mã QR & Xóa ở dưới) */}
-                            <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                            {/* Cột 7: Thao tác (Căn giữa, kích thước đều nhau 95px x 32px, cách đều 8px, hiệu ứng hover riêng) */}
+                            <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '12px 8px' }}>
                               <div style={{
                                 display: 'inline-grid',
-                                gridTemplateColumns: 'repeat(2, auto)',
-                                gap: '6px',
+                                gridTemplateColumns: 'repeat(2, 95px)',
+                                gap: '8px',
                                 justifyContent: 'center',
                                 alignItems: 'center'
                               }}>
@@ -1504,106 +1576,46 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
                                 {avail > 0 ? (
                                   <button
                                     onClick={() => { setBorrowTargetBook(b); setBorrowModalOpen(true); }}
-                                    className="btn btn-primary"
-                                    style={{
-                                      padding: '4px 9px',
-                                      fontSize: '11.5px',
-                                      background: '#0284c7',
-                                      borderColor: '#0284c7',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: '4px',
-                                      minWidth: '86px'
-                                    }}
+                                    className="btn-action-cell btn-action-borrow"
                                     title="Cho độc giả mượn cuốn sách này"
                                   >
-                                    <BookMarked size={13} /> Cho mượn
+                                    <BookMarked size={14} /> Cho mượn
                                   </button>
                                 ) : (
                                   <button
                                     disabled
-                                    className="btn"
-                                    style={{
-                                      padding: '4px 9px',
-                                      fontSize: '11.5px',
-                                      background: '#f1f5f9',
-                                      color: '#94a3b8',
-                                      borderColor: '#e2e8f0',
-                                      cursor: 'not-allowed',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      gap: '4px',
-                                      minWidth: '86px'
-                                    }}
+                                    className="btn-action-cell btn-action-borrow"
                                     title="Sách đã được mượn hết"
                                   >
-                                    <BookMarked size={13} /> Cho mượn
+                                    <BookMarked size={14} /> Cho mượn
                                   </button>
                                 )}
 
                                 {/* Hàng 1, Cột 2: Sửa (bên cạnh Cho mượn) */}
                                 <button
                                   onClick={() => { setEditingBook(b); setBookModalOpen(true); }}
-                                  className="btn btn-outline"
-                                  style={{
-                                    padding: '4px 9px',
-                                    fontSize: '11.5px',
-                                    color: '#2563eb',
-                                    borderColor: '#bfdbfe',
-                                    background: '#eff6ff',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '4px',
-                                    minWidth: '66px'
-                                  }}
+                                  className="btn-action-cell btn-action-edit"
                                   title="Chỉnh sửa thông tin sách"
                                 >
-                                  <Edit2 size={13} /> Sửa
+                                  <Edit2 size={14} /> Sửa
                                 </button>
 
                                 {/* Hàng 2, Cột 1: Mã QR (nằm dưới Cho mượn) */}
                                 <button
                                   onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
-                                  className="btn btn-outline"
-                                  style={{
-                                    padding: '4px 9px',
-                                    fontSize: '11.5px',
-                                    color: '#0f766e',
-                                    borderColor: '#99f6e4',
-                                    background: '#f0fdfa',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '4px',
-                                    minWidth: '86px'
-                                  }}
+                                  className="btn-action-cell btn-action-qr"
                                   title="Xem và tải mã QR của cuốn sách này"
                                 >
-                                  <QrCode size={13} /> Mã QR
+                                  <QrCode size={14} /> Mã QR
                                 </button>
 
                                 {/* Hàng 2, Cột 2: Xóa (nằm dưới Sửa) */}
                                 <button
                                   onClick={() => setBookToDelete(b)}
-                                  className="btn btn-outline"
-                                  style={{
-                                    padding: '4px 9px',
-                                    fontSize: '11.5px',
-                                    color: '#ef4444',
-                                    borderColor: '#fecaca',
-                                    background: '#fef2f2',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '4px',
-                                    minWidth: '66px'
-                                  }}
+                                  className="btn-action-cell btn-action-delete"
                                   title="Xóa sách khỏi cơ sở dữ liệu"
                                 >
-                                  <Trash2 size={13} /> Xóa
+                                  <Trash2 size={14} /> Xóa
                                 </button>
                               </div>
                             </td>
