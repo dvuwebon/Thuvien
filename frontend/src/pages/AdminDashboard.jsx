@@ -134,35 +134,46 @@ function MonthlyTrendChart() {
             points={polylinePoints}
           />
 
-          {points.map((p, i) => (
-            <g
-              key={i}
-              onMouseEnter={() => setHoveredIndex(i)}
-              onMouseLeave={() => setHoveredIndex(null)}
-              style={{ cursor: 'pointer' }}
-            >
-              <circle
-                cx={p.x}
-                cy={p.y}
-                r={(hoveredIndex === i ? 5.5 : 3.5) * p.pointProgress}
-                fill="#ffffff"
-                stroke="#2563eb"
-                strokeWidth="2.5"
-                style={{ transition: 'all 0.15s ease' }}
-              />
-              <text
-                x={p.x}
-                y={height - 6}
-                textAnchor="middle"
-                fontSize="9.5"
-                fill={hoveredIndex === i ? '#2563eb' : '#64748b'}
-                fontWeight={hoveredIndex === i ? '700' : '500'}
-                opacity={Math.min(1, p.pointProgress * 1.5)}
+          {points.map((p, i) => {
+            const slotW = chartW / (baseData.length - 1);
+            return (
+              <g
+                key={i}
+                onMouseEnter={() => setHoveredIndex(i)}
+                onMouseLeave={() => setHoveredIndex(null)}
+                style={{ cursor: 'pointer' }}
               >
-                {p.month}
-              </text>
-            </g>
-          ))}
+                {/* Vùng cảm ứng rộng giúp di chuột dễ dàng và mượt mà */}
+                <rect
+                  x={p.x - slotW / 2}
+                  y={paddingTop}
+                  width={slotW}
+                  height={chartH + paddingBottom}
+                  fill="transparent"
+                />
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={(hoveredIndex === i ? 6 : 3.5) * p.pointProgress}
+                  fill={hoveredIndex === i ? '#2563eb' : '#ffffff'}
+                  stroke="#2563eb"
+                  strokeWidth={hoveredIndex === i ? 3 : 2}
+                  style={{ transition: 'all 0.15s ease' }}
+                />
+                <text
+                  x={p.x}
+                  y={height - 6}
+                  textAnchor="middle"
+                  fontSize="9.5"
+                  fill={hoveredIndex === i ? '#2563eb' : '#64748b'}
+                  fontWeight={hoveredIndex === i ? '700' : '500'}
+                  opacity={Math.min(1, p.pointProgress * 1.5)}
+                >
+                  {p.month}
+                </text>
+              </g>
+            );
+          })}
         </svg>
 
         {hoveredIndex !== null && (
@@ -192,6 +203,27 @@ function MonthlyTrendChart() {
   );
 }
 
+function getDonutArcPath(cx, cy, innerR, outerR, startAngle, endAngle) {
+  const delta = Math.min(Math.max(endAngle - startAngle, 0.01), 359.99);
+  const rad = Math.PI / 180;
+  const startRad = (startAngle - 90) * rad;
+  const endRad = (startAngle + delta - 90) * rad;
+
+  const x1 = cx + outerR * Math.cos(startRad);
+  const y1 = cy + outerR * Math.sin(startRad);
+  const x2 = cx + outerR * Math.cos(endRad);
+  const y2 = cy + outerR * Math.sin(endRad);
+
+  const x3 = cx + innerR * Math.cos(endRad);
+  const y3 = cy + innerR * Math.sin(endRad);
+  const x4 = cx + innerR * Math.cos(startRad);
+  const y4 = cy + innerR * Math.sin(startRad);
+
+  const largeArcFlag = delta > 180 ? 1 : 0;
+
+  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${outerR} ${outerR} 0 ${largeArcFlag} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} L ${x3.toFixed(2)} ${y3.toFixed(2)} A ${innerR} ${innerR} 0 ${largeArcFlag} 0 ${x4.toFixed(2)} ${y4.toFixed(2)} Z`;
+}
+
 function CategoryDonutChart() {
   const categories = [
     { name: 'Khoa học', color: '#06b6d4', percent: 22, count: 11 },
@@ -200,6 +232,8 @@ function CategoryDonutChart() {
     { name: 'Phát triển', color: '#f59e0b', percent: 18, count: 9 },
     { name: 'Tiểu thuyết', color: '#3b82f6', percent: 28, count: 14 }
   ];
+
+  const totalCount = categories.reduce((sum, c) => sum + c.count, 0);
 
   const [animProgress, setAnimProgress] = useState(0);
   const [hoveredCat, setHoveredCat] = useState(null);
@@ -223,12 +257,23 @@ function CategoryDonutChart() {
     return () => cancelAnimationFrame(frameId);
   }, []);
 
-  const size = 170;
-  const strokeWidth = 22;
-  const radius = 48;
-  const circumference = 2 * Math.PI * radius;
+  const size = 180;
+  const cx = size / 2;
+  const cy = size / 2;
+  const defaultInnerR = 48;
+  const defaultOuterR = 70;
+  const hoveredInnerR = 44;
+  const hoveredOuterR = 76;
+  const gap = 2.5;
 
-  let accumulatedPercent = 0;
+  let accumulatedAngle = 0;
+  const slices = categories.map((cat, i) => {
+    const sweepAngle = (cat.percent / 100) * 360 * animProgress;
+    const startAngle = accumulatedAngle + gap / 2;
+    const endAngle = accumulatedAngle + Math.max(0.1, sweepAngle - gap / 2);
+    accumulatedAngle += sweepAngle;
+    return { ...cat, index: i, startAngle, endAngle };
+  });
 
   return (
     <div style={{
@@ -250,119 +295,144 @@ function CategoryDonutChart() {
         <span style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8' }}>5 thể loại</span>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '136px', position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '180px', position: 'relative' }}>
         <svg
           width={size}
           height={size}
           viewBox={`0 0 ${size} ${size}`}
-          style={{
-            transform: `rotate(${-90 + (1 - animProgress) * 60}deg)`,
-            transition: 'transform 0.1s linear'
-          }}
+          style={{ overflow: 'visible' }}
         >
-          {categories.map((cat, i) => {
-            const currentCatPercent = cat.percent * animProgress;
-            const strokeLength = Math.max(0, (currentCatPercent / 100) * circumference - (animProgress > 0.8 ? 4 : 0));
-            const strokeOffset = -((accumulatedPercent / 100) * circumference) - 2;
-            accumulatedPercent += currentCatPercent;
-
-            const isHovered = hoveredCat === i;
+          {slices.map((slice) => {
+            const isHovered = hoveredCat === slice.index;
+            const innerR = isHovered ? hoveredInnerR : defaultInnerR;
+            const outerR = isHovered ? hoveredOuterR : defaultOuterR;
+            const pathD = getDonutArcPath(cx, cy, innerR, outerR, slice.startAngle, slice.endAngle);
 
             return (
-              <circle
-                key={i}
-                cx={size / 2}
-                cy={size / 2}
-                r={radius}
-                fill="transparent"
-                stroke={cat.color}
-                strokeWidth={isHovered ? strokeWidth + 4 : strokeWidth}
-                strokeDasharray={`${strokeLength} ${circumference}`}
-                strokeDashoffset={strokeOffset}
+              <path
+                key={slice.index}
+                d={pathD}
+                fill={slice.color}
                 opacity={hoveredCat === null || isHovered ? 1 : 0.4}
-                onMouseEnter={() => setHoveredCat(i)}
+                onMouseEnter={() => setHoveredCat(slice.index)}
                 onMouseLeave={() => setHoveredCat(null)}
                 style={{
-                  transition: 'stroke-width 0.2s ease, opacity 0.2s ease, stroke-dasharray 0.1s linear',
-                  cursor: 'pointer'
+                  transition: 'opacity 0.2s ease',
+                  cursor: 'pointer',
+                  filter: isHovered ? `drop-shadow(0 3px 8px ${slice.color}60)` : 'none'
                 }}
-              >
-                <title>{cat.name}: {cat.count} cuốn ({cat.percent}%)</title>
-              </circle>
+              />
             );
           })}
         </svg>
 
-        {/* Khi di chuột vào từng phần: Hiện số sách và thể loại tương ứng ở tâm */}
-        {hoveredCat !== null && (
-          <div style={{
-            position: 'absolute',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none',
-            textAlign: 'center',
-            zIndex: 5
-          }}>
-            <span style={{ fontSize: '18px', fontWeight: 800, color: categories[hoveredCat].color, lineHeight: 1 }}>
-              {categories[hoveredCat].count} cuốn
-            </span>
-            <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#475569', marginTop: '3px' }}>
-              {categories[hoveredCat].name} ({categories[hoveredCat].percent}%)
-            </span>
-          </div>
-        )}
+        {/* Thông số ở tâm vòng tròn: Hiển thị mượt mà thông số của mục tương ứng khi di chuột */}
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none',
+          textAlign: 'center',
+          width: '84px',
+          height: '84px',
+          zIndex: 5
+        }}>
+          {hoveredCat !== null ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span style={{ fontSize: '18px', fontWeight: 800, color: categories[hoveredCat].color, lineHeight: 1.1 }}>
+                {categories[hoveredCat].count} cuốn
+              </span>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: '#0f172a', marginTop: '3px' }}>
+                {categories[hoveredCat].name}
+              </span>
+              <span style={{ fontSize: '10.5px', fontWeight: 700, color: categories[hoveredCat].color, marginTop: '1px' }}>
+                {categories[hoveredCat].percent}%
+              </span>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', lineHeight: 1.1 }}>
+                {totalCount}
+              </span>
+              <span style={{ fontSize: '10.5px', fontWeight: 600, color: '#64748b', marginTop: '2px' }}>
+                Tổng số sách
+              </span>
+              <span style={{ fontSize: '9.5px', fontWeight: 500, color: '#94a3b8' }}>
+                5 thể loại
+              </span>
+            </div>
+          )}
+        </div>
 
-        {/* Tooltip nổi bật khi di chuột */}
+        {/* Tooltip nổi bật gắn thẻ khi di chuột */}
         {hoveredCat !== null && (
           <div
             style={{
               position: 'absolute',
-              top: '-8px',
+              top: '-6px',
               left: '50%',
               transform: 'translateX(-50%)',
               background: '#0f172a',
               color: '#ffffff',
               padding: '4px 10px',
-              borderRadius: '6px',
-              fontSize: '11px',
+              borderRadius: '7px',
+              fontSize: '11.5px',
               fontWeight: 600,
               pointerEvents: 'none',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.18)',
               whiteSpace: 'nowrap',
-              zIndex: 10
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}
           >
-            {categories[hoveredCat].name}: {categories[hoveredCat].count} cuốn ({categories[hoveredCat].percent}%)
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: categories[hoveredCat].color, display: 'inline-block' }} />
+            <span>{categories[hoveredCat].name}: <strong>{categories[hoveredCat].count} cuốn</strong> ({categories[hoveredCat].percent}%)</span>
           </div>
         )}
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px 10px', marginTop: '8px', opacity: animProgress }}>
-        {categories.map((cat, i) => (
-          <div
-            key={i}
-            onMouseEnter={() => setHoveredCat(i)}
-            onMouseLeave={() => setHoveredCat(null)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              fontSize: '11px',
-              fontWeight: hoveredCat === i ? 700 : 500,
-              color: hoveredCat === i ? '#0f172a' : '#475569',
-              cursor: 'pointer',
-              padding: '2px 6px',
-              borderRadius: '6px',
-              background: hoveredCat === i ? '#f1f5f9' : 'transparent',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: cat.color, display: 'inline-block' }} />
-            <span>{cat.name} ({cat.count})</span>
-          </div>
-        ))}
+      {/* Danh sách các mục thể loại bên dưới: Di chuột vào mục nào sẽ làm nổi bật mục đó và hiện thông số trên biểu đồ */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '6px 8px', marginTop: '8px', opacity: animProgress }}>
+        {categories.map((cat, i) => {
+          const isHovered = hoveredCat === i;
+          return (
+            <div
+              key={i}
+              onMouseEnter={() => setHoveredCat(i)}
+              onMouseLeave={() => setHoveredCat(null)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                fontSize: '11.5px',
+                fontWeight: isHovered ? 700 : 500,
+                color: isHovered ? '#0f172a' : '#475569',
+                cursor: 'pointer',
+                padding: '3px 8px',
+                borderRadius: '8px',
+                border: isHovered ? `1.5px solid ${cat.color}` : '1.5px solid #f1f5f9',
+                background: isHovered ? `${cat.color}15` : '#f8fafc',
+                transform: isHovered ? 'scale(1.06)' : 'scale(1)',
+                boxShadow: isHovered ? `0 2px 8px ${cat.color}25` : 'none',
+                transition: 'all 0.18s ease'
+              }}
+            >
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
+              <span>{cat.name}</span>
+              <span style={{ fontWeight: 700, color: isHovered ? cat.color : '#334155' }}>({cat.count})</span>
+              {isHovered && (
+                <span style={{ fontSize: '10px', fontWeight: 700, color: cat.color, marginLeft: '2px' }}>• {cat.percent}%</span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -455,11 +525,13 @@ function CategoryBorrowBarChart() {
 
           {data.map((item, i) => {
             const slotW = chartW / data.length;
-            const x = paddingLeft + i * slotW + (slotW - barWidth) / 2;
+            const slotX = paddingLeft + i * slotW;
+            const x = slotX + (slotW - barWidth) / 2;
             // Hiệu ứng mọc cột so le (staggered bar growth)
             const barProgress = Math.max(0, Math.min(1, (animProgress - (i / data.length) * 0.35) / 0.65));
             const bHeight = Math.max(0, (item.value / maxY) * chartH * barProgress);
             const y = paddingTop + chartH - bHeight;
+            const isHovered = hoveredBar === i;
 
             return (
               <g
@@ -468,6 +540,14 @@ function CategoryBorrowBarChart() {
                 onMouseLeave={() => setHoveredBar(null)}
                 style={{ cursor: 'pointer' }}
               >
+                {/* Vùng cảm ứng bao quát cả cột giúp di chuột nhạy */}
+                <rect
+                  x={slotX}
+                  y={paddingTop}
+                  width={slotW}
+                  height={chartH + paddingBottom}
+                  fill="transparent"
+                />
                 <rect
                   x={x}
                   y={y}
@@ -476,16 +556,21 @@ function CategoryBorrowBarChart() {
                   rx="5"
                   ry="5"
                   fill={item.color}
-                  opacity={hoveredBar === null || hoveredBar === i ? '1' : '0.65'}
-                  style={{ transition: 'opacity 0.2s ease' }}
+                  opacity={hoveredBar === null || isHovered ? 1 : 0.45}
+                  style={{
+                    transform: isHovered ? 'scale(1.06)' : 'scale(1)',
+                    transformOrigin: `${x + barWidth / 2}px ${paddingTop + chartH}px`,
+                    filter: isHovered ? `drop-shadow(0 3px 6px ${item.color}60)` : 'none',
+                    transition: 'all 0.18s ease'
+                  }}
                 />
                 <text
                   x={x + barWidth / 2}
                   y={height - 6}
                   textAnchor="middle"
                   fontSize="9.5"
-                  fill={hoveredBar === i ? '#0f172a' : '#64748b'}
-                  fontWeight={hoveredBar === i ? '700' : '500'}
+                  fill={isHovered ? item.color : '#64748b'}
+                  fontWeight={isHovered ? '700' : '500'}
                   opacity={Math.min(1, barProgress * 1.5)}
                 >
                   {item.name}
@@ -504,17 +589,21 @@ function CategoryBorrowBarChart() {
               transform: 'translate(-50%, -10px)',
               background: '#0f172a',
               color: '#ffffff',
-              padding: '4px 8px',
-              borderRadius: '6px',
-              fontSize: '11px',
+              padding: '4px 9px',
+              borderRadius: '7px',
+              fontSize: '11.5px',
               fontWeight: 600,
               pointerEvents: 'none',
-              boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.18)',
               whiteSpace: 'nowrap',
-              zIndex: 10
+              zIndex: 10,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
             }}
           >
-            {data[hoveredBar].name}: {data[hoveredBar].value} lượt
+            <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: data[hoveredBar].color, display: 'inline-block' }} />
+            <span>{data[hoveredBar].name}: <strong>{data[hoveredBar].value} lượt</strong></span>
           </div>
         )}
       </div>
