@@ -52,13 +52,19 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
   const [showNotifs, setShowNotifs] = useState(false);
 
   const isAdmin = role === 'Admin';
+  const isLibrarian = role === 'Librarian';
+  const isStaff = isAdmin || isLibrarian;
+
   const displayName = isAdmin 
     ? 'Quản trị viên' 
-    : (user?.fullName && user.fullName !== 'Độc giả' 
-        ? user.fullName 
-        : (user?.username === 'reader' ? 'Trần Thị Mai' : (user?.fullName || user?.username || 'Trần Thị Mai')));
+    : isLibrarian
+      ? (user?.fullName || 'Thủ thư Nguyễn Văn Hưng')
+      : (user?.fullName && user.fullName !== 'Độc giả' 
+          ? user.fullName 
+          : (user?.username === 'reader' ? 'Trần Thị Mai' : (user?.fullName || user?.username || 'Trần Thị Mai')));
 
-  const initial = displayName ? displayName.charAt(0).toUpperCase() : (isAdmin ? 'A' : 'T');
+  const initial = displayName ? displayName.charAt(0).toUpperCase() : (isAdmin ? 'A' : isLibrarian ? 'H' : 'T');
+
 
   return (
     <aside
@@ -232,7 +238,7 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
               {displayName}
             </div>
             <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#2563eb', letterSpacing: '0.02em' }}>
-              {isAdmin ? 'Quản trị viên' : (user ? `DG-${String(user.id === 2 ? 1 : (user.id || 1)).padStart(3, '0')}` : 'DG-001')}
+              {isAdmin ? 'Quản trị viên' : isLibrarian ? 'Thủ thư' : (user ? `DG-${String(user.id === 2 ? 1 : (user.id || 1)).padStart(3, '0')}` : 'DG-001')}
             </div>
           </div>
         </div>
@@ -249,12 +255,12 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
             marginBottom: '6px'
           }}
         >
-          {isAdmin ? 'Quản lý' : 'Danh mục'}
+          {isStaff ? (isAdmin ? 'Quản trị hệ thống' : 'Nghiệp vụ Thủ thư') : 'Danh mục'}
         </div>
 
         {/* Navigation Menu Links */}
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          {!isAdmin ? (
+          {!isStaff ? (
             /* READER NAVIGATION ITEMS */
             <>
               <NavItem
@@ -277,7 +283,7 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
               />
             </>
           ) : (
-            /* ADMIN NAVIGATION ITEMS */
+            /* STAFF (ADMIN & LIBRARIAN) NAVIGATION ITEMS */
             <>
               <NavItem
                 active={activeTab === 'dashboard'}
@@ -291,12 +297,15 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
                 icon={<BookOpen size={17} strokeWidth={2} />}
                 label="Quản lý Kho sách"
               />
-              <NavItem
-                active={activeTab === 'readers'}
-                onClick={() => onTabChange('readers')}
-                icon={<Users size={17} strokeWidth={2} />}
-                label="Quản lý Độc giả"
-              />
+              {isAdmin && (
+                <NavItem
+                  active={activeTab === 'readers'}
+                  onClick={() => onTabChange('readers')}
+                  icon={<Users size={17} strokeWidth={2} />}
+                  label="Quản lý Độc giả"
+                />
+              )}
+
               <div
                 onClick={onOpenExport}
                 style={{

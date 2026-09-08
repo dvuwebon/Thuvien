@@ -93,10 +93,13 @@ export default function AIChatWidget({ books = [] }) {
 
     try {
       const reply = await askLibraryAI(userMsg.text, books);
+      const isObj = typeof reply === 'object' && reply !== null;
       const aiMsg = {
         id: Date.now() + 1,
         sender: 'ai',
-        text: reply,
+        text: isObj ? reply.answer : reply,
+        suggested_books: isObj && Array.isArray(reply.suggested_books) ? reply.suggested_books : [],
+        intent: isObj ? reply.intent : 'general',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
       setMessages(prev => [...prev, aiMsg]);
@@ -361,6 +364,36 @@ export default function AIChatWidget({ books = [] }) {
                   <div style={{ maxWidth: '82%' }}>
                     <div style={{ padding: '11px 15px', borderRadius: isAi ? '6px 20px 20px 20px' : '20px 6px 20px 20px', background: isAi ? '#ffffff' : 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)', color: isAi ? '#1e293b' : '#ffffff', fontSize: '13px', lineHeight: 1.6, boxShadow: isAi ? '0 2px 8px rgba(0, 0, 0, 0.04)' : '0 4px 12px rgba(37, 99, 235, 0.2)', border: isAi ? '1px solid #e2e8f0' : 'none', wordBreak: 'break-word', whiteSpace: 'pre-line' }}>
                       {msg.text}
+
+                      {/* Gợi ý sách theo schema chuẩn Word (suggested_books: [{book_id, title, reason}]) */}
+                      {isAi && msg.suggested_books && msg.suggested_books.length > 0 && (
+                        <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #f1f5f9', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <div style={{ fontSize: '11px', fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            ✨ Sách đề xuất phù hợp ({msg.suggested_books.length}):
+                          </div>
+                          {msg.suggested_books.map((b, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                background: '#f8fafc',
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                padding: '8px 10px',
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#0f172a' }}>
+                                📖 {b.title}
+                              </div>
+                              {b.reason && (
+                                <div style={{ fontSize: '11.5px', color: '#4338ca', marginTop: '3px', background: '#eef2ff', padding: '3px 6px', borderRadius: '5px' }}>
+                                  💡 {b.reason}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div style={{ fontSize: '10.5px', color: '#94a3b8', marginTop: '4px', textAlign: isAi ? 'left' : 'right', padding: '0 4px' }}>
                       {msg.timestamp}
@@ -369,6 +402,7 @@ export default function AIChatWidget({ books = [] }) {
                 </div>
               );
             })}
+
 
             {isThinking && (
               <div className="msg-appear" style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>

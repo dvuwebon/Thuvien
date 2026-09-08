@@ -61,9 +61,10 @@ export default function App() {
     return <LoginPage />;
   }
 
-  const activeTab = role === 'Admin' ? adminTab : readerTab;
+  const isStaff = role === 'Admin' || role === 'Librarian';
+  const activeTab = isStaff ? adminTab : readerTab;
   const handleTabChange = (newTab) => {
-    if (role === 'Admin') {
+    if (isStaff) {
       setAdminTab(newTab);
     } else {
       setReaderTab(newTab);
@@ -113,11 +114,12 @@ export default function App() {
         }}
       >
         {activeTab === 'profile' ? (
-          <ProfilePage onBack={() => handleTabChange(role === 'Admin' ? 'dashboard' : 'catalog')} />
-        ) : role === 'Admin' ? (
+          <ProfilePage onBack={() => handleTabChange(isStaff ? 'dashboard' : 'catalog')} />
+        ) : isStaff ? (
           <AdminDashboard
             activeTab={adminTab}
             onTabChange={setAdminTab}
+            isLibrarian={role === 'Librarian'}
           />
         ) : (
           <ReaderPortal
@@ -125,6 +127,7 @@ export default function App() {
             onTabChange={setReaderTab}
           />
         )}
+
 
         {/* Footer chỉ hiển thị trong phần Kho sách */}
         {activeTab === 'catalog' && <Footer />}

@@ -31,12 +31,25 @@ export const DEFAULT_READER = {
   birthDate: '2002-10-20'
 };
 
+export const DEFAULT_LIBRARIAN = {
+  id: 3,
+  UserID: 3,
+  username: 'librarian',
+  role: 'Librarian',
+  Role: 'Librarian',
+  fullName: 'Thủ thư Nguyễn Văn Hưng',
+  FullName: 'Thủ thư Nguyễn Văn Hưng',
+  email: 'librarian@smartlib.edu.vn',
+  phone: '0912 888 999',
+  address: 'Bộ phận Nghiệp vụ Thư viện, ĐHQG Hà Nội',
+  birthDate: '1995-05-12'
+};
+
 const normalizeUser = (loaded, loadedRole) => {
   if (!loaded) return null;
 
-  // Xác định vai trò chính xác
+  // 1. Quản trị viên (Admin)
   const isAdm = loadedRole === 'Admin' || loaded.role === 'Admin' || loaded.Role === 'Admin' || loaded.username === 'admin';
-
   if (isAdm) {
     const adminUser = {
       ...DEFAULT_ADMIN,
@@ -66,12 +79,27 @@ const normalizeUser = (loaded, loadedRole) => {
     return adminUser;
   }
 
-  // Tài khoản Độc giả
+  // 2. Thủ thư (Librarian)
+  const isLibrarian = loadedRole === 'Librarian' || loaded.role === 'Librarian' || loaded.Role === 'Librarian' || loaded.username === 'librarian' || loaded.username === 'thuthu';
+  if (isLibrarian) {
+    const librarianUser = {
+      ...DEFAULT_LIBRARIAN,
+      ...loaded,
+      id: 3,
+      UserID: 3,
+      username: 'librarian',
+      role: 'Librarian',
+      Role: 'Librarian'
+    };
+    return librarianUser;
+  }
+
+  // 3. Độc giả (Reader)
   const readerUser = {
     ...DEFAULT_READER,
     ...loaded,
-    id: loaded.id && Number(loaded.id) !== 1 ? Number(loaded.id) : 2,
-    UserID: loaded.id && Number(loaded.id) !== 1 ? Number(loaded.id) : 2,
+    id: loaded.id && Number(loaded.id) !== 1 && Number(loaded.id) !== 3 ? Number(loaded.id) : 2,
+    UserID: loaded.id && Number(loaded.id) !== 1 && Number(loaded.id) !== 3 ? Number(loaded.id) : 2,
     username: loaded.username === 'admin' ? 'reader' : (loaded.username || 'reader'),
     role: 'Reader',
     Role: 'Reader'
@@ -94,6 +122,7 @@ const normalizeUser = (loaded, loadedRole) => {
   }
   return readerUser;
 };
+
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {

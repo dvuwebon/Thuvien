@@ -105,6 +105,24 @@ const getLocalDb = (forceFresh = false) => {
           sessionStorage.setItem('currentUser', JSON.stringify(merged));
           localStorage.setItem('currentUserRole', 'Admin');
           sessionStorage.setItem('currentUserRole', 'Admin');
+        } else if (u.username === 'librarian' || Number(u.id) === 3 || u.role === 'Librarian' || rawRole === 'Librarian') {
+          const freshLibrarian = (clone.users || []).find(usr => usr.username === 'librarian') || {
+            id: 3,
+            username: 'librarian',
+            role: 'Librarian',
+            Role: 'Librarian',
+            fullName: 'Thủ thư Nguyễn Văn Hưng',
+            FullName: 'Thủ thư Nguyễn Văn Hưng',
+            email: 'librarian@smartlib.edu.vn',
+            phone: '0912 888 999',
+            address: 'Bộ phận Nghiệp vụ Thư viện, ĐHQG Hà Nội',
+            birthDate: '1995-05-12'
+          };
+          const merged = { ...freshLibrarian, ...u, id: 3, UserID: 3, username: 'librarian', role: 'Librarian', Role: 'Librarian' };
+          localStorage.setItem('currentUser', JSON.stringify(merged));
+          sessionStorage.setItem('currentUser', JSON.stringify(merged));
+          localStorage.setItem('currentUserRole', 'Librarian');
+          sessionStorage.setItem('currentUserRole', 'Librarian');
         } else if (u.username === 'reader' || Number(u.id) === 2 || u.role === 'Reader') {
           const freshReader = (clone.users || []).find(usr => usr.username === 'reader') || {
             id: 2,
@@ -258,6 +276,20 @@ export const api = {
         address: 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội'
       };
       return { user: readerUser };
+    } else if ((trimmedUsername.toLowerCase() === 'librarian' || trimmedUsername.toLowerCase() === 'thuthu') && password === '123') {
+      const librarianUser = {
+        id: 3,
+        UserID: 3,
+        username: 'librarian',
+        role: 'Librarian',
+        Role: 'Librarian',
+        fullName: 'Thủ thư Nguyễn Văn Hưng',
+        FullName: 'Thủ thư Nguyễn Văn Hưng',
+        email: 'librarian@smartlib.edu.vn',
+        phone: '0912 888 999',
+        address: 'Bộ phận Nghiệp vụ Thư viện, ĐHQG Hà Nội'
+      };
+      return { user: librarianUser };
     }
 
     throw new Error('Tên đăng nhập hoặc mật khẩu không chính xác!');
@@ -938,6 +970,165 @@ export const api = {
       pendingBorrows,
       overdueBorrows,
       returnedBooks
+    };
+  },
+
+  // Reservations (Đặt trước sách)
+  getReservations: async (userId = null) => {
+    if (!isStaticHost) {
+      try {
+        const url = userId ? `${API_BASE}/reservations?userId=${userId}` : `${API_BASE}/reservations`;
+        const res = await fetch(url);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    let list = db.reservations || [];
+    if (userId) {
+      list = list.filter(r => Number(r.readerId) === Number(userId));
+    }
+    return list;
+  },
+
+  createReservation: async (bookId, readerId) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/reservations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookId: Number(bookId), readerId: Number(readerId) })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('reservation');
+          return result;
+        }
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    const books = db.books || [];
+    const users = db.users || [];
+    const reservations = db.reservations || [];
+    const book = books.find(b => Number(b.id) === Number(bookId));
+    const reader = users.find(u => Number(u.id) === Number(readerId));
+    const sameWaiting = reservations.filter(r => Number(r.bookId) === Number(bookId) && r.status === 'Waiting');
+    const priority = sameWaiting.length + 1;
+    const newId = Math.max(0, ...reservations.map(r => Number(r.id) || 0)) + 1;
+    const newRes = {
+      id: newId,
+      bookId: Number(bookId),
+      bookTitle: book?.title || 'Sách',
+      readerId: Number(readerId),
+      readerName: reader?.fullName || 'Độc giả',
+      reservedAt: new Date().toISOString(),
+      status: 'Waiting',
+      priority,
+      expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString()
+    };
+    db.reservations = [...reservations, newRes];
+    saveLocalDb(db);
+    notifyDataUpdated('reservation');
+    return { reservation: newRes, message: 'Đặt trước sách thành công!' };
+  },
+
+  cancelReservation: async (resId) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/reservations/${resId}`, { method: 'DELETE' });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('reservation');
+          return result;
+        }
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    db.reservations = (db.reservations || []).map(r => Number(r.id) === Number(resId) ? { ...r, status: 'Cancelled' } : r);
+    saveLocalDb(db);
+    notifyDataUpdated('reservation');
+    return { success: true };
+  },
+
+  // Fines (Tiền phạt trễ hạn)
+  getFines: async (readerId = null) => {
+    if (!isStaticHost) {
+      try {
+        const url = readerId ? `${API_BASE}/fines?readerId=${readerId}` : `${API_BASE}/fines`;
+        const res = await fetch(url);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    let list = db.fines || [];
+    if (readerId) {
+      list = list.filter(f => Number(f.readerId) === Number(readerId));
+    }
+    return list;
+  },
+
+  payFine: async (fineId) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/fines/${fineId}/pay`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'Đã nộp' })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('fine');
+          return result;
+        }
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    db.fines = (db.fines || []).map(f => Number(f.id) === Number(fineId) ? { ...f, status: 'Đã nộp', paidAt: new Date().toISOString() } : f);
+    saveLocalDb(db);
+    notifyDataUpdated('fine');
+    return { success: true };
+  },
+
+  // Recommendations (Gợi ý sách cá nhân hóa)
+  getRecommendations: async (readerId, limit = 6) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/recommendations/${readerId}?limit=${limit}`);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    const books = db.books || [];
+    const records = db.borrowRecords || [];
+    const readerRecords = records.filter(r => Number(r.readerId) === Number(readerId));
+    const borrowedIds = new Set(readerRecords.map(r => Number(r.bookId)));
+
+    if (readerRecords.length === 0) {
+      return {
+        type: 'popular',
+        reason: 'Sách được bạn đọc mượn nhiều nhất',
+        books: books.slice(0, limit)
+      };
+    }
+
+    const catCount = {};
+    readerRecords.forEach(r => {
+      const b = books.find(bk => Number(bk.id) === Number(r.bookId));
+      if (b && b.category) {
+        catCount[b.category] = (catCount[b.category] || 0) + 1;
+      }
+    });
+
+    const favCat = Object.keys(catCount).sort((a, b) => catCount[b] - catCount[a])[0] || 'Kỹ năng sống';
+    const recs = books.filter(b => b.category === favCat && !borrowedIds.has(Number(b.id)));
+    if (recs.length < limit) {
+      const others = books.filter(b => b.category !== favCat && !borrowedIds.has(Number(b.id)));
+      recs.push(...others.slice(0, limit - recs.length));
+    }
+    return {
+      type: 'personalized',
+      reason: `Gợi ý theo sở thích thể loại "${favCat}" của bạn`,
+      favoriteCategory: favCat,
+      books: recs.slice(0, limit)
     };
   }
 };

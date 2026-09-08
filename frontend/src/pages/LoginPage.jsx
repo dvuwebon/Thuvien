@@ -236,24 +236,36 @@ export default function LoginPage() {
               <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginBottom: '8px', textAlign: 'center' }}>
                 Chọn nhanh tài khoản mẫu để thử nghiệm:
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
                 <button
                   type="button"
                   onClick={() => handleQuickFill('admin', '123')}
                   className="btn btn-outline"
-                  style={{ padding: '8px', fontSize: '12px', borderColor: '#bfdbfe', background: '#eff6ff', color: '#1d4ed8' }}
+                  style={{ padding: '7px 4px', fontSize: '11.5px', borderColor: '#bfdbfe', background: '#eff6ff', color: '#1d4ed8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}
+                  title="Tài khoản Quản trị viên"
                 >
-                  <ShieldCheck size={14} />
-                  <span>Admin (admin / 123)</span>
+                  <ShieldCheck size={15} />
+                  <span>Admin (123)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickFill('librarian', '123')}
+                  className="btn btn-outline"
+                  style={{ padding: '7px 4px', fontSize: '11.5px', borderColor: '#fed7aa', background: '#fff7ed', color: '#c2410c', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}
+                  title="Tài khoản Thủ thư"
+                >
+                  <BookOpen size={15} />
+                  <span>Thủ thư (123)</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => handleQuickFill('reader', '123')}
                   className="btn btn-outline"
-                  style={{ padding: '8px', fontSize: '12px', borderColor: '#bbf7d0', background: '#f0fdf4', color: '#15803d' }}
+                  style={{ padding: '7px 4px', fontSize: '11.5px', borderColor: '#bbf7d0', background: '#f0fdf4', color: '#15803d', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}
+                  title="Tài khoản Độc giả"
                 >
-                  <User size={14} />
-                  <span>Độc giả (reader / 123)</span>
+                  <User size={15} />
+                  <span>Độc giả (123)</span>
                 </button>
               </div>
             </div>

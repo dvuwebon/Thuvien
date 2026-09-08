@@ -38,9 +38,23 @@ def get_default_db() -> Dict[str, Any]:
                 "address": "Hà Nội",
                 "birthDate": "2000-01-15",
                 "isActive": True
+            },
+            {
+                "id": 3,
+                "username": "librarian",
+                "password": "123",
+                "passwordHash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+                "fullName": "Thủ thư Nguyễn Văn Hưng",
+                "role": "Librarian",
+                "email": "librarian@smartlib.com",
+                "phone": "0912 888 999",
+                "address": "Bộ phận Nghiệp vụ Thư viện",
+                "birthDate": "1995-05-12",
+                "isActive": True
             }
         ],
         "books": [],
+
         "borrowRecords": [],
         "reservations": [],
         "fines": [],
@@ -66,6 +80,23 @@ class DatabaseManager:
                 if "users" not in data or not data["users"]:
                     data["users"] = get_default_db()["users"]
                     dirty = True
+                else:
+                    # Đảm bảo có tài khoản Thủ thư (Librarian)
+                    if not any(u.get("username") == "librarian" for u in data["users"]):
+                        data["users"].append({
+                            "id": 3,
+                            "username": "librarian",
+                            "password": "123",
+                            "passwordHash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+                            "fullName": "Thủ thư Nguyễn Văn Hưng",
+                            "role": "Librarian",
+                            "email": "librarian@smartlib.com",
+                            "phone": "0912 888 999",
+                            "address": "Bộ phận Nghiệp vụ Thư viện",
+                            "birthDate": "1995-05-12",
+                            "isActive": True
+                        })
+                        dirty = True
                 if "borrowRecords" not in data:
                     data["borrowRecords"] = []
                     dirty = True
@@ -79,6 +110,7 @@ class DatabaseManager:
                 if "fines" not in data:
                     data["fines"] = []
                     dirty = True
+
                 if dirty:
                     with open(self.db_path, "w", encoding="utf-8") as f:
                         json.dump(data, f, ensure_ascii=False, indent=2)

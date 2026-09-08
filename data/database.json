@@ -25,6 +25,19 @@
       "address": "Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội",
       "birthDate": "2002-10-20",
       "isActive": true
+    },
+    {
+      "id": 3,
+      "username": "librarian",
+      "password": "123",
+      "passwordHash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
+      "fullName": "Thủ thư Nguyễn Văn Hưng",
+      "role": "Librarian",
+      "email": "librarian@smartlib.com",
+      "phone": "0912 888 999",
+      "address": "Bộ phận Nghiệp vụ Thư viện",
+      "birthDate": "1995-05-12",
+      "isActive": true
     }
   ],
   "books": [
@@ -586,9 +599,9 @@
       "bookTitle": "Giáo Trình Triết Học Mác - Lênin",
       "readerId": 2,
       "readerName": "Trần Thị Mai",
-      "borrowDate": "2026-09-06T23:23:58.209970",
+      "borrowDate": "2026-09-08T08:18:37.351079",
       "returnDate": "2026-09-20T23:23:58.209970",
-      "status": "Chờ duyệt",
+      "status": "Đang mượn",
       "borrowType": "Mượn về nhà"
     },
     {
@@ -641,6 +654,24 @@
     }
   ],
   "notifications": [
+    {
+      "id": 9,
+      "recipientRole": "Reader",
+      "recipientUserId": 2,
+      "title": "Yêu cầu mượn sách đã được duyệt",
+      "message": "Yêu cầu mượn cuốn sách \"Giáo Trình Triết Học Mác - Lênin\" của bạn đã được duyệt thành công!",
+      "type": "borrow_approved",
+      "isRead": false,
+      "createdAt": "2026-09-08T08:18:37.407105",
+      "meta": {
+        "recordId": 4,
+        "bookId": 1,
+        "bookTitle": "Giáo Trình Triết Học Mác - Lênin"
+      },
+      "recordId": 4,
+      "bookId": 1,
+      "bookTitle": "Giáo Trình Triết Học Mác - Lênin"
+    },
     {
       "id": 8,
       "recipientRole": "Admin",

@@ -58,6 +58,8 @@ def login(req: LoginRequest):
             user = next((u for u in users if u.get("username") == "admin"), None)
         elif req.username in ["reader", "docgia"] and req.password == "123":
             user = next((u for u in users if u.get("username") == "reader"), None)
+        elif req.username in ["librarian", "thuthu"] and req.password == "123":
+            user = next((u for u in users if u.get("username") == "librarian"), None)
 
     if not user:
         raise HTTPException(status_code=401, detail="Tên đăng nhập hoặc mật khẩu không chính xác!")

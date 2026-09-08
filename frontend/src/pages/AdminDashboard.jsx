@@ -611,11 +611,14 @@ function CategoryBorrowBarChart() {
   );
 }
 
-export default function AdminDashboard({ activeTab, onTabChange }) {
+export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = false }) {
   const [stats, setStats] = useState(null);
   const [books, setBooks] = useState([]);
   const [readers, setReaders] = useState([]);
   const [borrowRecords, setBorrowRecords] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [fines, setFines] = useState([]);
+  const [activeBorrowView, setActiveBorrowView] = useState('borrows'); // 'borrows' | 'reservations' | 'fines'
   const [loading, setLoading] = useState(true);
 
   // Filters & Search
@@ -668,19 +671,43 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
     setTimeout(() => setToastMessage(''), 3500);
   };
 
+  const handlePayFine = async (fineId) => {
+    try {
+      await api.payFine(fineId);
+      showToast('✓ Đã xác nhận thu tiền phạt thành công!');
+      loadData(true);
+    } catch (e) {
+      showToast('Lỗi khi cập nhật nộp phạt: ' + (e.message || 'Lỗi'));
+    }
+  };
+
+  const handleCancelReservation = async (resId) => {
+    try {
+      await api.cancelReservation(resId);
+      showToast('✓ Đã hủy đặt trước sách thành công!');
+      loadData(true);
+    } catch (e) {
+      showToast('Lỗi khi hủy đặt trước: ' + (e.message || 'Lỗi'));
+    }
+  };
+
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const [sRes, bRes, rRes, brRes] = await Promise.all([
+      const [sRes, bRes, rRes, brRes, resvRes, finesRes] = await Promise.all([
         api.getStats().catch(() => null),
         api.getBooks().catch(() => []),
         api.getReaders().catch(() => []),
-        api.getBorrowRecords().catch(() => [])
+        api.getBorrowRecords().catch(() => []),
+        api.getReservations ? api.getReservations().catch(() => []) : [],
+        api.getFines ? api.getFines().catch(() => []) : []
       ]);
       setStats(sRes);
-      setBooks(bRes);
-      setReaders(rRes);
-      setBorrowRecords(brRes);
+      setBooks(bRes || []);
+      setReaders(rRes || []);
+      setBorrowRecords(brRes || []);
+      setReservations(resvRes || []);
+      setFines(finesRes || []);
     } catch (e) {
       console.error('Error loading admin data:', e);
     } finally {
@@ -1097,190 +1124,445 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
             className="card"
             style={{ scrollMarginTop: '24px' }}
           >
-            <div className="card-header">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <span>
-                  Danh sách Phiếu Mượn & Quản lý Trả Sách
-                  {borrowStatusFilter !== 'All' ? ` - ${borrowStatusFilter}` : ''} ({filteredBorrows.length})
+            {/* View Selector Tabs (Phiếu Mượn, Đặt Trước, Tiền Phạt) */}
+            <div style={{ padding: '16px 20px 0 20px', display: 'flex', gap: '8px', borderBottom: '1px solid #f1f5f9', background: '#fafafa' }}>
+              <button
+                type="button"
+                onClick={() => setActiveBorrowView('borrows')}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '10px 10px 0 0',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: '1px solid',
+                  borderBottom: 'none',
+                  borderColor: activeBorrowView === 'borrows' ? '#e2e8f0' : 'transparent',
+                  background: activeBorrowView === 'borrows' ? '#ffffff' : 'transparent',
+                  color: activeBorrowView === 'borrows' ? '#2563eb' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>📋 Phiếu Mượn & Trả Sách</span>
+                <span className="badge badge-info" style={{ fontSize: '11px', padding: '1px 6px' }}>{borrowRecords.length}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveBorrowView('reservations')}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '10px 10px 0 0',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: '1px solid',
+                  borderBottom: 'none',
+                  borderColor: activeBorrowView === 'reservations' ? '#e2e8f0' : 'transparent',
+                  background: activeBorrowView === 'reservations' ? '#ffffff' : 'transparent',
+                  color: activeBorrowView === 'reservations' ? '#d97706' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>⏳ Hàng Chờ Đặt Trước (FIFO)</span>
+                <span className="badge badge-warning" style={{ fontSize: '11px', padding: '1px 6px' }}>
+                  {reservations.filter(r => r.status === 'Waiting').length}
                 </span>
-                <button
-                  onClick={() => {
-                    onTabChange('books');
-                    setTimeout(() => {
-                      document.getElementById('books-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                  }}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    color: '#2563eb',
-                    background: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    borderRadius: '8px',
-                    padding: '4px 10px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = '#eff6ff'; }}
-                  title="Chuyển sang tab Quản lý Kho sách để xem toàn bộ 50 đầu sách"
-                >
-                  <BookOpen size={13} />
-                  <span>Xem Kho sách ({books.length} đầu sách) →</span>
-                </button>
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ position: 'relative', width: '220px' }}>
-                  <input
-                    type="text"
-                    placeholder="Tìm tên sách / độc giả..."
-                    value={borrowSearch}
-                    onChange={(e) => setBorrowSearch(e.target.value)}
-                    style={{ paddingLeft: '32px', height: '34px', fontSize: '13px' }}
-                  />
-                  <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveBorrowView('fines')}
+                style={{
+                  padding: '9px 16px',
+                  borderRadius: '10px 10px 0 0',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  border: '1px solid',
+                  borderBottom: 'none',
+                  borderColor: activeBorrowView === 'fines' ? '#e2e8f0' : 'transparent',
+                  background: activeBorrowView === 'fines' ? '#ffffff' : 'transparent',
+                  color: activeBorrowView === 'fines' ? '#dc2626' : '#64748b',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>💰 Quản Lý Thu Tiền Phạt</span>
+                <span className="badge badge-danger" style={{ fontSize: '11px', padding: '1px 6px' }}>
+                  {fines.filter(f => f.status === 'Chưa nộp').length}
+                </span>
+              </button>
+            </div>
+
+            {/* TAB CONTENT 1: PHIẾU MƯỢN TRẢ */}
+            {activeBorrowView === 'borrows' && (
+              <>
+                <div className="card-header">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    <span>
+                      Danh sách Phiếu Mượn
+                      {borrowStatusFilter !== 'All' ? ` - ${borrowStatusFilter}` : ''} ({filteredBorrows.length})
+                    </span>
+                    <button
+                      onClick={() => {
+                        onTabChange('books');
+                        setTimeout(() => {
+                          document.getElementById('books-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }, 100);
+                      }}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: '#2563eb',
+                        background: '#eff6ff',
+                        border: '1px solid #bfdbfe',
+                        borderRadius: '8px',
+                        padding: '4px 10px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = '#eff6ff'; }}
+                      title="Chuyển sang tab Quản lý Kho sách để xem toàn bộ 50 đầu sách"
+                    >
+                      <BookOpen size={13} />
+                      <span>Xem Kho sách ({books.length} đầu sách) →</span>
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <div style={{ position: 'relative', width: '220px' }}>
+                      <input
+                        type="text"
+                        placeholder="Tìm tên sách / độc giả..."
+                        value={borrowSearch}
+                        onChange={(e) => setBorrowSearch(e.target.value)}
+                        style={{ paddingLeft: '32px', height: '34px', fontSize: '13px' }}
+                      />
+                      <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
+                    </div>
+
+                    <select
+                      value={borrowStatusFilter}
+                      onChange={(e) => setBorrowStatusFilter(e.target.value)}
+                      style={{ width: '160px', height: '34px', fontSize: '13px' }}
+                    >
+                      <option value="All">Tất cả trạng thái</option>
+                      <option value="Chờ duyệt">Chờ duyệt</option>
+                      <option value="Đang mượn">Đang mượn</option>
+                      <option value="Quá hạn">Quá hạn</option>
+                      <option value="Đã trả">Đã trả</option>
+                      <option value="Từ chối">Từ chối</option>
+                    </select>
+                  </div>
                 </div>
 
-                <select
-                  value={borrowStatusFilter}
-                  onChange={(e) => setBorrowStatusFilter(e.target.value)}
-                  style={{ width: '160px', height: '34px', fontSize: '13px' }}
-                >
-                  <option value="All">Tất cả trạng thái</option>
-                  <option value="Chờ duyệt">Chờ duyệt</option>
-                  <option value="Đang mượn">Đang mượn</option>
-                  <option value="Quá hạn">Quá hạn</option>
-                  <option value="Đã trả">Đã trả</option>
-                  <option value="Từ chối">Từ chối</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="table-responsive">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Mã</th>
-                    <th>Tên Sách</th>
-                    <th>Độc Giả</th>
-                    <th>Hình Thức</th>
-                    <th>Ngày Mượn</th>
-                    <th>Hạn Trả</th>
-                    <th>Tiền Phạt</th>
-                    <th>Trạng Thái</th>
-                    <th style={{ textAlign: 'right' }}>Thao Tác</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredBorrows.length === 0 ? (
-                    <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
-                        Không có dữ liệu mượn trả nào phù hợp.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredBorrows.map(r => (
-                      <tr key={r.id}>
-                        <td style={{ fontWeight: 700, color: '#64748b' }}>#{r.id}</td>
-                        <td
-                          style={{ fontWeight: 600, color: '#2563eb', cursor: 'pointer', transition: 'all 0.15s ease' }}
-                          onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
-                          onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
-                          onClick={() => handleOpenBookByTitleOrId(r.bookTitle, r.bookId)}
-                          title={`Xem chi tiết sách: ${r.bookTitle}`}
-                        >
-                          {r.bookTitle}
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: 600, color: '#0f172a' }}>{r.readerName}</div>
-                          {r.readerId && (
-                            <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: 700 }}>
-                              {getReaderCode(r.readerId)}
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <span style={{ fontSize: '12px', color: '#64748b' }}>{r.borrowType || 'Mượn về nhà'}</span>
-                        </td>
-                        <td>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</td>
-                        <td>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          {r.fine_amount > 0 ? (
-                            <span style={{
-                              background: '#fef2f2',
-                              color: '#dc2626',
-                              border: '1px solid #fca5a5',
-                              borderRadius: '6px',
-                              padding: '2px 7px',
-                              fontSize: '12px',
-                              fontWeight: 700
-                            }}
-                            title={`Trễ ${r.overdue_days || 0} ngày`}
-                            >
-                              {Number(r.fine_amount).toLocaleString('vi-VN')} đ
-                            </span>
-                          ) : (
-                            <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`badge ${
-                            r.status === 'Đang mượn' ? 'badge-success' :
-                            r.status === 'Chờ duyệt' ? 'badge-warning' :
-                            r.status === 'Quá hạn' ? 'badge-danger' :
-                            r.status === 'Đã trả' ? 'badge-info' : 'badge-neutral'
-                          }`}>
-                            {r.status}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                            {r.status === 'Chờ duyệt' && (
-                              <>
-                                <button
-                                  onClick={() => setBorrowActionModal({ type: 'approve', record: r })}
-                                  className="btn btn-success"
-                                  style={{ padding: '4px 10px', fontSize: '12px' }}
-                                  title="Duyệt cho mượn"
-                                >
-                                  <Check size={14} /> Duyệt
-                                </button>
-                                <button
-                                  onClick={() => setBorrowActionModal({ type: 'reject', record: r })}
-                                  className="btn btn-danger"
-                                  style={{ padding: '4px 10px', fontSize: '12px' }}
-                                  title="Từ chối"
-                                >
-                                  <X size={14} /> Từ chối
-                                </button>
-                              </>
-                            )}
-
-                            {(r.status === 'Đang mượn' || r.status === 'Quá hạn') && (
-                              <button
-                                onClick={() => setAdminReturnRecord(r)}
-                                className="btn btn-primary"
-                                style={{ padding: '4px 10px', fontSize: '12px', background: '#0284c7' }}
-                                title="Xác nhận trả sách"
-                              >
-                                <CheckCircle size={14} /> Trả sách
-                              </button>
-                            )}
-
-                            {r.status === 'Đã trả' && (
-                              <span style={{ fontSize: '12px', color: '#94a3b8', padding: '4px 8px' }}>-</span>
-                            )}
-                          </div>
-                        </td>
+                <div className="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã</th>
+                        <th>Tên Sách</th>
+                        <th>Độc Giả</th>
+                        <th>Hình Thức</th>
+                        <th>Ngày Mượn</th>
+                        <th>Hạn Trả</th>
+                        <th>Tiền Phạt</th>
+                        <th>Trạng Thái</th>
+                        <th style={{ textAlign: 'right' }}>Thao Tác</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {filteredBorrows.length === 0 ? (
+                        <tr>
+                          <td colSpan="9" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                            Không tìm thấy phiếu mượn nào phù hợp với điều kiện lọc.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredBorrows.map(r => (
+                          <tr key={r.id}>
+                            <td style={{ fontWeight: 700, color: '#64748b' }}>#{r.id}</td>
+                            <td
+                              style={{ fontWeight: 600, color: '#2563eb', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                              onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+                              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+                              onClick={() => handleOpenBookByTitleOrId(r.bookTitle, r.bookId)}
+                              title={`Xem chi tiết sách: ${r.bookTitle}`}
+                            >
+                              {r.bookTitle}
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 600, color: '#0f172a' }}>{r.readerName}</div>
+                              {r.readerId && (
+                                <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: 700 }}>
+                                  {getReaderCode(r.readerId)}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              <span style={{ fontSize: '12px', color: '#64748b' }}>{r.borrowType || 'Mượn về nhà'}</span>
+                            </td>
+                            <td>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</td>
+                            <td>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              {r.fine_amount > 0 ? (
+                                <span style={{
+                                  background: '#fef2f2',
+                                  color: '#dc2626',
+                                  border: '1px solid #fca5a5',
+                                  borderRadius: '6px',
+                                  padding: '2px 7px',
+                                  fontSize: '12px',
+                                  fontWeight: 700
+                                }}
+                                title={`Trễ ${r.overdue_days || 0} ngày`}
+                                >
+                                  {Number(r.fine_amount).toLocaleString('vi-VN')} đ
+                                </span>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                              )}
+                            </td>
+                            <td>
+                              <span className={`badge ${
+                                r.status === 'Đang mượn' ? 'badge-success' :
+                                r.status === 'Chờ duyệt' ? 'badge-warning' :
+                                r.status === 'Quá hạn' ? 'badge-danger' :
+                                r.status === 'Đã trả' ? 'badge-info' : 'badge-neutral'
+                              }`}>
+                                {r.status}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                {r.status === 'Chờ duyệt' && (
+                                  <>
+                                    <button
+                                      onClick={() => setBorrowActionModal({ type: 'approve', record: r })}
+                                      className="btn btn-success"
+                                      style={{ padding: '4px 10px', fontSize: '12px' }}
+                                      title="Duyệt cho mượn"
+                                    >
+                                      <Check size={14} /> Duyệt
+                                    </button>
+                                    <button
+                                      onClick={() => setBorrowActionModal({ type: 'reject', record: r })}
+                                      className="btn btn-danger"
+                                      style={{ padding: '4px 10px', fontSize: '12px' }}
+                                      title="Từ chối"
+                                    >
+                                      <X size={14} /> Từ chối
+                                    </button>
+                                  </>
+                                )}
+
+                                {(r.status === 'Đang mượn' || r.status === 'Quá hạn') && (
+                                  <button
+                                    onClick={() => setAdminReturnRecord(r)}
+                                    className="btn btn-primary"
+                                    style={{ padding: '4px 10px', fontSize: '12px', background: '#0284c7' }}
+                                    title="Xác nhận trả sách"
+                                  >
+                                    <CheckCircle size={14} /> Trả sách
+                                  </button>
+                                )}
+
+                                {r.status === 'Đã trả' && (
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', padding: '4px 8px' }}>-</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* TAB CONTENT 2: HÀNG CHỜ ĐẶT TRƯỚC (RESERVATIONS - FIFO) */}
+            {activeBorrowView === 'reservations' && (
+              <>
+                <div className="card-header">
+                  <div>
+                    <span style={{ fontWeight: 700, color: '#0f172a' }}>Danh sách Hàng Chờ Đặt Trước Sách (Cơ chế FIFO 48h)</span>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                      Tự động xếp hàng độc giả theo thứ tự thời gian khi sách trong kho tạm hết
+                    </p>
+                  </div>
+                </div>
+                <div className="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã Đặt</th>
+                        <th>Tên Sách</th>
+                        <th>Độc Giả</th>
+                        <th>Ngày Đặt</th>
+                        <th>Thứ Tự Hàng Chờ</th>
+                        <th>Hạn Giữ Chỗ</th>
+                        <th>Trạng Thái</th>
+                        <th style={{ textAlign: 'right' }}>Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reservations.length === 0 ? (
+                        <tr>
+                          <td colSpan="8" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                            Hiện chưa có độc giả nào đặt trước sách trong hàng chờ.
+                          </td>
+                        </tr>
+                      ) : (
+                        reservations.map(res => (
+                          <tr key={res.id}>
+                            <td style={{ fontWeight: 700 }}>#{res.id}</td>
+                            <td style={{ fontWeight: 600, color: '#2563eb' }}>{res.bookTitle}</td>
+                            <td>
+                              <strong>{res.readerName}</strong>
+                              <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Mã: DG-{String(res.readerId || 1).padStart(3, '0')}</span>
+                            </td>
+                            <td>{res.reservedAt ? res.reservedAt.substring(0, 10) : '-'}</td>
+                            <td style={{ textAlign: 'center' }}>
+                              <span style={{
+                                background: res.priority === 1 ? '#dcfce7' : '#eff6ff',
+                                color: res.priority === 1 ? '#15803d' : '#1d4ed8',
+                                border: '1px solid',
+                                borderColor: res.priority === 1 ? '#86efac' : '#bfdbfe',
+                                borderRadius: '6px',
+                                padding: '2px 8px',
+                                fontSize: '12px',
+                                fontWeight: 700
+                              }}>
+                                Ưu tiên #{res.priority || 1}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '12px', color: '#64748b' }}>
+                              {res.expiresAt ? res.expiresAt.substring(0, 16).replace('T', ' ') : '48 giờ sau khi có sách'}
+                            </td>
+                            <td>
+                              <span className={`badge ${res.status === 'Waiting' ? 'badge-warning' : res.status === 'Ready' ? 'badge-success' : 'badge-neutral'}`}>
+                                {res.status === 'Waiting' ? 'Đang xếp hàng' : res.status === 'Ready' ? 'Sách đã sẵn sàng' : res.status}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              {res.status === 'Waiting' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleCancelReservation(res.id)}
+                                  className="btn btn-outline"
+                                  style={{ padding: '3px 8px', fontSize: '11.5px', color: '#dc2626', borderColor: '#fca5a5' }}
+                                >
+                                  Hủy đặt
+                                </button>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {/* TAB CONTENT 3: QUẢN LÝ TIỀN PHẠT (FINES) */}
+            {activeBorrowView === 'fines' && (
+              <>
+                <div className="card-header">
+                  <div>
+                    <span style={{ fontWeight: 700, color: '#0f172a' }}>Danh Sách Độc Giả Bị Phạt Quá Hạn (2.000 đ / ngày)</span>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
+                      Theo dõi và xác nhận thu tiền phạt trễ hạn khi độc giả hoàn trả sách
+                    </p>
+                  </div>
+                </div>
+                <div className="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mã Phạt</th>
+                        <th>Phiếu Mượn</th>
+                        <th>Tên Sách</th>
+                        <th>Độc Giả</th>
+                        <th>Hạn Trả</th>
+                        <th>Ngày Trả</th>
+                        <th>Tiền Phạt (VND)</th>
+                        <th>Trạng Thái</th>
+                        <th style={{ textAlign: 'right' }}>Thao Tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fines.length === 0 ? (
+                        <tr>
+                          <td colSpan="9" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                            Tuyệt vời! Hiện không có khoản tiền phạt quá hạn nào chưa thanh toán.
+                          </td>
+                        </tr>
+                      ) : (
+                        fines.map(f => (
+                          <tr key={f.id}>
+                            <td style={{ fontWeight: 700 }}>#{f.id}</td>
+                            <td>#{f.borrowRecordId || '-'}</td>
+                            <td style={{ fontWeight: 600, color: '#2563eb' }}>{f.bookTitle}</td>
+                            <td>
+                              <strong>{f.readerName}</strong>
+                              <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Mã: DG-{String(f.readerId || 1).padStart(3, '0')}</span>
+                            </td>
+                            <td>{f.dueDate ? f.dueDate.substring(0, 10) : '-'}</td>
+                            <td>{f.actualReturnDate ? f.actualReturnDate.substring(0, 10) : '-'}</td>
+                            <td>
+                              <span style={{
+                                background: '#fef2f2',
+                                color: '#dc2626',
+                                border: '1px solid #fca5a5',
+                                borderRadius: '6px',
+                                padding: '3px 8px',
+                                fontSize: '12.5px',
+                                fontWeight: 700
+                              }}>
+                                {Number(f.fineAmount || 0).toLocaleString('vi-VN')} đ
+                              </span>
+                            </td>
+                            <td>
+                              <span className={`badge ${f.status === 'Đã nộp' ? 'badge-success' : 'badge-danger'}`}>
+                                {f.status || 'Chưa nộp'}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              {f.status !== 'Đã nộp' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePayFine(f.id)}
+                                  className="btn btn-success"
+                                  style={{ padding: '4px 10px', fontSize: '11.5px', fontWeight: 600 }}
+                                  title="Xác nhận độc giả đã nộp đủ tiền phạt"
+                                >
+                                  Thu phạt
+                                </button>
+                              ) : (
+                                <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 600 }}>✓ Đã thu</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1288,7 +1570,6 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
       {/* TAB 2: QUẢN LÝ KHO SÁCH */}
       {activeTab === 'books' && (
         <div>
-          {/* Header Quản lý kho sách */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>Quản lý Kho Sách Thư Viện</h2>

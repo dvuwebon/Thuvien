@@ -16,6 +16,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const { user } = useAuth();
   const [books, setBooks] = useState([]);
   const [myBorrows, setMyBorrows] = useState([]);
+  const [recommendations, setRecommendations] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Filters & Search
@@ -63,6 +64,9 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                  (uUsername && rName && rName === uUsername);
         });
         setMyBorrows(myFiltered);
+
+        // Fetch AI recommendations
+        api.getRecommendations(uId).then(rec => setRecommendations(rec)).catch(() => {});
       }
     } catch (e) {
       console.error('Error loading reader data:', e);
@@ -219,6 +223,85 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
             onSelectBook={(book) => { setSelectedBook(book); setDetailModalOpen(true); }}
             onBorrowBook={(book) => { setBorrowTargetBook(book); setBorrowModalOpen(true); }}
           />
+
+          {/* Gợi ý sách cá nhân hóa bằng AI (Personalized Recommendation Widget - Issue #3) */}
+          {recommendations?.books?.length > 0 && (
+            <div
+              style={{
+                marginBottom: '26px',
+                padding: '18px 22px',
+                background: 'linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%)',
+                borderRadius: '16px',
+                border: '1px solid #dbeafe',
+                boxShadow: '0 2px 10px rgba(37,99,235,0.04)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '28px', height: '28px', borderRadius: '8px', background: '#2563eb', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Sparkles size={15} />
+                  </div>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
+                      Gợi ý riêng cho bạn (AI Recommendations)
+                    </h3>
+                    <div style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 600 }}>
+                      {recommendations.reason}
+                    </div>
+                  </div>
+                </div>
+                <span className="badge badge-info" style={{ fontSize: '11px', fontWeight: 700 }}>
+                  Thuật toán Học máy & Lịch sử
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '14px' }}>
+                {recommendations.books.slice(0, 4).map(b => (
+                  <div
+                    key={b.id}
+                    onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                    style={{
+                      background: '#ffffff',
+                      borderRadius: '12px',
+                      padding: '12px',
+                      border: '1px solid #e2e8f0',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(0,0,0,0.06)'; e.currentTarget.style.borderColor = '#93c5fd'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginBottom: '4px' }}>
+                        🏷️ {b.category || 'Chung'}
+                      </div>
+                      <div style={{ fontSize: '13px', fontWeight: 700, color: '#0f172a', lineHeight: 1.3, marginBottom: '6px', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                        {b.title}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>
+                        {b.author || 'Tác giả'}
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBorrowTargetBook(b);
+                        setBorrowModalOpen(true);
+                      }}
+                      className="btn btn-primary"
+                      style={{ marginTop: '10px', padding: '5px 10px', fontSize: '11.5px', width: '100%', justifyContent: 'center' }}
+                    >
+                      Mượn ngay
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
 
           {/* Header Kho sách (My Library) & Search/Filter */}
           <div

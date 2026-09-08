@@ -5,16 +5,16 @@ USE SmartLibDB;
 GO
 
 -- ==========================================
--- 1. BẢNG NGƯỜI DÙNG (Quản lý phân quyền)
+-- 1. BẢNG NGƯỜI DÙNG (Quản lý phân quyền 3 tác nhân)
 -- ==========================================
 IF OBJECT_ID(N'Users', N'U') IS NULL
 BEGIN
 CREATE TABLE Users (
     UserID INT IDENTITY(1,1) PRIMARY KEY,
     Username VARCHAR(50) NOT NULL UNIQUE,
-    PasswordHash VARCHAR(256) NOT NULL, -- Trong thực tế cần băm mật khẩu (BCrypt/Argon2)
+    PasswordHash VARCHAR(256) NOT NULL, -- Mật khẩu băm (BCrypt/SHA-256)
     FullName NVARCHAR(100) NOT NULL,
-    Role VARCHAR(20) NOT NULL CHECK (Role IN ('Admin', 'Reader')),
+    Role VARCHAR(20) NOT NULL CHECK (Role IN ('Admin', 'Librarian', 'Reader')),
     IsActive BIT DEFAULT 1,
     CreatedAt DATETIME DEFAULT GETDATE()
 );
@@ -42,7 +42,7 @@ IF COL_LENGTH(N'Books', N'Quantity') IS NULL
 GO
 
 -- ==========================================
--- 3. BẢNG LỊCH SỬ MƯỢN TRẢ
+-- 3. BẢNG LỊCH SỬ MƯỢN TRẢ & TIỀN PHẠT
 -- ==========================================
 IF OBJECT_ID(N'BorrowRecords', N'U') IS NULL
 BEGIN
@@ -53,11 +53,49 @@ CREATE TABLE BorrowRecords (
     BorrowDate DATETIME DEFAULT GETDATE(),
     DueDate DATETIME NOT NULL,
     ReturnDate DATETIME NULL,
-    Status NVARCHAR(50) DEFAULT N'Đang mượn' CHECK (Status IN (N'Đang mượn', N'Đã trả', N'Quá hạn')),
+    FineAmount DECIMAL(18,2) DEFAULT 0,
+    Status NVARCHAR(50) DEFAULT N'Đang mượn' CHECK (Status IN (N'Chờ duyệt', N'Đang mượn', N'Đã trả', N'Quá hạn', N'Từ chối')),
     Notes NVARCHAR(255)
 );
 END;
 GO
+
+-- ==========================================
+-- 4. BẢNG ĐẶT TRƯỚC SÁCH (Reservations - FIFO 48h)
+-- ==========================================
+IF OBJECT_ID(N'Reservations', N'U') IS NULL
+BEGIN
+CREATE TABLE Reservations (
+    ReservationID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID),
+    BookID INT NOT NULL FOREIGN KEY REFERENCES Books(BookID),
+    ReservedAt DATETIME DEFAULT GETDATE(),
+    Priority INT DEFAULT 1,
+    ExpiresAt DATETIME NOT NULL,
+    Status NVARCHAR(50) DEFAULT N'Waiting' CHECK (Status IN (N'Waiting', N'Ready', N'Cancelled', N'Completed'))
+);
+END;
+GO
+
+-- ==========================================
+-- 5. BẢNG QUẢN LÝ TIỀN PHẠT (Fines)
+-- ==========================================
+IF OBJECT_ID(N'Fines', N'U') IS NULL
+BEGIN
+CREATE TABLE Fines (
+    FineID INT IDENTITY(1,1) PRIMARY KEY,
+    RecordID INT NOT NULL FOREIGN KEY REFERENCES BorrowRecords(RecordID),
+    UserID INT NOT NULL FOREIGN KEY REFERENCES Users(UserID),
+    DueDate DATETIME NOT NULL,
+    ActualReturnDate DATETIME NOT NULL,
+    FineAmount DECIMAL(18,2) NOT NULL DEFAULT 0,
+    Status NVARCHAR(50) DEFAULT N'Chưa nộp' CHECK (Status IN (N'Chưa nộp', N'Đã nộp')),
+    PaidAt DATETIME NULL,
+    CreatedAt DATETIME DEFAULT GETDATE()
+);
+END;
+GO
+
 
 IF COL_LENGTH(N'Users', N'BirthDate') IS NULL ALTER TABLE Users ADD BirthDate DATE NULL;
 IF COL_LENGTH(N'Users', N'Phone') IS NULL ALTER TABLE Users ADD Phone NVARCHAR(30) NULL;
@@ -88,12 +126,15 @@ END;
 IF NOT EXISTS (SELECT 1 FROM Users WHERE Username = 'admin')
     INSERT INTO Users (Username, PasswordHash, FullName, Role, IsActive)
     VALUES ('admin', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', N'Quản trị', 'Admin', 1);
+IF NOT EXISTS (SELECT 1 FROM Users WHERE Username = 'librarian')
+    INSERT INTO Users (Username, PasswordHash, FullName, Role, IsActive)
+    VALUES ('librarian', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', N'Thủ thư Nguyễn Văn Hưng', 'Librarian', 1);
 IF NOT EXISTS (SELECT 1 FROM Users WHERE Username = 'user')
     INSERT INTO Users (Username, PasswordHash, FullName, Role, IsActive)
     VALUES ('user', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', N'Độc giả', 'Reader', 1);
 UPDATE Users
 SET PasswordHash = 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3'
-WHERE Username IN ('admin', 'user');
+WHERE Username IN ('admin', 'librarian', 'user');
 
 -- Thêm dữ liệu sách
 IF NOT EXISTS (SELECT 1 FROM Books WHERE Title = N'Clean Code')
