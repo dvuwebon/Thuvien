@@ -7,6 +7,25 @@ from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger("smartlib.database")
 
+# Tự động đọc file .env từ thư mục gốc nếu có
+def _load_env():
+    env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip('"').strip("'")
+                        if k not in os.environ:
+                            os.environ[k] = v
+        except Exception:
+            pass
+
+_load_env()
+
 DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "database.json"))
 FINE_PER_DAY = 2000  # 2.000 VND/ngày trễ hạn
 

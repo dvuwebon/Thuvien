@@ -13,11 +13,30 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship, scoped_
 
 logger = logging.getLogger("smartlib.mysql")
 
+# Tự động đọc file .env từ thư mục gốc nếu có
+def _load_env():
+    env_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
+    if os.path.exists(env_path):
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip('"').strip("'")
+                        if k not in os.environ:
+                            os.environ[k] = v
+        except Exception:
+            pass
+
+_load_env()
+
 # Cấu hình biến môi trường kết nối MySQL
 MYSQL_HOST = os.getenv("MYSQL_HOST", "localhost")
 MYSQL_PORT = int(os.getenv("MYSQL_PORT", 3306))
 MYSQL_USER = os.getenv("MYSQL_USER", "root")
-MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "")
+MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "root")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "smartlib_db")
 
 FINE_PER_DAY = 2000
@@ -280,7 +299,7 @@ class MySQLDatabaseManager:
             Base.metadata.create_all(bind=self.engine)
             self._is_connected = True
             logger.info(f"✓ Đã kết nối thành công tới MySQL Database [{self.database}] tại {self.host}:{self.port}")
-            self._ensure_seed_users()
+            self._ensure_seed_data()
         except Exception as e:
             self._is_connected = False
             logger.warning(f"Chưa thể kết nối tới MySQL ({self.host}:{self.port}/{self.database}): {e}")
@@ -295,12 +314,13 @@ class MySQLDatabaseManager:
         except Exception:
             return False
 
-    def _ensure_seed_users(self):
-        """Khởi tạo 3 tài khoản mặc định nếu bảng users trống"""
+    def _ensure_seed_data(self):
+        """Khởi tạo tài khoản và kho sách 50 cuốn nếu CSDL MySQL mới khởi tạo"""
         session = self.SessionLocal()
         try:
-            count = session.query(UserModel).count()
-            if count == 0:
+            # 1. Users
+            u_count = session.query(UserModel).count()
+            if u_count == 0:
                 admin = UserModel(
                     id=1,
                     username="admin",
@@ -334,9 +354,87 @@ class MySQLDatabaseManager:
                 session.add_all([admin, reader, librarian])
                 session.commit()
                 logger.info("✓ Đã nạp thành công 3 tài khoản mẫu vào bảng users trong MySQL.")
+
+            # 2. Books & Other Tables
+            b_count = session.query(BookModel).count()
+            if b_count == 0:
+                db_json_path = os.path.join(os.path.dirname(__file__), "..", "data", "database.json")
+                if os.path.exists(db_json_path):
+                    with open(db_json_path, "r", encoding="utf-8") as f:
+                        init_data = json.load(f)
+                    
+                    # Nạp 50 đầu sách
+                    for b in init_data.get("books", []):
+                        qty = int(b.get("quantity", 1))
+                        avail = int(b.get("available", qty))
+                        book = BookModel(
+                            id=b.get("id"),
+                            title=b.get("title", ""),
+                            author=b.get("author", "Chưa rõ"),
+                            category=b.get("category", "Chung"),
+                            quantity=qty,
+                            available_copies=avail,
+                            description=b.get("desc") or b.get("description", ""),
+                            image_url=b.get("imageUrl") or b.get("image_url", ""),
+                            status="Sẵn sàng" if avail > 0 else "Hết sách",
+                            published_year=b.get("publishedYear") or b.get("published_year") or 2023
+                        )
+                        session.add(book)
+                    
+                    # Nạp borrowRecords
+                    for br in init_data.get("borrowRecords", []):
+                        b_dt = datetime.fromisoformat(br.get("borrowDate")) if br.get("borrowDate") else datetime.utcnow()
+                        d_dt = datetime.fromisoformat(br.get("returnDate") or br.get("dueDate")) if (br.get("returnDate") or br.get("dueDate")) else datetime.utcnow()
+                        act_dt = datetime.fromisoformat(br.get("actualReturnDate")) if br.get("actualReturnDate") else None
+                        record = BorrowRecordModel(
+                            id=br.get("id"),
+                            user_id=br.get("readerId") or br.get("userId") or 2,
+                            book_id=br.get("bookId") or 1,
+                            borrow_date=b_dt,
+                            due_date=d_dt,
+                            actual_return_date=act_dt,
+                            borrow_type=br.get("borrowType", "Mượn về nhà"),
+                            fine_amount=float(br.get("fine_amount") or br.get("fineAmount") or 0.0),
+                            overdue_days=int(br.get("overdue_days") or br.get("overdueDays") or 0),
+                            status=br.get("status", "Chờ duyệt")
+                        )
+                        session.add(record)
+
+                    # Nạp reservations
+                    for res in init_data.get("reservations", []):
+                        res_dt = datetime.fromisoformat(res.get("reservedAt")) if res.get("reservedAt") else datetime.utcnow()
+                        exp_dt = datetime.fromisoformat(res.get("expiresAt")) if res.get("expiresAt") else datetime.utcnow()
+                        reservation = ReservationModel(
+                            id=res.get("id"),
+                            user_id=res.get("readerId") or res.get("userId") or 2,
+                            book_id=res.get("bookId") or 1,
+                            reserved_at=res_dt,
+                            priority=int(res.get("priority", 1)),
+                            expires_at=exp_dt,
+                            status=res.get("status", "Waiting")
+                        )
+                        session.add(reservation)
+
+                    # Nạp notifications
+                    for notif in init_data.get("notifications", []):
+                        n_dt = datetime.fromisoformat(notif.get("createdAt")) if notif.get("createdAt") else datetime.utcnow()
+                        notification = NotificationModel(
+                            id=notif.get("id"),
+                            recipient_role=notif.get("recipientRole") or notif.get("recipient_role", "all"),
+                            recipient_user_id=notif.get("recipientUserId") or notif.get("recipient_user_id"),
+                            title=notif.get("title", ""),
+                            message=notif.get("message", ""),
+                            type=notif.get("type", "general"),
+                            is_read=bool(notif.get("isRead") or notif.get("is_read")),
+                            created_at=n_dt
+                        )
+                        session.add(notification)
+
+                    session.commit()
+                    logger.info("✓ Đã tự động nạp toàn bộ 50 đầu sách và dữ liệu mẫu ban đầu vào MySQL.")
         except Exception as e:
             session.rollback()
-            logger.error(f"Lỗi khi nạp seed users MySQL: {e}")
+            logger.error(f"Lỗi khi nạp seed data MySQL: {e}")
         finally:
             session.close()
 
