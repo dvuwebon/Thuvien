@@ -1,20 +1,60 @@
 version: '3.8'
 
 services:
+  # -------------------------------------------------------------
+  # DỊCH VỤ 1: CƠ SỞ DỮ LIỆU RELATIONAL MYSQL 8.0 (CHUẨN 3NF)
+  # -------------------------------------------------------------
+  mysql_db:
+    image: mysql:8.0
+    container_name: smartlib_mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: smartlib_db
+      MYSQL_USER: smartlib
+      MYSQL_PASSWORD: smartlib123
+    volumes:
+      # Lưu trữ bền vững dữ liệu MySQL trên ổ cứng máy chủ
+      - mysql_data:/var/lib/mysql
+      # Tự động nạp cấu trúc 6 bảng chuẩn 3NF và dữ liệu seed khi khởi động lần đầu
+      - ./database/smartlib_mysql.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # -------------------------------------------------------------
+  # DỊCH VỤ 2: ỨNG DỤNG SMARTLIB (FASTAPI BACKEND + REACT FRONTEND)
+  # -------------------------------------------------------------
   smartlib:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: smartlib_app
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
       - PORT=3000
       - HOST=0.0.0.0
       - ENV=production
+      - DB_ENGINE=mysql
+      - MYSQL_HOST=mysql_db
+      - MYSQL_PORT=3306
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=root
+      - MYSQL_DATABASE=smartlib_db
       - DATABASE_PATH=data/database.json
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    depends_on:
+      mysql_db:
+        condition: service_healthy
     volumes:
-      # Mount thư mục data để CSDL database.json được lưu bền vững trên máy chủ
       - ./data:/app/data
-    restart: unless-stopped
+
+volumes:
+  mysql_data:
+    driver: local

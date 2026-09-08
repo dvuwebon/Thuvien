@@ -1,13 +1,17 @@
-import json
 import os
+import json
+import logging
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "database.json"))
-_lock = threading.Lock()
+logger = logging.getLogger("smartlib.database")
 
+DB_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "data", "database.json"))
 FINE_PER_DAY = 2000  # 2.000 VND/ngày trễ hạn
+
+# Cấu hình loại cơ sở dữ liệu: 'mysql' hoặc 'json'
+DB_ENGINE = os.getenv("DB_ENGINE", "mysql").strip().lower()
 
 
 def get_default_db() -> Dict[str, Any]:
@@ -20,9 +24,9 @@ def get_default_db() -> Dict[str, Any]:
                 "passwordHash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
                 "fullName": "Quản trị viên",
                 "role": "Admin",
-                "email": "admin@smartlib.com",
+                "email": "admin@smartlib.edu.vn",
                 "phone": "0987 654 321",
-                "address": "Hà Nội",
+                "address": "Phòng Quản lý Thư viện, ĐHQG Hà Nội",
                 "birthDate": "1990-01-01",
                 "isActive": True
             },
@@ -31,12 +35,12 @@ def get_default_db() -> Dict[str, Any]:
                 "username": "reader",
                 "password": "123",
                 "passwordHash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
-                "fullName": "Độc giả",
+                "fullName": "Trần Thị Mai",
                 "role": "Reader",
-                "email": "reader@smartlib.com",
-                "phone": "0912 345 678",
-                "address": "Hà Nội",
-                "birthDate": "2000-01-15",
+                "email": "mai.tran@smartlib.edu.vn",
+                "phone": "0901 234 567",
+                "address": "Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội",
+                "birthDate": "2002-10-20",
                 "isActive": True
             },
             {
@@ -46,15 +50,14 @@ def get_default_db() -> Dict[str, Any]:
                 "passwordHash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
                 "fullName": "Thủ thư Nguyễn Văn Hưng",
                 "role": "Librarian",
-                "email": "librarian@smartlib.com",
+                "email": "librarian@smartlib.edu.vn",
                 "phone": "0912 888 999",
-                "address": "Bộ phận Nghiệp vụ Thư viện",
+                "address": "Bộ phận Nghiệp vụ Thư viện, ĐHQG Hà Nội",
                 "birthDate": "1995-05-12",
                 "isActive": True
             }
         ],
         "books": [],
-
         "borrowRecords": [],
         "reservations": [],
         "fines": [],
@@ -62,9 +65,11 @@ def get_default_db() -> Dict[str, Any]:
     }
 
 
-class DatabaseManager:
+class JSONDatabaseManager:
+    """Lớp quản lý lưu trữ JSON fallback"""
     def __init__(self, db_path: str = DB_PATH):
         self.db_path = db_path
+        self._lock = threading.Lock()
         os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
         self._ensure_db()
 
@@ -81,7 +86,6 @@ class DatabaseManager:
                     data["users"] = get_default_db()["users"]
                     dirty = True
                 else:
-                    # Đảm bảo có tài khoản Thủ thư (Librarian)
                     if not any(u.get("username") == "librarian" for u in data["users"]):
                         data["users"].append({
                             "id": 3,
@@ -90,26 +94,17 @@ class DatabaseManager:
                             "passwordHash": "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3",
                             "fullName": "Thủ thư Nguyễn Văn Hưng",
                             "role": "Librarian",
-                            "email": "librarian@smartlib.com",
+                            "email": "librarian@smartlib.edu.vn",
                             "phone": "0912 888 999",
-                            "address": "Bộ phận Nghiệp vụ Thư viện",
+                            "address": "Bộ phận Nghiệp vụ Thư viện, ĐHQG Hà Nội",
                             "birthDate": "1995-05-12",
                             "isActive": True
                         })
                         dirty = True
-                if "borrowRecords" not in data:
-                    data["borrowRecords"] = []
-                    dirty = True
-                if "notifications" not in data:
-                    data["notifications"] = []
-                    dirty = True
-                # Migration: thêm reservations và fines nếu chưa có
-                if "reservations" not in data:
-                    data["reservations"] = []
-                    dirty = True
-                if "fines" not in data:
-                    data["fines"] = []
-                    dirty = True
+                for key in ["borrowRecords", "notifications", "reservations", "fines"]:
+                    if key not in data:
+                        data[key] = []
+                        dirty = True
 
                 if dirty:
                     with open(self.db_path, "w", encoding="utf-8") as f:
@@ -119,17 +114,16 @@ class DatabaseManager:
                     json.dump(get_default_db(), f, ensure_ascii=False, indent=2)
 
     def load_db(self) -> Dict[str, Any]:
-        with _lock:
+        with self._lock:
             with open(self.db_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            # Đảm bảo tất cả key luôn tồn tại khi load
             for key in ["borrowRecords", "notifications", "books", "users", "reservations", "fines"]:
                 if key not in data:
                     data[key] = []
             return data
 
     def save_db(self, data: Dict[str, Any]):
-        with _lock:
+        with self._lock:
             with open(self.db_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -164,11 +158,6 @@ class DatabaseManager:
         return notif
 
     def calculate_fine(self, record: Dict[str, Any]) -> float:
-        """
-        Tính tiền phạt trễ hạn.
-        Quy tắc: 2.000 VND/ngày trễ hạn.
-        Chỉ tính khi actualReturnDate > returnDate (dueDate).
-        """
         try:
             due_str = record.get("returnDate", "")
             actual_str = record.get("actualReturnDate", "")
@@ -184,15 +173,10 @@ class DatabaseManager:
         return 0.0
 
     def save_fine_record(self, borrow_record: Dict[str, Any], fine_amount: float) -> Optional[Dict[str, Any]]:
-        """
-        Lưu bản ghi tiền phạt vào bảng fines.
-        Chỉ lưu khi có tiền phạt thực sự (> 0).
-        """
         if fine_amount <= 0:
             return None
         db = self.load_db()
         fines = db.get("fines", [])
-        # Tránh ghi trùng fine cho cùng 1 borrowRecord
         existing = next((f for f in fines if f.get("borrowRecordId") == borrow_record.get("id")), None)
         if existing:
             existing["fineAmount"] = fine_amount
@@ -208,10 +192,10 @@ class DatabaseManager:
             "bookTitle": borrow_record.get("bookTitle", ""),
             "readerId": borrow_record.get("readerId"),
             "readerName": borrow_record.get("readerName", ""),
-            "dueDate": borrow_record.get("returnDate", ""),
-            "actualReturnDate": borrow_record.get("actualReturnDate", ""),
+            "dueDate": borrow_record.get("returnDate"),
+            "actualReturnDate": borrow_record.get("actualReturnDate"),
             "fineAmount": fine_amount,
-            "status": "Chưa nộp",  # Chưa nộp / Đã nộp
+            "status": "Chưa nộp",
             "createdAt": datetime.now().isoformat()
         }
         fines.insert(0, fine_record)
@@ -220,4 +204,88 @@ class DatabaseManager:
         return fine_record
 
 
-db_manager = DatabaseManager()
+class UnifiedDatabaseManager:
+    """
+    Quản trị CSDL linh hoạt:
+    - Nếu DB_ENGINE='mysql' và kết nối MySQL sẵn sàng: 100% dữ liệu thực tế lưu trên MySQL.
+    - Nếu MySQL chưa bật: Chuyển sang JSON fallback kèm cảnh báo rõ ràng để hệ thống không bị gián đoạn.
+    """
+    def __init__(self):
+        self.engine_type = DB_ENGINE
+        self.json_mgr = JSONDatabaseManager()
+        self.mysql_mgr = None
+        self._active_engine = "json"
+
+        if self.engine_type == "mysql":
+            try:
+                from mysql_db import MySQLDatabaseManager
+                self.mysql_mgr = MySQLDatabaseManager()
+                if self.mysql_mgr.is_connected():
+                    self._active_engine = "mysql"
+                    logger.info("⚡ SmartLib đang chạy trên CƠ SỞ DỮ LIỆU THỰC TẾ MYSQL 8.0")
+                else:
+                    logger.warning("⚠️ MySQL chưa sẵn sàng (chưa bật MySQL Server). Đang dùng chế độ dự phòng database.json.")
+                    self._active_engine = "json"
+            except Exception as e:
+                logger.warning(f"⚠️ Không thể khởi tạo MySQL adapter ({e}). Dùng JSON dự phòng.")
+                self._active_engine = "json"
+        else:
+            self._active_engine = "json"
+            logger.info("ℹ️ SmartLib đang chạy chế độ lưu trữ JSON (DB_ENGINE=json).")
+
+    @property
+    def active_engine(self) -> str:
+        return self._active_engine
+
+    def load_db(self) -> Dict[str, Any]:
+        if self._active_engine == "mysql" and self.mysql_mgr:
+            return self.mysql_mgr.load_db()
+        return self.json_mgr.load_db()
+
+    def save_db(self, data: Dict[str, Any]):
+        if self._active_engine == "mysql" and self.mysql_mgr:
+            self.mysql_mgr.save_db(data)
+            # Lưu bản sao backup vào JSON để luôn đồng bộ dự phòng
+            try:
+                self.json_mgr.save_db(data)
+            except Exception:
+                pass
+        else:
+            self.json_mgr.save_db(data)
+
+    def add_notification(
+        self,
+        recipient_role: str,
+        title: str,
+        message: str,
+        notif_type: str = "general",
+        recipient_user_id: Optional[int] = None,
+        meta: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        if self._active_engine == "mysql" and self.mysql_mgr:
+            res = self.mysql_mgr.add_notification(recipient_role, title, message, notif_type, recipient_user_id, meta)
+            try:
+                self.json_mgr.add_notification(recipient_role, title, message, notif_type, recipient_user_id, meta)
+            except Exception:
+                pass
+            return res
+        return self.json_mgr.add_notification(recipient_role, title, message, notif_type, recipient_user_id, meta)
+
+    def calculate_fine(self, record: Dict[str, Any]) -> float:
+        if self._active_engine == "mysql" and self.mysql_mgr:
+            return self.mysql_mgr.calculate_fine(record)
+        return self.json_mgr.calculate_fine(record)
+
+    def save_fine_record(self, borrow_record: Dict[str, Any], fine_amount: float) -> Optional[Dict[str, Any]]:
+        if self._active_engine == "mysql" and self.mysql_mgr:
+            res = self.mysql_mgr.save_fine_record(borrow_record, fine_amount)
+            try:
+                self.json_mgr.save_fine_record(borrow_record, fine_amount)
+            except Exception:
+                pass
+            return res
+        return self.json_mgr.save_fine_record(borrow_record, fine_amount)
+
+
+# Khởi tạo Singleton Database Manager
+db_manager = UnifiedDatabaseManager()
