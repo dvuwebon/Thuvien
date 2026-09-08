@@ -20,3 +20,8 @@ Thumbs.db
 .vscode/
 .idea/
 New folder/
+
+# Legacy JSON DB
+/data/
+*.json.bak
+

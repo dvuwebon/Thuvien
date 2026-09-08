@@ -60,7 +60,7 @@ if __name__ == "__main__":
     print(f"Backend API: http://localhost:{PORT}/api")
     print(f"API Documentation (Swagger UI): http://localhost:{PORT}/docs")
     from database import db_manager
-    engine_status = "MySQL 8.0 (smartlib_db) [DANG HOAT DONG]" if db_manager.active_engine == "mysql" else "JSON Fallback (database.json)"
+    engine_status = "MySQL 8.0 (smartlib_db) [CHUAN 3NF - DANG KET NOI]" if db_manager.is_connected() else "MySQL 8.0 (smartlib_db) [MAT KET NOI - Vui long bat MySQL!]"
     print(f"Co so du lieu:       {engine_status}")
     print("Tai khoan Admin:     admin / 123     (Quan tri vien he thong)")
     print("Tai khoan Thu thu:   librarian / 123 (Nghiep vu thu thu, muon tra)")

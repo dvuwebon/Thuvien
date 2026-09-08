@@ -47,13 +47,10 @@ services:
       - MYSQL_USER=root
       - MYSQL_PASSWORD=root
       - MYSQL_DATABASE=smartlib_db
-      - DATABASE_PATH=data/database.json
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     depends_on:
       mysql_db:
         condition: service_healthy
-    volumes:
-      - ./data:/app/data
 
 volumes:
   mysql_data:

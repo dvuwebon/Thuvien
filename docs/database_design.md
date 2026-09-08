@@ -34,16 +34,16 @@ Dự án **SmartLib v3.0** vận hành trực tiếp trên hệ quản trị cơ
                                                ▼
                   ┌─────────────────────────────────────────────────────────┐
                   │               FastAPI Backend RESTful API               │
-                  │             UnifiedDatabaseManager (Singleton)          │
+                  │                 DatabaseManager (Singleton)             │
                   └──────────────┬───────────────────────────┬──────────────┘
                                  │                           │
-          (DB_ENGINE=mysql)      │                           │  (Fallback khi MySQL offline
-       Sẵn sàng MySQL Server     ▼                           ▼   hoặc chạy trên GitHub Pages)
+          (Môi trường Backend)   │                           │  (Môi trường Trình duyệt
+       Kết nối Trực tiếp MySQL   ▼                           ▼   GitHub Pages tĩnh)
   ┌────────────────────────────────────────┐       ┌────────────────────────────────────────┐
-  │         HỆ QUẢN TRỊ CSDL MYSQL 8.0      │       │          DATABASE.JSON ENGINE          │
-  │        (smartlib_db - Chuẩn 3NF)       │       │       (Lưu trữ cục bộ / Browser)       │
+  │         HỆ QUẢN TRỊ CSDL MYSQL 8.0      │       │          LOCAL STORAGE ENGINE          │
+  │        (smartlib_db - Chuẩn 3NF)       │       │       (Trình duyệt Client-side)        │
   ├────────────────────────────────────────┤       ├────────────────────────────────────────┤
-  │ • SQLAlchemy 2.0 Connection Pool       │       │ • Tự động Fallback an toàn (0 crash)   │
+  │ • SQLAlchemy 2.0 Connection Pool       │       │ • Tự động khởi tạo từ mockDatabase.json│
   │ • 6 Bảng quan hệ với Khóa ngoại (FK)   │       │ • Đồng bộ Realtime CustomEvents         │
   │ • users, books, borrow_records,        │       │ • Hỗ trợ triển khai tĩnh GitHub Pages  │
   │   reservations, fines, notifications   │       │ • Giữ vẹn nguyên 100% nghiệp vụ        │
@@ -239,9 +239,9 @@ Dự án **SmartLib v3.0** cam kết lưu trữ bền vững (Persistence) 100%:
    - Khi độc giả trả sách quá hạn, backend tự động tính tiền `overdue_days * 2000` VNĐ và INSERT bản ghi vào bảng `fines` trong MySQL.
    - Khi Thủ thư bấm "Thu tiền phạt", bản ghi trong bảng `fines` được UPDATE `status = 'Đã nộp'` và ghi nhận `paid_at = NOW()`.
    - Mọi thao tác đều thực thi câu lệnh SQL thực tế trên MySQL, không tồn tại ở dạng RAM tạm bợ.
-2. **Ở chế độ Fallback JSON (hoặc GitHub Pages)**:
-   - Các mảng `reservations` và `fines` được ghi tuần tự vào file vật lý `data/database.json` (Local) hoặc `localStorage['smartlib_db']` (GitHub Pages).
-   - F5 trình duyệt hay khởi động lại server dữ liệu vẫn được đọc ra nguyên vẹn.
+2. **Ở môi trường Demo Tĩnh (GitHub Pages)**:
+   - Các mảng `reservations` và `fines` được ghi tuần tự vào `localStorage['smartlib_db']` của trình duyệt.
+   - F5 trình duyệt hay mở nhiều tab dữ liệu vẫn được đồng bộ và đọc ra nguyên vẹn.
 
 ---
 

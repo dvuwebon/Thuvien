@@ -1,5 +1,5 @@
 // SmartLib Unified API Client with Backend / LocalStorage Fallback for GitHub Pages & Local
-import initialDb from '../../../data/database.json';
+import initialDb from '../data/mockDatabase.json';
 
 const API_BASE = '/api';
 
@@ -238,7 +238,7 @@ export const api = {
       }
     }
 
-    // Ưu tiên tra cứu từ Local Database (đã đồng bộ chuẩn theo database.json)
+    // Ưu tiên tra cứu từ Local Database (đã đồng bộ chuẩn khi chạy offline)
     const db = getLocalDb();
     const found = (db.users || []).find(
       u => u.username && u.username.toLowerCase() === trimmedUsername.toLowerCase() && u.password === password

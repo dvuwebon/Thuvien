@@ -1,4 +1,4 @@
-﻿# 📚 SmartLib - Hệ Thống Quản Lý Thư Viện Thông Minh Tích Hợp Trợ Lý AI
+# 📚 SmartLib - Hệ Thống Quản Lý Thư Viện Thông Minh Tích Hợp Trợ Lý AI
 ## BÁO CÁO NGHIỆM THU DỰ ÁN & HƯỚNG DẪN SỬ DỤNG HỆ THỐNG
 ### ĐÁP ỨNG TOÀN DIỆN 10 TIÊU CHÍ ĐÁNH GIÁ CHẤT LƯỢNG PHẦN MỀM
 
@@ -71,8 +71,8 @@
   - Báo cáo **Excel (.xlsx)** định dạng bảng biểu, màu sắc tiêu đề bằng `openpyxl`.
   - Phiếu mượn **PDF (.pdf)** tích hợp mã QR tra cứu bằng `reportlab`.
   - Dữ liệu độc giả **CSV (.csv)** mã hóa UTF-8 BOM chuẩn tiếng Việt.
-- 💾 **Kiến trúc lưu trữ Dual-mode Persistence:**
-  - Localhost: FastAPI đọc/ghi trực tiếp `data/database.json`.
+- 💾 **Kiến trúc lưu trữ 100% CSDL Quan Hệ Thực Tế:**
+  - Localhost & Docker: Backend FastAPI kết nối trực tiếp MySQL 8.0 (`smartlib_db`) chuẩn 3NF qua SQLAlchemy 2.0 ORM.
   - GitHub Pages: Tự kích hoạt `LocalStorage Sync Engine` kiểm soát phiên bản `DB_VERSION`, đồng bộ thời gian thực giữa các tab.
 - 🎨 **Giao diện người dùng tinh tế (UI/UX):** Bỏ 100% popup `alert/confirm` thô sơ của trình duyệt, thay bằng Custom Confirmation Modal và Toast Notification.
 
@@ -142,8 +142,8 @@ py-thuvien/
 │   │   └── index.css               # Hệ thống Style toàn cục, Design Tokens
 │   ├── package.json                # Danh sách thư viện phụ thuộc Frontend
 │   └── vite.config.js              # Cấu hình đóng gói Vite (base path cho GitHub Pages)
-├── data/
-│   └── database.json               # Cơ sở dữ liệu JSON chuẩn hóa lưu trữ tập trung
+├── database/
+│   └── smartlib_mysql.sql          # Kịch bản DDL & DML khởi tạo CSDL MySQL 8.0 chuẩn 3NF (50 sách thực tế)
 ├── docs/                           # Thư mục tài liệu kỹ thuật chuẩn hóa (duy nhất 4 file)
 │   ├── requirements.md             # Đặc tả yêu cầu phần mềm SRS (35+ yêu cầu chức năng & Đặt trước sách)
 │   ├── use_cases.md                # Đặc tả 18 Ca sử dụng & Bộ 7 Test Cases kiểm thử hệ thống (TC01-TC07)
@@ -263,7 +263,7 @@ Dự án hoàn thiện toàn bộ các luồng thao tác dữ liệu cốt lõi 
 
 ### Tiêu chí 7: Kết Nối Và Thao Tác CSDL Ổn Định
 
-Dự án vận hành trên **Cơ sở dữ liệu Quan hệ MySQL 8.0 Chuẩn 3NF** (thực thi qua **SQLAlchemy 2.0 ORM + PyMySQL Connection Pool**), đồng thời duy trì kiến trúc phòng vệ **Dual-Mode Persistence Architecture** độc đáo:
+Dự án vận hành trên **Cơ sở dữ liệu Quan hệ MySQL 8.0 Chuẩn 3NF** (thực thi qua **SQLAlchemy 2.0 ORM + PyMySQL Connection Pool**), đảm bảo 100% tính toàn vẹn dữ liệu:
 
 ```
                   ┌─────────────────────────────────────────┐
@@ -276,14 +276,12 @@ Dự án vận hành trên **Cơ sở dữ liệu Quan hệ MySQL 8.0 Chuẩn 3N
        FastAPI Backend Server                      Client-side Static Storage
                  │                                           │
                  ▼                                           ▼
-     UnifiedDatabaseManager                      Lưu trữ localStorage Engine
-     SQLAlchemy 2.0 + PyMySQL                     Đồng bộ qua CustomEvents
-                 │
-        ┌────────┴────────┐
-        ▼                 ▼
-   MySQL 8.0          Fallback
-  smartlib_db      database.json
-   (6 Bảng 3NF)      (0 crash)
+         DatabaseManager                            Lưu trữ localStorage Engine
+     SQLAlchemy 2.0 + PyMySQL                        Đồng bộ qua CustomEvents
+                 │                                           │
+                 ▼                                           ▼
+      CƠ SỞ DỮ LIỆU MYSQL 8.0                       mockDatabase.json
+     (smartlib_db - 6 Bảng 3NF)                     (Chạy Demo Static)
 ```
 
 1. **Hệ Thống 6 Bảng Quan Hệ Chuẩn 3NF Trong MySQL 8.0 (`smartlib_db`):**
@@ -298,14 +296,14 @@ Dự án vận hành trên **Cơ sở dữ liệu Quan hệ MySQL 8.0 Chuẩn 3N
    - Cả **Hàng chờ đặt trước (`reservations`)** và **Quản lý tiền phạt (`fines`)** đều được lưu trữ trực tiếp vào các bảng quan hệ trong MySQL thông qua câu lệnh SQL (INSERT, UPDATE, DELETE).
    - Khi người dùng F5 trình duyệt hoặc khởi động lại backend server, toàn bộ dữ liệu phiếu mượn, hàng chờ đặt trước và tiền phạt vẫn được bảo toàn nguyên vẹn 100%.
 
-3. **Cơ Chế Dự Phòng Thông Minh (Zero-Crash Fallback):**
-   - Nếu MySQL Server chưa được bật, `UnifiedDatabaseManager` tự động kích hoạt chế độ dự phòng `data/database.json` với đầy đủ 6 mảng dữ liệu tương ứng, ghi log cảnh báo thân thiện thay vì làm sập ứng dụng.
-   - Khi chạy demo trên GitHub Pages, hệ thống kích hoạt `LocalStorage Engine` đồng bộ phiên bản `DB_VERSION` thời gian thực (0ms).
+3. **Chuyển Đổi Thuần Túy Sang Cơ Sở Dữ Liệu Quan Hệ (Pure SQL Architecture):**
+   - Backend FastAPI không còn sử dụng hay phụ thuộc vào file `data/database.json`. Toàn bộ thao tác nghiệp vụ được thực hiện trực tiếp trên MySQL 8.0.
+   - Khi chạy demo trên GitHub Pages (môi trường tĩnh không có backend server), giao diện tự kích hoạt `LocalStorage Engine` kết hợp dữ liệu mẫu để trải nghiệm đầy đủ tính năng.
 
-4. **Dữ Liệu Mẫu Phong Phú & Tiện Ích Di Chuyển Dữ Liệu (Seed & Migration):**
+4. **Dữ Liệu Mẫu Phong Phú & Kịch Bản Khởi Tạo (Seed & SQL Migration):**
    - Khởi tạo sẵn **50 đầu sách phong phú** (Công nghệ thông tin, Kinh tế, Kỹ năng sống, Triết học, Khoa học...), 3 tài khoản nghiệp vụ, lịch sử mượn trả mẫu và phiếu phạt.
    - Tệp kịch bản DDL chuẩn: `database/smartlib_mysql.sql`.
-   - Script di chuyển dữ liệu 1-click từ JSON sang MySQL: `python backend/migrate_to_mysql.py`.
+   - Script khởi tạo CSDL tự động: `python backend/migrate_to_mysql.py`.
 
 ---
 
