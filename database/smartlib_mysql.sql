@@ -247,12 +247,12 @@ VALUES
 -- =====================================================================
 INSERT INTO notifications (id, recipient_role, recipient_user_id, title, message, type, is_read, meta_json, created_at)
 VALUES
-  (9, 'Reader', 2, 'Yêu cầu mượn sách đã được duyệt', 'Yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" của bạn đã được duyệt thành công!', 'borrow_approved', 0, NULL, '2026-09-08T08:18:37.407105'),
-  (8, 'Admin', NULL, 'Yêu cầu mượn sách mới', 'Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" (Mượn về nhà).', 'borrow_request', 1, NULL, '2026-09-06T23:23:58.237450'),
-  (7, 'Admin', NULL, 'Độc giả đã trả sách', 'Độc giả Trần Thị Mai đã trả cuốn sách "Giáo Trình Triết Học Mác - Lênin".', 'book_returned', 1, NULL, '2026-09-06T21:46:45.037101'),
-  (6, 'Reader', 2, 'Xác nhận trả sách thành công', 'Bạn đã hoàn tất trả cuốn sách "Giáo Trình Triết Học Mác - Lênin". Cảm ơn bạn đã giữ gìn sách cẩn thận!', 'book_returned', 1, NULL, '2026-09-06T21:46:44.871924'),
-  (5, 'Admin', NULL, 'Độc giả đã trả sách', 'Độc giả Trần Thị Mai đã trả cuốn sách "Tư Duy Mở".', 'book_returned', 1, NULL, '2026-09-06T21:46:42.158544'),
-  (4, 'Reader', 2, 'Xác nhận trả sách thành công', 'Bạn đã hoàn tất trả cuốn sách "Tư Duy Mở". Cảm ơn bạn đã giữ gìn sách cẩn thận!', 'book_returned', 1, NULL, '2026-09-06T21:46:41.938874'),
-  (3, 'Reader', 2, 'Yêu cầu mượn sách đã được duyệt', 'Yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" của bạn đã được duyệt thành công!', 'borrow_approved', 1, NULL, '2026-09-06T21:46:36.366855'),
-  (2, 'Admin', NULL, 'Yêu cầu mượn sách mới', 'Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" (Mượn về nhà).', 'borrow_request', 1, NULL, '2026-09-06T09:00:00'),
-  (1, 'Reader', 2, 'Yêu cầu mượn sách đang chờ duyệt', 'Yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.', 'borrow_request', 1, NULL, '2026-09-06T09:00:00');
+  (9, 'Reader', 2, 'Yêu cầu mượn sách đã được duyệt', 'Yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" của bạn đã được duyệt thành công!', 'borrow_approved', 0, '{"recordId": 4, "bookId": 1}', '2026-09-08T08:18:37.407105'),
+  (8, 'Admin', NULL, 'Yêu cầu mượn sách mới', 'Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" (Mượn về nhà).', 'borrow_request', 1, '{"recordId": 4, "bookId": 1, "bookTitle": "Giáo Trình Triết Học Mác - Lênin", "readerName": "Trần Thị Mai"}', '2026-09-06T23:23:58.237450'),
+  (7, 'Admin', NULL, 'Độc giả đã trả sách', 'Độc giả Trần Thị Mai đã trả cuốn sách "Giáo Trình Triết Học Mác - Lênin".', 'book_returned', 1, '{"recordId": 2, "bookId": 1}', '2026-09-06T21:46:45.037101'),
+  (6, 'Reader', 2, 'Xác nhận trả sách thành công', 'Bạn đã hoàn tất trả cuốn sách "Giáo Trình Triết Học Mác - Lênin". Cảm ơn bạn đã giữ gìn sách cẩn thận!', 'book_returned', 1, '{"recordId": 2, "bookId": 1}', '2026-09-06T21:46:44.871924'),
+  (5, 'Admin', NULL, 'Độc giả đã trả sách', 'Độc giả Trần Thị Mai đã trả cuốn sách "Tư Duy Mở".', 'book_returned', 1, '{"recordId": 1, "bookId": 2}', '2026-09-06T21:46:42.158544'),
+  (4, 'Reader', 2, 'Xác nhận trả sách thành công', 'Bạn đã hoàn tất trả cuốn sách "Tư Duy Mở". Cảm ơn bạn đã giữ gìn sách cẩn thận!', 'book_returned', 1, '{"recordId": 1, "bookId": 2}', '2026-09-06T21:46:41.938874'),
+  (3, 'Reader', 2, 'Yêu cầu mượn sách đã được duyệt', 'Yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" của bạn đã được duyệt thành công!', 'borrow_approved', 1, '{"recordId": 2, "bookId": 1}', '2026-09-06T21:46:36.366855'),
+  (2, 'Admin', NULL, 'Yêu cầu mượn sách mới', 'Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" (Mượn về nhà).', 'borrow_request', 1, '{"recordId": 2, "bookId": 1, "bookTitle": "Giáo Trình Triết Học Mác - Lênin", "readerName": "Trần Thị Mai"}', '2026-09-06T09:00:00'),
+  (1, 'Reader', 2, 'Yêu cầu mượn sách đang chờ duyệt', 'Yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.', 'borrow_request', 1, '{"recordId": 2, "bookId": 1}', '2026-09-06T09:00:00');

@@ -128,7 +128,7 @@ IF NOT EXISTS (SELECT 1 FROM Users WHERE Username = 'admin')
     VALUES ('admin', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', N'Quản trị', 'Admin', 1);
 IF NOT EXISTS (SELECT 1 FROM Users WHERE Username = 'librarian')
     INSERT INTO Users (Username, PasswordHash, FullName, Role, IsActive)
-    VALUES ('librarian', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', N'Thủ thư Nguyễn Văn Hưng', 'Librarian', 1);
+    VALUES ('librarian', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', N'Thủ thư', 'Librarian', 1);
 IF NOT EXISTS (SELECT 1 FROM Users WHERE Username = 'user')
     INSERT INTO Users (Username, PasswordHash, FullName, Role, IsActive)
     VALUES ('user', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', N'Độc giả', 'Reader', 1);

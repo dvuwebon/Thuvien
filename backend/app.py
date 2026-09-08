@@ -453,6 +453,9 @@ def approve_borrow(record_id: int):
 
     record["status"] = "Đang mượn"
     record["borrowDate"] = datetime.now().isoformat()
+    for n in db.get("notifications", []):
+        if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") == "borrow_request"):
+            n["isRead"] = True
     db_manager.save_db(db)
 
     db_manager.add_notification(
@@ -476,6 +479,9 @@ def reject_borrow(record_id: int):
         raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
 
     record["status"] = "Từ chối"
+    for n in db.get("notifications", []):
+        if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") == "borrow_request"):
+            n["isRead"] = True
     db_manager.save_db(db)
 
     db_manager.add_notification(
@@ -528,12 +534,12 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
 
         # Đánh dấu ĐÃ ĐỌC tất cả thông báo mượn/chờ duyệt/duyệt cũ của lượt mượn này
         for n in db.get("notifications", []):
-            if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id):
+            if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") in ["borrow_request", "borrow_approved"]):
                 n["isRead"] = True
 
     elif req.status == "Đã hủy":
         for n in db.get("notifications", []):
-            if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id):
+            if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") in ["borrow_request", "borrow_approved"]):
                 n["isRead"] = True
 
     # Lưu thay đổi trạng thái mượn và số lượng sách vào CSDL
@@ -602,27 +608,25 @@ def get_notifications(role: Optional[str] = Query(None), userId: Optional[int] =
 
 @app.put("/api/notifications/{notif_id}/read")
 def read_notification(notif_id: int):
-    db = db_manager.load_db()
-    notifs = db.get("notifications", [])
-    notif = next((n for n in notifs if int(n.get("id", 0)) == notif_id), None)
-    if notif:
-        notif["isRead"] = True
-        db_manager.save_db(db)
+    db_manager.mark_notification_read(notif_id)
     return {"message": "OK"}
 
 
 @app.put("/api/notifications/read-all")
 def read_all_notifications(req: NotificationReadRequest):
-    db = db_manager.load_db()
-    notifs = db.get("notifications", [])
-    for n in notifs:
-        if not req.role or n.get("recipientRole") == req.role or (req.role in ("Admin", "Librarian") and n.get("recipientRole") in ("Admin", "Librarian")):
-            if req.role == "Reader":
-                rec_id = n.get("recipientUserId")
-                if req.userId and rec_id is not None and int(rec_id) != req.userId:
-                    continue
-            n["isRead"] = True
-    db_manager.save_db(db)
+    db_manager.mark_all_notifications_read(role=req.role, user_id=req.userId)
+    return {"message": "OK"}
+
+
+@app.delete("/api/notifications/{notif_id}")
+def delete_notification(notif_id: int):
+    db_manager.delete_notification(notif_id)
+    return {"message": "OK"}
+
+
+@app.delete("/api/notifications/clear-read")
+def clear_read_notifications(role: Optional[str] = Query(None), userId: Optional[int] = Query(None)):
+    db_manager.clear_read_notifications(role=role, user_id=userId)
     return {"message": "OK"}
 
 

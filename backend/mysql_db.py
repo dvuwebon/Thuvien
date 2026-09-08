@@ -550,10 +550,81 @@ class MySQLDatabaseManager:
                     )
                     session.add(new_fine)
 
+            # 6. Sync Notifications
+            for n in data.get("notifications", []):
+                nid = n.get("id")
+                if not nid:
+                    continue
+                existing_notif = session.query(NotificationModel).filter_by(id=nid).first()
+                if existing_notif:
+                    existing_notif.is_read = bool(n.get("isRead", False))
+
             session.commit()
         except Exception as e:
             session.rollback()
             logger.error(f"Lỗi khi save_db vào MySQL: {e}")
+        finally:
+            session.close()
+
+    def mark_notification_read(self, notif_id: int):
+        session = self.SessionLocal()
+        try:
+            notif = session.query(NotificationModel).filter_by(id=notif_id).first()
+            if notif:
+                notif.is_read = True
+                session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Lỗi khi mark_notification_read: {e}")
+        finally:
+            session.close()
+
+    def mark_all_notifications_read(self, role: Optional[str] = None, user_id: Optional[int] = None):
+        session = self.SessionLocal()
+        try:
+            q = session.query(NotificationModel)
+            if role in ("Admin", "Librarian"):
+                q = q.filter(NotificationModel.recipient_role.in_(["Admin", "Librarian"]))
+            elif role == "Reader":
+                q = q.filter(NotificationModel.recipient_role == "Reader")
+                if user_id:
+                    q = q.filter((NotificationModel.recipient_user_id == user_id) | (NotificationModel.recipient_user_id.is_(None)))
+            q.update({NotificationModel.is_read: True}, synchronize_session=False)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Lỗi khi mark_all_notifications_read: {e}")
+        finally:
+            session.close()
+
+    def delete_notification(self, notif_id: int):
+        session = self.SessionLocal()
+        try:
+            notif = session.query(NotificationModel).filter_by(id=notif_id).first()
+            if notif:
+                session.delete(notif)
+                session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Lỗi khi delete_notification: {e}")
+        finally:
+            session.close()
+
+    def clear_read_notifications(self, role: Optional[str] = None, user_id: Optional[int] = None):
+        session = self.SessionLocal()
+        try:
+            q = session.query(NotificationModel).filter(NotificationModel.is_read == True)
+            if role in ("Admin", "Librarian"):
+                q = q.filter(NotificationModel.recipient_role.in_(["Admin", "Librarian"]))
+            elif role == "Reader":
+                q = q.filter(NotificationModel.recipient_role == "Reader")
+                if user_id:
+                    q = q.filter((NotificationModel.recipient_user_id == user_id) | (NotificationModel.recipient_user_id.is_(None)))
+            q.delete(synchronize_session=False)
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Lỗi khi clear_read_notifications: {e}")
         finally:
             session.close()
 

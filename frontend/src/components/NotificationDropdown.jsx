@@ -4,11 +4,19 @@ import { useAuth } from '../context/AuthContext';
 import { api, notifyDataUpdated } from '../services/api';
 import {
   Bell, CheckCheck, Clock, BookOpen, AlertCircle, CheckCircle, XCircle,
-  MessageSquare, Check, X
+  MessageSquare, Check, X, Trash2
 } from 'lucide-react';
 
 export default function NotificationDropdown({ isOpen, onClose, align = 'left' }) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead, fetchNotifications } = useNotifications();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+    fetchNotifications,
+    deleteNotification,
+    clearReadNotifications
+  } = useNotifications();
   const { role } = useAuth();
   const dropdownRef = useRef(null);
 
@@ -121,36 +129,63 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
         }}
       >
         {/* Header Dropdown */}
-        <div style={{ padding: '14px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 700, fontSize: '14px' }}>
             <MessageSquare size={16} className="text-blue-600" />
             <span>Thông báo ({unreadCount})</span>
           </div>
-          {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                markAllAsRead();
-              }}
-              style={{
-                border: 'none',
-                background: '#eff6ff',
-                color: '#2563eb',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = '#eff6ff'; }}
-              title="Đánh dấu tất cả thông báo là đã đọc"
-            >
-              Đọc tất cả
-            </button>
-          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  markAllAsRead();
+                }}
+                style={{
+                  border: 'none',
+                  background: '#eff6ff',
+                  color: '#2563eb',
+                  padding: '4px 9px',
+                  borderRadius: '6px',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#eff6ff'; }}
+                title="Đánh dấu tất cả thông báo là đã đọc"
+              >
+                Đọc tất cả
+              </button>
+            )}
+            {notifications.some(n => n.isRead) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  clearReadNotifications();
+                }}
+                style={{
+                  border: 'none',
+                  background: '#f8fafc',
+                  color: '#64748b',
+                  padding: '4px 9px',
+                  borderRadius: '6px',
+                  fontSize: '11.5px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#dc2626'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#64748b'; }}
+                title="Dọn dẹp các thông báo đã đọc"
+              >
+                Dọn dẹp
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Danh sách thông báo */}
@@ -169,13 +204,22 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
               if (targetRecordId) {
                 rec = borrowRecords.find(r => Number(r.id) === Number(targetRecordId));
               }
-              // Chỉ khi không có ID trong thông báo mới tìm record Chờ duyệt gần nhất
-              if (!rec && isBorrowReq && !targetRecordId) {
-                rec = borrowRecords.find(r => r.status === 'Chờ duyệt' && notif.message?.includes(r.bookTitle));
+              // Nếu chưa có hoặc chưa tìm thấy theo ID, tìm theo tên sách được nhắc tới
+              if (!rec && isBorrowReq) {
+                // 1. Ưu tiên tìm phiếu đang Chờ duyệt của cuốn sách này
+                rec = borrowRecords.find(r => r.status === 'Chờ duyệt' && (notif.message?.includes(r.bookTitle) || notif.bookTitle === r.bookTitle));
+                // 2. Nếu không có phiếu nào Chờ duyệt, tìm phiếu mượn gần nhất của cuốn sách này
+                if (!rec) {
+                  rec = borrowRecords.find(r => notif.message?.includes(r.bookTitle) || notif.bookTitle === r.bookTitle);
+                }
               }
 
-              // Cho phép duyệt nếu là yêu cầu mượn đang Chờ duyệt
-              const isPending = isBorrowReq && role === 'Admin' && (!rec || rec.status === 'Chờ duyệt');
+              // CHỈ hiển thị 2 nút Duyệt / Không duyệt khi:
+              // 1. Đúng vai trò Quản trị viên hoặc Thủ thư
+              // 2. TÌM THẤY phiếu mượn VÀ trạng thái của phiếu ĐANG LÀ 'Chờ duyệt'
+              const isPending = isBorrowReq && 
+                (role === 'Admin' || role === 'Librarian') && 
+                Boolean(rec && rec.status === 'Chờ duyệt');
 
               return (
                 <div
@@ -291,11 +335,43 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                         <CheckCheck size={13} /> Đã hoàn tất trả sách
                       </div>
                     )}
+                    {isBorrowReq && (!rec || !['Chờ duyệt', 'Đang mượn', 'Từ chối', 'Đã trả'].includes(rec?.status)) && (
+                      <div style={{ marginTop: '8px', fontSize: '11.5px', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <CheckCheck size={13} /> Đã xử lý
+                      </div>
+                    )}
                   </div>
 
-                  {!notif.isRead && (
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563eb', marginTop: '6px', flexShrink: 0 }} />
-                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                    {!notif.isRead && (
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2563eb', marginTop: '6px' }} />
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteNotification(notif.id);
+                      }}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: '#94a3b8',
+                        cursor: 'pointer',
+                        padding: '3px',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: 0.5,
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fee2e2'; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.5'; e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
+                      title="Xóa thông báo này"
+                    >
+                      <X size={13} />
+                    </button>
+                  </div>
                 </div>
               );
             })

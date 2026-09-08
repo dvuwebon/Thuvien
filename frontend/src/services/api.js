@@ -895,8 +895,8 @@ export const api = {
 
     const db = getLocalDb();
     let notifs = db.notifications || [];
-    if (role === 'Admin') {
-      notifs = notifs.filter(n => n.recipientRole === 'Admin');
+    if (role === 'Admin' || role === 'Librarian') {
+      notifs = notifs.filter(n => n.recipientRole === 'Admin' || n.recipientRole === 'Librarian');
     } else if (role === 'Reader') {
       notifs = notifs.filter(n => n.recipientRole === 'Reader' && (!userId || !n.recipientUserId || Number(n.recipientUserId) === Number(userId)));
     }
@@ -931,7 +931,7 @@ export const api = {
 
     const db = getLocalDb();
     db.notifications = (db.notifications || []).map(n => {
-      if (!role || n.recipientRole === role) {
+      if (!role || n.recipientRole === role || ((role === 'Admin' || role === 'Librarian') && (n.recipientRole === 'Admin' || n.recipientRole === 'Librarian'))) {
         if (role === 'Reader' && userId && n.recipientUserId != null) {
           if (Number(n.recipientUserId) !== Number(userId)) return n;
         }
@@ -939,6 +939,35 @@ export const api = {
       }
       return n;
     });
+    saveLocalDb(db);
+    notifyDataUpdated('notification');
+    return { success: true };
+  },
+
+  deleteNotification: async (notifId) => {
+    if (!isStaticHost) {
+      try {
+        await fetch(`${API_BASE}/notifications/${notifId}`, { method: 'DELETE' });
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    db.notifications = (db.notifications || []).filter(n => Number(n.id) !== Number(notifId));
+    saveLocalDb(db);
+    notifyDataUpdated('notification');
+    return { success: true };
+  },
+
+  clearReadNotifications: async (role, userId) => {
+    if (!isStaticHost) {
+      try {
+        const params = new URLSearchParams();
+        if (role) params.append('role', role);
+        if (userId) params.append('userId', userId);
+        await fetch(`${API_BASE}/notifications/clear-read?${params.toString()}`, { method: 'DELETE' });
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    db.notifications = (db.notifications || []).filter(n => !n.isRead);
     saveLocalDb(db);
     notifyDataUpdated('notification');
     return { success: true };

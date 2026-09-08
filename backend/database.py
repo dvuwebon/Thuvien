@@ -90,5 +90,23 @@ class DatabaseManager:
         return self.mysql_mgr.save_fine_record(borrow_record, fine_amount)
 
 
+    def mark_notification_read(self, notif_id: int):
+        """Đánh dấu một thông báo là đã đọc trong MySQL"""
+        return self.mysql_mgr.mark_notification_read(notif_id)
+
+    def mark_all_notifications_read(self, role: Optional[str] = None, user_id: Optional[int] = None):
+        """Đánh dấu tất cả thông báo là đã đọc trong MySQL"""
+        return self.mysql_mgr.mark_all_notifications_read(role=role, user_id=user_id)
+
+    def delete_notification(self, notif_id: int):
+        """Xóa một thông báo trong MySQL"""
+        return self.mysql_mgr.delete_notification(notif_id)
+
+    def clear_read_notifications(self, role: Optional[str] = None, user_id: Optional[int] = None):
+        """Dọn dẹp các thông báo đã đọc trong MySQL"""
+        return self.mysql_mgr.clear_read_notifications(role=role, user_id=user_id)
+
+
 # Khởi tạo Singleton Database Manager kết nối trực tiếp MySQL
 db_manager = DatabaseManager()
+

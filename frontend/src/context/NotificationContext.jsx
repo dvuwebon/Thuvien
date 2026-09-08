@@ -169,6 +169,24 @@ export const NotificationProvider = ({ children }) => {
     }
   };
 
+  const deleteNotification = async (notifId) => {
+    setNotifications(prev => prev.filter(n => Number(n.id) !== Number(notifId)));
+    try {
+      await api.deleteNotification(notifId);
+    } catch (e) {
+      console.error('Lỗi deleteNotification:', e);
+    }
+  };
+
+  const clearReadNotifications = async () => {
+    setNotifications(prev => prev.filter(n => !n.isRead));
+    try {
+      await api.clearReadNotifications(role, user ? user.id : null);
+    } catch (e) {
+      console.error('Lỗi clearReadNotifications:', e);
+    }
+  };
+
   const getToastBorderColor = (type) => {
     if (type === 'borrow_approved' || type === 'book_returned') return '#10b981';
     if (type === 'borrow_rejected') return '#ef4444';
@@ -188,7 +206,7 @@ export const NotificationProvider = ({ children }) => {
   };
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, fetchNotifications, markAsRead, markAllAsRead }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, fetchNotifications, markAsRead, markAllAsRead, deleteNotification, clearReadNotifications }}>
       {children}
 
       {/* Floating Real-time Notification Banner */}

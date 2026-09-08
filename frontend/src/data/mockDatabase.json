@@ -862,6 +862,9 @@
       "title": "Yêu cầu mượn sách mới",
       "message": "Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách \"Giáo Trình Triết Học Mác - Lênin\" (Mượn về nhà).",
       "type": "borrow_request",
+      "recordId": 4,
+      "bookId": 1,
+      "bookTitle": "Giáo Trình Triết Học Mác - Lênin",
       "isRead": true,
       "createdAt": "2026-09-06T23:23:58"
     },
@@ -922,6 +925,9 @@
       "title": "Yêu cầu mượn sách mới",
       "message": "Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách \"Giáo Trình Triết Học Mác - Lênin\" (Mượn về nhà).",
       "type": "borrow_request",
+      "recordId": 2,
+      "bookId": 1,
+      "bookTitle": "Giáo Trình Triết Học Mác - Lênin",
       "isRead": true,
       "createdAt": "2026-09-06T09:00:00"
     },
