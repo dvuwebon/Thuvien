@@ -608,3 +608,4 @@ class MySQLDatabaseManager:
             return None
         finally:
             session.close()
+

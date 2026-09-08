@@ -153,3 +153,4 @@ VALUES
 (2, 'reader', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Trần Thị Mai', 'Reader', 'mai.tran@smartlib.edu.vn', '0901 234 567', 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội', '2002-10-20', 1),
 (3, 'librarian', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Thủ thư Nguyễn Văn Hưng', 'Librarian', 'librarian@smartlib.edu.vn', '0912 888 999', 'Bộ phận Nghiệp vụ Thư viện, ĐHQG Hà Nội', '1995-05-12', 1)
 ON DUPLICATE KEY UPDATE full_name=VALUES(full_name), role=VALUES(role);
+
