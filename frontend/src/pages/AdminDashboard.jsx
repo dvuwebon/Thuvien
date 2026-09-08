@@ -1169,6 +1169,7 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
                     <th>Hình Thức</th>
                     <th>Ngày Mượn</th>
                     <th>Hạn Trả</th>
+                    <th>Tiền Phạt</th>
                     <th>Trạng Thái</th>
                     <th style={{ textAlign: 'right' }}>Thao Tác</th>
                   </tr>
@@ -1206,6 +1207,25 @@ export default function AdminDashboard({ activeTab, onTabChange }) {
                         </td>
                         <td>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</td>
                         <td>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          {r.fine_amount > 0 ? (
+                            <span style={{
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              border: '1px solid #fca5a5',
+                              borderRadius: '6px',
+                              padding: '2px 7px',
+                              fontSize: '12px',
+                              fontWeight: 700
+                            }}
+                            title={`Trễ ${r.overdue_days || 0} ngày`}
+                            >
+                              {Number(r.fine_amount).toLocaleString('vi-VN')} đ
+                            </span>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                          )}
+                        </td>
                         <td>
                           <span className={`badge ${
                             r.status === 'Đang mượn' ? 'badge-success' :

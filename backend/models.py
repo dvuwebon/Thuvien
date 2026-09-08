@@ -77,3 +77,11 @@ class BorrowStatusUpdate(BaseModel):
 class NotificationReadRequest(BaseModel):
     role: Optional[str] = None
     userId: Optional[int] = None
+
+class ReservationCreate(BaseModel):
+    bookId: int
+    readerId: int
+
+class FineStatusUpdate(BaseModel):
+    status: Optional[str] = "Đã nộp"
+    note: Optional[str] = None

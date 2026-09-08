@@ -1,5 +1,6 @@
 import os
 import sys
+import json
 
 # Ensure backend dir is in sys.path
 backend_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,7 +18,8 @@ from database import db_manager
 from models import (
     LoginRequest, RegisterRequest, UpdateProfileRequest, ChangePasswordRequest,
     BookCreate, BookUpdate, ReaderCreate, ReaderUpdate,
-    BorrowRequestCreate, BorrowStatusUpdate, NotificationReadRequest
+    BorrowRequestCreate, BorrowStatusUpdate, NotificationReadRequest,
+    ReservationCreate, FineStatusUpdate
 )
 from export_service import (
     generate_books_excel, generate_borrows_excel, generate_readers_csv,
@@ -386,6 +388,18 @@ def create_borrow_record(req: BorrowRequestCreate):
     if not target_user:
         target_user = next((u for u in users if u.get("role") == "Reader"), {"id": 2, "fullName": req.readerName or "Độc giả"})
 
+    # ✅ Kiểm tra giới hạn tối đa 5 cuốn sách đang mượn cùng lúc (UC-09, F18)
+    reader_active_borrows = sum(
+        1 for r in records
+        if int(r.get("readerId", 0)) == int(target_user.get("id", 0))
+        and r.get("status") in ["Chờ duyệt", "Đang mượn", "Quá hạn"]
+    )
+    if reader_active_borrows >= 5:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Độc giả {target_user.get('fullName')} đã có {reader_active_borrows} cuốn sách đang mượn hoặc chờ duyệt. Hệ thống chỉ cho phép tối đa 5 cuốn/lúc."
+        )
+
     new_id = max([int(r.get("id", 0)) for r in records], default=0) + 1
     new_record = {
         "id": new_id,
@@ -396,7 +410,9 @@ def create_borrow_record(req: BorrowRequestCreate):
         "borrowDate": now.isoformat(),
         "returnDate": due_date.isoformat(),
         "status": init_status,
-        "borrowType": b_type
+        "borrowType": b_type,
+        "fine_amount": 0,
+        "overdue_days": 0
     }
     records.insert(0, new_record)
     db["borrowRecords"] = records
@@ -411,6 +427,7 @@ def create_borrow_record(req: BorrowRequestCreate):
     )
 
     return {"message": "Đã gửi yêu cầu mượn sách thành công!", "record": new_record}
+
 
 
 @app.put("/api/borrow-records/{record_id}/approve")
@@ -480,8 +497,24 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
         raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
 
     record["status"] = req.status
+    fine_amount = 0.0
+
     if req.status == "Đã trả":
         record["actualReturnDate"] = datetime.now().isoformat()
+
+        # ✅ Tính tiền phạt trễ hạn và lưu bền vững
+        fine_amount = db_manager.calculate_fine(record)
+        overdue_days = 0
+        try:
+            due = datetime.fromisoformat(record.get("returnDate", ""))
+            actual = datetime.fromisoformat(record["actualReturnDate"])
+            overdue_days = max(0, (actual.date() - due.date()).days)
+        except Exception:
+            pass
+
+        record["fine_amount"] = fine_amount
+        record["overdue_days"] = overdue_days
+
         # Khôi phục số lượng sách trong kho
         book_id = record.get("bookId")
         if book_id:
@@ -495,31 +528,36 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
         for n in db.get("notifications", []):
             if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id):
                 n["isRead"] = True
+
     elif req.status == "Đã hủy":
-        # Đánh dấu ĐÃ ĐỌC tất cả thông báo mượn trước đó của lượt mượn này
         for n in db.get("notifications", []):
             if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id):
                 n["isRead"] = True
 
-    # 1. Lưu thay đổi trạng thái mượn và số lượng sách vào CSDL trước
+    # Lưu thay đổi trạng thái mượn và số lượng sách vào CSDL
     db_manager.save_db(db)
 
-    # 2. Sau đó mới thêm thông báo để không bị save_db ghi đè mất
+    # Lưu bản ghi phạt vào bảng fines (chỉ khi có tiền phạt)
+    if req.status == "Đã trả" and fine_amount > 0:
+        db_manager.save_fine_record(record, fine_amount)
+
+    # Gửi thông báo
     if req.status == "Đã trả":
+        fine_msg = f" Tiền phạt trễ hạn: {int(fine_amount):,} VND ({record.get('overdue_days', 0)} ngày trễ)." if fine_amount > 0 else " Bạn đã trả đúng hạn!"
         db_manager.add_notification(
             recipient_role="Reader",
             recipient_user_id=record.get("readerId"),
             title="Xác nhận trả sách thành công",
-            message=f"Bạn đã hoàn tất trả cuốn sách \"{record.get('bookTitle')}\". Cảm ơn bạn đã giữ gìn sách cẩn thận!",
+            message=f"Bạn đã hoàn tất trả cuốn sách \"{record.get('bookTitle')}\".{fine_msg}",
             notif_type="book_returned",
-            meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle")}
+            meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle"), "fineAmount": fine_amount}
         )
         db_manager.add_notification(
             recipient_role="Admin",
             title="Độc giả đã trả sách",
-            message=f"Độc giả {record.get('readerName')} đã trả cuốn sách \"{record.get('bookTitle')}\".",
+            message=f"Độc giả {record.get('readerName')} đã trả cuốn \"{record.get('bookTitle')}\".{' Tiền phạt: ' + str(int(fine_amount)) + ' VND.' if fine_amount > 0 else ''}",
             notif_type="book_returned",
-            meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle"), "readerName": record.get("readerName")}
+            meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle"), "readerName": record.get("readerName"), "fineAmount": fine_amount}
         )
     elif req.status == "Đã hủy":
         db_manager.add_notification(
@@ -530,7 +568,12 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
             meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle")}
         )
 
-    return {"message": "Cập nhật trạng thái mượn sách thành công!"}
+    result = {"message": "Cập nhật trạng thái mượn sách thành công!"}
+    if req.status == "Đã trả":
+        result["fine_amount"] = fine_amount
+        result["overdue_days"] = record.get("overdue_days", 0)
+    return result
+
 
 
 # ================= NOTIFICATIONS =================
@@ -581,7 +624,186 @@ def read_all_notifications(req: NotificationReadRequest):
     return {"message": "OK"}
 
 
+
+# ================= RESERVATIONS (Đặt trước sách) =================
+@app.get("/api/reservations")
+def get_reservations(userId: Optional[int] = Query(None)):
+    db = db_manager.load_db()
+    reservations = db.get("reservations", [])
+    if userId:
+        reservations = [r for r in reservations if int(r.get("readerId", 0)) == userId]
+    return reservations
+
+
+@app.post("/api/reservations", status_code=201)
+def create_reservation(req: ReservationCreate):
+    db = db_manager.load_db()
+    reservations = db.get("reservations", [])
+    books = db.get("books", [])
+    users = db.get("users", [])
+
+    # Kiểm tra sách tồn tại
+    book = next((b for b in books if int(b.get("id", 0)) == int(req.bookId)), None)
+    if not book:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sách.")
+
+    reader = next((u for u in users if int(u.get("id", 0)) == int(req.readerId)), None)
+    if not reader:
+        raise HTTPException(status_code=404, detail="Không tìm thấy độc giả.")
+
+    # Tránh đặt trùng
+    existing = next(
+        (r for r in reservations if int(r.get("bookId", 0)) == int(req.bookId)
+         and int(r.get("readerId", 0)) == int(req.readerId)
+         and r.get("status") == "Waiting"),
+        None
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="Bạn đã đặt trước cuốn sách này rồi.")
+
+    # Xác định thứ tự ưu tiên (FIFO)
+    same_book_waiting = [r for r in reservations if int(r.get("bookId", 0)) == int(req.bookId) and r.get("status") == "Waiting"]
+    priority = len(same_book_waiting) + 1
+
+    new_id = max([int(r.get("id", 0)) for r in reservations], default=0) + 1
+    new_res = {
+        "id": new_id,
+        "bookId": req.bookId,
+        "bookTitle": book.get("title", ""),
+        "readerId": req.readerId,
+        "readerName": reader.get("fullName", ""),
+        "reservedAt": datetime.now().isoformat(),
+        "status": "Waiting",
+        "priority": priority,
+        "expiresAt": (datetime.now() + timedelta(hours=48)).isoformat()
+    }
+    reservations.append(new_res)
+    db["reservations"] = reservations
+    db_manager.save_db(db)
+
+    db_manager.add_notification(
+        recipient_role="Reader",
+        recipient_user_id=req.readerId,
+        title="Đặt trước sách thành công",
+        message=f"Bạn đã đặt trước cuốn \"{book.get('title')}\". Vị trí hàng chờ: #{priority}. Hệ thống sẽ thông báo khi sách sẵn sàng.",
+        notif_type="reservation_created",
+        meta={"reservationId": new_id, "bookId": req.bookId, "bookTitle": book.get("title"), "priority": priority}
+    )
+
+    return {"message": "Đặt trước sách thành công!", "reservation": new_res}
+
+
+@app.delete("/api/reservations/{res_id}")
+def cancel_reservation(res_id: int):
+    db = db_manager.load_db()
+    reservations = db.get("reservations", [])
+    idx = next((i for i, r in enumerate(reservations) if int(r.get("id", 0)) == res_id), -1)
+    if idx == -1:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đặt trước.")
+    reservations[idx]["status"] = "Cancelled"
+    db["reservations"] = reservations
+    db_manager.save_db(db)
+    return {"message": "Đã hủy đặt trước sách."}
+
+
+# ================= FINES (Quản lý phạt) =================
+@app.get("/api/fines")
+def get_fines(readerId: Optional[int] = Query(None)):
+    db = db_manager.load_db()
+    fines = db.get("fines", [])
+    if readerId:
+        fines = [f for f in fines if int(f.get("readerId", 0)) == readerId]
+    return fines
+
+
+@app.put("/api/fines/{fine_id}/pay")
+def pay_fine(fine_id: int, req: FineStatusUpdate):
+    db = db_manager.load_db()
+    fines = db.get("fines", [])
+    fine = next((f for f in fines if int(f.get("id", 0)) == fine_id), None)
+    if not fine:
+        raise HTTPException(status_code=404, detail="Không tìm thấy khoản phạt.")
+    fine["status"] = "Đã nộp"
+    fine["paidAt"] = datetime.now().isoformat()
+    db["fines"] = fines
+    db_manager.save_db(db)
+
+    db_manager.add_notification(
+        recipient_role="Reader",
+        recipient_user_id=fine.get("readerId"),
+        title="Xác nhận nộp phạt thành công",
+        message=f"Bạn đã nộp tiền phạt {int(fine.get('fineAmount', 0)):,} VND cho cuốn sách \"{fine.get('bookTitle')}\". Cảm ơn!",
+        notif_type="fine_paid",
+        meta={"fineId": fine_id, "fineAmount": fine.get("fineAmount")}
+    )
+    return {"message": "Đã xác nhận nộp phạt thành công!", "fine": fine}
+
+
+# ================= RECOMMENDATIONS (Gợi ý sách cá nhân hóa) =================
+@app.get("/api/recommendations/{reader_id}")
+def get_recommendations(reader_id: int, limit: int = Query(6, ge=1, le=20)):
+    """
+    Gợi ý sách dựa trên lịch sử mượn sách của độc giả.
+    Thuật toán: Tìm thể loại yêu thích (mượn nhiều nhất) → gợi ý sách cùng thể loại chưa mượn.
+    """
+    db = db_manager.load_db()
+    books = db.get("books", [])
+    records = db.get("borrowRecords", [])
+
+    # Lấy lịch sử mượn của độc giả
+    reader_records = [r for r in records if int(r.get("readerId", 0)) == reader_id]
+    borrowed_book_ids = set(int(r.get("bookId", 0)) for r in reader_records)
+
+    if not reader_records:
+        # Nếu chưa mượn cuốn nào → trả về sách phổ biến nhất (nhiều người mượn nhất)
+        borrow_count = {}
+        for r in records:
+            bid = int(r.get("bookId", 0))
+            borrow_count[bid] = borrow_count.get(bid, 0) + 1
+        popular = sorted(books, key=lambda b: borrow_count.get(int(b.get("id", 0)), 0), reverse=True)
+        return {
+            "type": "popular",
+            "reason": "Sách được mượn nhiều nhất trong thư viện",
+            "books": popular[:limit]
+        }
+
+    # Tìm thể loại yêu thích của độc giả
+    category_count = {}
+    for r in reader_records:
+        book = next((b for b in books if int(b.get("id", 0)) == int(r.get("bookId", 0))), None)
+        if book:
+            cat = book.get("category", "Khác")
+            category_count[cat] = category_count.get(cat, 0) + 1
+
+    if not category_count:
+        return {"type": "popular", "reason": "Sách phổ biến", "books": books[:limit]}
+
+    fav_category = max(category_count, key=category_count.get)
+
+    # Gợi ý sách cùng thể loại chưa mượn
+    recommendations = [
+        b for b in books
+        if b.get("category") == fav_category and int(b.get("id", 0)) not in borrowed_book_ids
+    ]
+
+    # Nếu không đủ → bổ sung sách thể loại khác chưa mượn
+    if len(recommendations) < limit:
+        other_books = [
+            b for b in books
+            if b.get("category") != fav_category and int(b.get("id", 0)) not in borrowed_book_ids
+        ]
+        recommendations.extend(other_books[:limit - len(recommendations)])
+
+    return {
+        "type": "personalized",
+        "reason": f"Dựa trên sở thích thể loại \"{fav_category}\" của bạn",
+        "favoriteCategory": fav_category,
+        "books": recommendations[:limit]
+    }
+
+
 # ================= STATISTICS =================
+
 @app.get("/api/stats")
 def get_stats():
     db = db_manager.load_db()

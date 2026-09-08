@@ -505,13 +505,14 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                     <th>Hạn Trả</th>
                     <th>Ngày Trả Thực Tế</th>
                     <th>Trạng Thái</th>
+                    <th>Tiền Phạt</th>
                     <th style={{ textAlign: 'right' }}>Chứng Từ</th>
                   </tr>
                 </thead>
                 <tbody>
                   {myBorrows.length === 0 ? (
                     <tr>
-                      <td colSpan="8" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                      <td colSpan="9" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                         Bạn chưa có lịch sử mượn trả nào.
                       </td>
                     </tr>
@@ -542,6 +543,28 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                             {r.status}
                           </span>
                         </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {r.fine_amount > 0 ? (
+                            <span style={{
+                              display: 'inline-block',
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              border: '1px solid #fca5a5',
+                              borderRadius: '6px',
+                              padding: '2px 8px',
+                              fontSize: '12px',
+                              fontWeight: 700
+                            }}
+                            title={`Trễ ${r.overdue_days || 0} ngày`}
+                            >
+                              {Number(r.fine_amount).toLocaleString('vi-VN')} đ
+                            </span>
+                          ) : (
+                            <span style={{ color: '#86efac', fontSize: '12px', fontWeight: 600 }}>
+                              {r.status === 'Đã trả' ? '✓ Đúng hạn' : '-'}
+                            </span>
+                          )}
+                        </td>
                         <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: '13px' }}>
                           -
                         </td>
@@ -554,6 +577,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           </div>
         </div>
       )}
+
 
       {/* Modals */}
       <BookDetailModal
