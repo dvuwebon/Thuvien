@@ -1,11 +1,20 @@
 // SmartLib File Generation & Export Helpers
 import QRCode from 'qrcode';
 
+function getStoredDb() {
+  const raw = localStorage.getItem('smartlib_db') || localStorage.getItem('smartlib_db_v6');
+  try {
+    return JSON.parse(raw || '{}');
+  } catch (e) {
+    return {};
+  }
+}
+
 export const exportApi = {
   downloadBooksExcel: () => {
     if (window.location.hostname.includes('github.io')) {
       try {
-        const db = JSON.parse(localStorage.getItem('smartlib_db_v6') || '{}');
+        const db = getStoredDb();
         const books = db.books || [];
         let csv = '\ufeffMã Sách,Tiêu Đề,Tác Giả,Thể Loại,Tổng Số Lượng,Đang Mượn,Khả Dụng\n';
         books.forEach(b => {
@@ -32,11 +41,12 @@ export const exportApi = {
   downloadBorrowsExcel: () => {
     if (window.location.hostname.includes('github.io')) {
       try {
-        const db = JSON.parse(localStorage.getItem('smartlib_db_v6') || '{}');
-        const borrows = db.borrow_records || [];
-        let csv = '\ufeffMã Phiếu,Tên Sách,Độc Giả,Ngày Mượn,Hạn Trả,Hình Thức,Trạng Thái\n';
+        const db = getStoredDb();
+        const borrows = db.borrow_records || db.borrowRecords || [];
+        let csv = '\ufeffMã Phiếu,Tên Sách,Độc Giả,Ngày Mượn,Hạn Trả,Hình Thức,Tiền Phạt (VNĐ),Trạng Thái\n';
         borrows.forEach(r => {
-          csv += `"${r.id}","${r.bookTitle}","${r.readerName}","${r.borrowDate || ''}","${r.returnDate || ''}","${r.borrowType || ''}","${r.status || ''}"\n`;
+          const fine = Number(r.fineAmount || r.fine_amount || 0);
+          csv += `"${r.id}","${r.bookTitle || ''}","${r.readerName || ''}","${r.borrowDate || ''}","${r.returnDate || r.dueDate || ''}","${r.borrowType || ''}","${fine}","${r.status || ''}"\n`;
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -56,11 +66,11 @@ export const exportApi = {
   downloadReadersCsv: () => {
     if (window.location.hostname.includes('github.io')) {
       try {
-        const db = JSON.parse(localStorage.getItem('smartlib_db_v6') || '{}');
-        const readers = db.readers || [];
+        const db = getStoredDb();
+        const readers = (db.users || []).filter(u => u.role === 'Reader' || !u.role) || db.readers || [];
         let csv = '\ufeffID,Họ và tên,Tên đăng nhập,Email,Số điện thoại,Địa chỉ\n';
         readers.forEach(r => {
-          csv += `"${r.id}","${r.fullName || ''}","${r.username || ''}","${r.email || ''}","${r.phone || ''}","${r.address || ''}"\n`;
+          csv += `"${r.id}","${r.fullName || r.name || ''}","${r.username || ''}","${r.email || ''}","${r.phone || ''}","${r.address || ''}"\n`;
         });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -83,9 +93,9 @@ export const exportApi = {
 
   downloadBackupJson: () => {
     if (window.location.hostname.includes('github.io')) {
-      const db = localStorage.getItem('smartlib_db_v6');
-      if (db) {
-        const blob = new Blob([db], { type: 'application/json' });
+      const raw = localStorage.getItem('smartlib_db') || localStorage.getItem('smartlib_db_v6');
+      if (raw) {
+        const blob = new Blob([raw], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;

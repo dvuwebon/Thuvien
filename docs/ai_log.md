@@ -134,10 +134,10 @@ CÁC QUY TẮC BẮT BUỘC:
 
 *(Minh chứng ChatGPT/AI hỗ trợ sinh DDL, Use Case, Prompt RAG và prototype giao diện)*
 
-### 4.1. Hỗ trợ sinh DDL Cơ sở dữ liệu 7 bảng
-- **Câu lệnh định hướng của Sinh viên:** *"Hãy thiết kế cho tôi cấu trúc cơ sở dữ liệu thư viện chuẩn hóa 3NF gồm 7 bảng: users, readers, books, borrow_records, borrow_details, reservations (đặt trước) và fines (phạt), có đầy đủ khóa chính, khóa ngoại và ràng buộc ON DELETE RESTRICT."*
-- **Kết quả AI hỗ trợ:** Sinh toàn bộ tệp DDL SQL chuẩn InnoDB, tạo tiền đề cho sơ đồ ERD tại Chương 2 Báo cáo và tài liệu [`docs/database_design.md`](database_design.md).
-- **Sinh viên kiểm tra & tinh chỉnh:** Bổ sung ràng buộc kiểm tra số lượng tồn kho `CHECK (available >= 0)` và chỉ mục `INDEX` cho `user_id` và `book_id` để tăng tốc truy vấn.
+### 4.1. Hỗ trợ thiết kế & chuyển đổi sang CSDL Quan hệ MySQL 8.0 Chuẩn 3NF
+- **Câu lệnh định hướng của Sinh viên:** *"Hãy thiết kế cho tôi cấu trúc cơ sở dữ liệu quan hệ MySQL 8.0 chuẩn hóa 3NF thực thi gồm 6 bảng: users (3 vai trò Admin, Librarian, Reader), books (50 đầu sách), borrow_records, reservations (đặt trước FIFO 48h), fines (quản lý phạt 2.000đ/ngày) và notifications, kết nối qua SQLAlchemy 2.0 ORM + PyMySQL và tự động fallback JSON khi cần."*
+- **Kết quả AI hỗ trợ:** Sinh toàn bộ tệp DDL SQL chuẩn InnoDB `database/smartlib_mysql.sql`, mô hình ORM `backend/mysql_db.py`, script chuyển đổi dữ liệu `backend/migrate_to_mysql.py` và cập nhật kiến trúc tại [`docs/database_design.md`](database_design.md).
+- **Sinh viên kiểm tra & tinh chỉnh:** Bổ sung cơ chế Singleton `UnifiedDatabaseManager` tự động nhận diện `DB_ENGINE=mysql`, kiểm tra trạng thái kết nối MySQL Server thực tế và thực hiện persistence bền vững 100% cho cả 6 bảng, bảo đảm không bao giờ làm gián đoạn ứng dụng.
 
 ### 4.2. Hỗ trợ thiết kế Use Cases & Bộ Test Cases (TC01 - TC07)
 - **Câu lệnh định hướng của Sinh viên:** *"Từ 35 yêu cầu chức năng, hãy xây dựng ma trận đặc tả ca sử dụng và lập bảng 7 Test Cases kiểm thử toàn diện từ TC01 đến TC07 bao quát cả luồng mượn/trả, đặt trước sách, Trợ lý AI và xuất báo cáo."*

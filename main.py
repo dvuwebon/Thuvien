@@ -60,8 +60,10 @@ if __name__ == "__main__":
     print(f"Backend API: http://localhost:{PORT}/api")
     print(f"API Documentation (Swagger UI): http://localhost:{PORT}/docs")
     print("==================================================================")
-    print("Tai khoan Admin: admin / 123")
-    print("Tai khoan Doc gia: reader / 123")
+    print("Co so du lieu: MySQL 8.0 (smartlib_db) / Che do Fallback JSON tu dong")
+    print("Tai khoan Admin:     admin / 123     (Quan tri vien he thong)")
+    print("Tai khoan Thu thu:   librarian / 123 (Nghiep vu thu thu, muon tra)")
+    print("Tai khoan Doc gia:   reader / 123    (Tra cuu sach, dat muon)")
     print("==================================================================")
     
     try:

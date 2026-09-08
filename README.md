@@ -6,6 +6,8 @@
   <img src="https://img.shields.io/badge/React-18.3.1-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 18" />
   <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+" />
   <img src="https://img.shields.io/badge/FastAPI-0.110%2B-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/MySQL-8.0-4479A1?style=for-the-badge&logo=mysql&logoColor=white" alt="MySQL 8.0" />
+  <img src="https://img.shields.io/badge/SQLAlchemy-2.0-red?style=for-the-badge&logo=sqlalchemy&logoColor=white" alt="SQLAlchemy 2.0" />
   <img src="https://img.shields.io/badge/Docker-Supported-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
   <img src="https://img.shields.io/badge/GitHub%20Pages-Live%20Demo-22c55e?style=for-the-badge&logo=github" alt="Live Demo" />
   <img src="https://img.shields.io/badge/License-MIT-orange?style=for-the-badge" alt="License MIT" />
@@ -261,33 +263,49 @@ Dự án hoàn thiện toàn bộ các luồng thao tác dữ liệu cốt lõi 
 
 ### Tiêu chí 7: Kết Nối Và Thao Tác CSDL Ổn Định
 
-Dự án áp dụng giải pháp công nghệ **Dual-Mode Persistence Architecture** đột phá:
+Dự án vận hành trên **Cơ sở dữ liệu Quan hệ MySQL 8.0 Chuẩn 3NF** (thực thi qua **SQLAlchemy 2.0 ORM + PyMySQL Connection Pool**), đồng thời duy trì kiến trúc phòng vệ **Dual-Mode Persistence Architecture** độc đáo:
 
 ```
                   ┌─────────────────────────────────────────┐
                   │          SmartLib API Client            │
                   └────────────────────┬────────────────────┘
                                        │
-                ┌──────────────────────┴──────────────────────┐
-                ▼                                             ▼
-       [ Môi trường Localhost ]                     [ Môi trường GitHub Pages ]
-      FastAPI Backend Server                         Client-side Static Storage
-                │                                             │
-                ▼                                             ▼
-       Đọc / Ghi trực tiếp                           Lưu trữ localStorage Engine
-       data/database.json                             Đồng bộ qua CustomEvents
+                 ┌─────────────────────┴─────────────────────┐
+                 ▼                                           ▼
+      [ Môi trường Local / Docker ]               [ Môi trường GitHub Pages ]
+       FastAPI Backend Server                      Client-side Static Storage
+                 │                                           │
+                 ▼                                           ▼
+     UnifiedDatabaseManager                      Lưu trữ localStorage Engine
+     SQLAlchemy 2.0 + PyMySQL                     Đồng bộ qua CustomEvents
+                 │
+        ┌────────┴────────┐
+        ▼                 ▼
+   MySQL 8.0          Fallback
+  smartlib_db      database.json
+   (6 Bảng 3NF)      (0 crash)
 ```
 
-1. **Cấu trúc CSDL `data/database.json`:**
-   - Bảng `books`: Quản lý danh mục sách, số lượng tổng, số lượng sẵn có, mô tả, năm xuất bản.
-   - Bảng `users`: Quản lý tài khoản, mật khẩu, phân quyền (`Admin` / `Reader`), họ tên, liên hệ.
-   - Bảng `borrowRecords`: Quản lý thông tin mượn trả, ngày mượn, hạn trả, trạng thái duyệt.
-   - Bảng `notifications`: Quản lý lịch sử thông báo gửi đến từng người dùng.
-2. **Đồng bộ hóa tức thì (Real-time Cross-tab Sync):**
-   - Khi chạy trên GitHub Pages, ứng dụng sử dụng cơ chế phát sự kiện `smartlib:data-updated` và kiểm soát phiên bản database `DB_VERSION` để đảm bảo độc giả thực hiện mượn sách, trả sách hay đăng ký tài khoản thì dữ liệu lập tức được lưu bền vững và cập nhật ngay trên giao diện mà không bị mất khi F5.
-3. **Dữ liệu mẫu phong phú (Seed Data):**
-   - Tích hợp sẵn hơn 8 đầu sách kinh điển nổi tiếng (Đắc Nhân Tâm, Clean Code, Nhà Giả Kim, Lược Sử Loài Người...).
-   - Có sẵn tài khoản demo Quản trị viên (`admin / 123`) và Độc giả (`reader / 123`).
+1. **Hệ Thống 6 Bảng Quan Hệ Chuẩn 3NF Trong MySQL 8.0 (`smartlib_db`):**
+   - 👤 **Bảng `users`**: Quản lý thông tin định danh và hồ sơ 3 vai trò: Admin, Librarian (Thủ thư), Reader (Độc giả).
+   - 📚 **Bảng `books`**: Lưu trữ toàn diện 50 đầu sách thực tế, phân loại, mô tả chi tiết, số lượng tổng và số lượng khả dụng.
+   - 📋 **Bảng `borrow_records`**: Quản lý lịch sử mượn trả, hạn trả, ngày trả thực tế, trạng thái duyệt, số ngày trễ hạn và tiền phạt.
+   - ⏳ **Bảng `reservations`**: Cơ chế hàng chờ đặt trước ưu tiên FIFO khi sách hết kho (`available_copies = 0`), tự động giữ chỗ 48h khi có sách được trả về kho.
+   - 💰 **Bảng `fines`**: Quản lý thu tiền phạt vi phạm quy chế quá hạn trả sách (2.000 đ/ngày trễ), theo dõi trạng thái "Chưa nộp" / "Đã nộp" và ngày nộp phạt thực tế.
+   - 🔔 **Bảng `notifications`**: Lưu trữ lịch sử thông báo gửi đích danh cho từng bạn đọc hoặc theo vai trò hệ thống.
+
+2. **Khắc Phục Hoàn Toàn Vấn Đề Lưu Trữ Bền Vững (Data Persistence):**
+   - Cả **Hàng chờ đặt trước (`reservations`)** và **Quản lý tiền phạt (`fines`)** đều được lưu trữ trực tiếp vào các bảng quan hệ trong MySQL thông qua câu lệnh SQL (INSERT, UPDATE, DELETE).
+   - Khi người dùng F5 trình duyệt hoặc khởi động lại backend server, toàn bộ dữ liệu phiếu mượn, hàng chờ đặt trước và tiền phạt vẫn được bảo toàn nguyên vẹn 100%.
+
+3. **Cơ Chế Dự Phòng Thông Minh (Zero-Crash Fallback):**
+   - Nếu MySQL Server chưa được bật, `UnifiedDatabaseManager` tự động kích hoạt chế độ dự phòng `data/database.json` với đầy đủ 6 mảng dữ liệu tương ứng, ghi log cảnh báo thân thiện thay vì làm sập ứng dụng.
+   - Khi chạy demo trên GitHub Pages, hệ thống kích hoạt `LocalStorage Engine` đồng bộ phiên bản `DB_VERSION` thời gian thực (0ms).
+
+4. **Dữ Liệu Mẫu Phong Phú & Tiện Ích Di Chuyển Dữ Liệu (Seed & Migration):**
+   - Khởi tạo sẵn **50 đầu sách phong phú** (Công nghệ thông tin, Kinh tế, Kỹ năng sống, Triết học, Khoa học...), 3 tài khoản nghiệp vụ, lịch sử mượn trả mẫu và phiếu phạt.
+   - Tệp kịch bản DDL chuẩn: `database/smartlib_mysql.sql`.
+   - Script di chuyển dữ liệu 1-click từ JSON sang MySQL: `python backend/migrate_to_mysql.py`.
 
 ---
 
@@ -352,7 +370,7 @@ Dự án được trang bị bộ 3 file cấu hình Docker tối ưu:
 - **Phía Máy chủ (Backend):** Python 3.10+, FastAPI, Uvicorn ASGI Server.
 - **Thư viện sinh tệp (Generators):** `openpyxl` (Excel), `reportlab` (PDF), `qrcode`, `pillow`.
 - **Trí tuệ Nhân tạo (AI Engine):** Google Generative AI (Gemini 1.5 Flash) + Expert Knowledge Fallback.
-- **Cơ sở dữ liệu:** File-based JSON Database kết hợp LocalStorage Sync Engine.
+- **Cơ sở dữ liệu (Database):** CSDL Quan hệ MySQL 8.0 Chuẩn 3NF (SQLAlchemy 2.0 ORM + PyMySQL) kết hợp cơ chế Fallback JSON tự động & LocalStorage Sync Engine.
 - **Đóng gói & Triển khai:** Docker, Docker Compose, GitHub Pages CI/CD.
 
 ---
@@ -365,13 +383,13 @@ Chỉ cần truy cập ngay: 👉 **[https://dvuwebon.github.io/Thuvien/](https:
 ---
 
 ### Cách 2: Khởi chạy bằng Docker / Docker Compose (Khuyên dùng)
-Yêu cầu: Máy tính đã cài đặt [Docker Desktop](https://www.docker.com/products/docker-desktop).
+Yêu cầu: Máy tính đã cài đặt [Docker Desktop](https://www.docker.com/products/docker-desktop). Hệ thống Docker Compose đã cấu hình sẵn cả 2 container: **MySQL 8.0** (`smartlib_mysql`) và **Ứng dụng Web SmartLib** (`smartlib_app`).
 
-1. Khởi động ứng dụng bằng lệnh Docker:
+1. Khởi động toàn bộ hệ thống (kèm CSDL MySQL 8.0):
    ```bash
    docker compose up -d --build
    # Hoặc nếu sử dụng cú pháp docker-compose cũ:
-   docker-compose up --build
+   docker-compose up -d --build
    ```
 2. Mở trình duyệt truy cập:
    - 🌐 **Web App:** **[http://localhost:3000](http://localhost:3000)**
@@ -402,8 +420,9 @@ Yêu cầu: Đã cài đặt **Python 3.10+**.
 
 | Vai trò | Tên đăng nhập | Mật khẩu | Quyền hạn và Chức năng chính |
 | :--- | :---: | :---: | :--- |
-| **Quản trị viên (Admin)** | `admin` | `123` | Toàn quyền: Quản trị kho sách (Thêm/Sửa/Xóa), Duyệt/Từ chối phiếu mượn, Nhận sách trả, Quản lý tài khoản độc giả, Xem Dashboard KPI, Xuất file Excel/CSV/PDF |
-| **Độc giả (Reader)** | `reader` | `123` | Tra cứu kho sách, Gửi yêu cầu mượn, Xem lịch sử cá nhân, Thao tác Trả sách, Hỏi đáp cùng Thủ thư AI, Cập nhật hồ sơ & đổi mật khẩu |
+| **Quản trị viên (Admin)** | `admin` | `123` | **Toàn quyền hệ thống**: Quản trị kho sách (Thêm/Sửa/Xóa 50 đầu sách), xem thống kê KPI tổng quan, quản lý hồ sơ bạn đọc, quản trị CSDL MySQL, xuất báo cáo đa định dạng (Excel, PDF kèm mã QR, CSV). |
+| **Thủ thư (Librarian)** | `librarian` | `123` | **Nghiệp vụ lưu thông & kho**: Duyệt/Từ chối phiếu mượn, tiếp nhận sách trả về kho, quản lý hàng chờ đặt trước sách (FIFO 48h), kiểm tra quá hạn và thu tiền phạt (2.000 đ/ngày). |
+| **Độc giả (Reader)** | `reader` | `123` | **Bạn đọc thư viện**: Tra cứu kho 50 cuốn sách, gửi yêu cầu mượn sách, đăng ký đặt trước khi sách hết kho, xem danh sách gợi ý cá nhân hóa từ AI, chủ động thao tác trả sách và nộp phạt. |
 
 *(Bạn đọc có thể bấm **"Đăng ký tài khoản mới"** tại màn hình đăng nhập để tạo tài khoản độc giả riêng).*
 

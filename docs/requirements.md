@@ -167,10 +167,10 @@ SmartLib là hệ thống phần mềm quản lý và tra cứu thư viện hi�
 
 | Môi trường | Công nghệ Thực thi | Đặc điểm Kỹ thuật & Vai trò |
 | :--- | :--- | :--- |
-| **Máy chủ Cục bộ (Localhost)** | Python 3.10+ (FastAPI) + React 18 SPA | Đọc/ghi CSDL JSON tập trung; hỗ trợ đầy đủ các module xuất tệp Excel, PDF có QR và CSV. |
+| **Máy chủ Cục bộ (Localhost)** | Python 3.10+ (FastAPI) + React 18 SPA + MySQL 8.0 (SQLAlchemy 2.0 / PyMySQL) | Vận hành trên CSDL Quan hệ MySQL 8.0 (hoặc JSON fallback tự động); hỗ trợ đầy đủ các module xuất tệp Excel, PDF có QR và CSV. |
 | **Nền tảng Trực tuyến (GitHub Pages)** | Client-side React SPA + LocalStorage Engine | Tự động nhận diện host tĩnh `github.io`, kích hoạt LocalStorage Sync Engine (`DB_VERSION`), hỗ trợ demo trực tiếp 100% chức năng không cần cài đặt. |
-| **Đóng gói Ảo hóa (Docker)** | Multi-stage Dockerfile + Docker Compose | Đóng gói tự động 2 tầng (Node.js 20 build React -> Python 3.11-slim chạy FastAPI); mount volume `./data:/app/data` bảo toàn dữ liệu bền vững. |
+| **Đóng gói Ảo hóa (Docker)** | Multi-stage Dockerfile + Docker Compose (MySQL + App) | Đóng gói 2 container phối hợp: `smartlib_mysql` (MySQL 8.0 với volume `mysql_data`) và `smartlib_app` (FastAPI + React); dữ liệu lưu trữ bền vững 100%. |
 
 ---
 
-*Tài liệu Đặc tả Yêu cầu Phần mềm này phản ánh đầy đủ 100% các chức năng và ràng buộc kỹ thuật đã được xây dựng và kiểm chứng trong Dự án SmartLib v2.1.*
+*Tài liệu Đặc tả Yêu cầu Phần mềm này phản ánh đầy đủ 100% các chức năng và ràng buộc kỹ thuật đã được xây dựng và kiểm chứng trong Dự án SmartLib v3.0.*

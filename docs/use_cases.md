@@ -1,7 +1,7 @@
 # 📊 SMARTLIB — ĐẶC TẢ CA SỬ DỤNG & BỘ TEST CASES KIỂM THỬ
-**Hệ thống Quản lý Thư viện Thông minh — SmartLib v2.1**
-> Phiên bản tài liệu: 2.1 (Đồng bộ Báo cáo Kỹ thuật) | Ngày cập nhật: 04/09/2026
-> 📖 **Bộ tài liệu kỹ thuật SmartLib:** [📋 Yêu cầu (SRS)](requirements.md) | [📊 Ca sử dụng & Test Cases](use_cases.md) | [🗄️ Thiết kế CSDL (ERD 7 Bảng)](database_design.md) | [🤖 Nhật ký Prompt & AI Log](ai_log.md) | [🏠 Trang chủ README](../README.md)
+**Hệ thống Quản lý Thư viện Thông minh — SmartLib v3.0**
+> Phiên bản tài liệu: 3.0 (Đồng bộ CSDL MySQL 8.0 & 3 Nhóm Tác Nhân) | Ngày cập nhật: 08/09/2026
+> 📖 **Bộ tài liệu kỹ thuật SmartLib:** [📋 Yêu cầu (SRS)](requirements.md) | [📊 Ca sử dụng & Test Cases](use_cases.md) | [🗄️ Thiết kế CSDL (ERD 6 Bảng)](database_design.md) | [🤖 Nhật ký Prompt & AI Log](ai_log.md) | [🏠 Trang chủ README](../README.md)
 
 ---
 
@@ -28,8 +28,9 @@
 
 | Tác nhân | Mô tả vai trò | Quyền hạn chính |
 | :---: | :--- | :--- |
-| **Quản trị viên / Thủ thư (`Admin`)** | Cán bộ quản lý thư viện | Toàn quyền quản trị kho sách, độc giả, duyệt mượn/trả/đặt trước, theo dõi Dashboard KPI và xuất báo cáo. |
-| **Độc giả / Bạn đọc (`Reader`)** | Học sinh, sinh viên, người dùng đã đăng ký | Tra cứu mục lục, gửi yêu cầu mượn, gia hạn mượn, đặt trước sách, trả sách của mình, hỏi đáp AI và xem lịch sử. |
+| **Quản trị viên (`Admin`)** | Cán bộ quản lý cấp cao | Toàn quyền cấu hình CSDL, quản trị kho sách, độc giả, theo dõi Dashboard KPI doanh thu phạt và xuất báo cáo. |
+| **Thủ thư (`Librarian`)** | Nhân viên nghiệp vụ chuyên trách | Duyệt/từ chối phiếu mượn, tiếp nhận sách trả, quản lý hàng chờ đặt trước sách (FIFO 48h), thu tiền phạt quá hạn. |
+| **Độc giả / Bạn đọc (`Reader`)** | Học sinh, sinh viên, người dùng đã đăng ký | Tra cứu 50 đầu sách, gửi yêu cầu mượn, gia hạn, đặt trước sách, trả sách của mình, hỏi đáp AI và xem gợi ý cá nhân hóa. |
 | **Khách vãng lai (`Guest`)** | Người dùng chưa xác thực | Xem trang Đăng nhập / Đăng ký tài khoản mới; bị tự động chuyển hướng khi truy cập tính năng nội bộ. |
 | **Hệ thống AI (`AI Assistant`)** | Trí tuệ Nhân tạo tích hợp Gemini & Fallback | Tiếp nhận câu hỏi tự nhiên, đối soát kho sách qua RAG Prompt v3, xuất cấu trúc JSON và tóm tắt sách. |
 
