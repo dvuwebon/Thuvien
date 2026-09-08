@@ -88,7 +88,7 @@ class BookModel(Base):
     quantity = Column(Integer, nullable=False, default=1)
     available_copies = Column(Integer, nullable=False, default=1)
     description = Column(Text, nullable=True)
-    image_url = Column(String(500), nullable=True)
+    image_url = Column(Text, nullable=True)
     status = Column(String(50), nullable=False, default="Sẵn sàng")
     published_year = Column(Integer, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

@@ -52,8 +52,9 @@ if __name__ == "__main__":
     print(f"React Web App: http://localhost:{PORT}")
     print(f"Backend API: http://localhost:{PORT}/api")
     print(f"API Documentation (Swagger UI): http://localhost:{PORT}/docs")
-    print("==================================================================")
-    print("Co so du lieu: MySQL 8.0 (smartlib_db) / Che do Fallback JSON tu dong")
+    from database import db_manager
+    engine_status = "MySQL 8.0 (smartlib_db) [DANG HOAT DONG]" if db_manager.active_engine == "mysql" else "JSON Fallback (database.json)"
+    print(f"Co so du lieu:       {engine_status}")
     print("Tai khoan Admin:     admin / 123     (Quan tri vien he thong)")
     print("Tai khoan Thu thu:   librarian / 123 (Nghiep vu thu thu, muon tra)")
     print("Tai khoan Doc gia:   reader / 123    (Tra cuu sach, dat muon)")
