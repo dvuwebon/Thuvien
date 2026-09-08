@@ -1,4 +1,4 @@
-﻿import io
+import io
 import json
 import csv
 from datetime import datetime
@@ -90,7 +90,7 @@ def generate_borrows_excel(records: List[Dict[str, Any]]) -> bytes:
         bottom=Side(style='thin', color='E2E8F0')
     )
 
-    headers = ["Mã phiếu", "Tên sách", "Độc giả", "Hình thức", "Ngày mượn", "Hạn trả", "Ngày trả thực tế", "Trạng thái"]
+    headers = ["Mã phiếu", "Tên sách", "Độc giả", "Hình thức", "Ngày mượn", "Hạn trả", "Ngày trả thực tế", "Tiền phạt (VNĐ)", "Trạng thái"]
     ws.append(headers)
 
     for col_num in range(1, len(headers) + 1):
@@ -113,6 +113,8 @@ def generate_borrows_excel(records: List[Dict[str, Any]]) -> bytes:
         else:
             act_date = "-"
 
+        fine = int(r.get("fine_amount") or r.get("fineAmount") or 0)
+
         row_data = [
             r.get("id"),
             r.get("bookTitle", ""),
@@ -121,6 +123,7 @@ def generate_borrows_excel(records: List[Dict[str, Any]]) -> bytes:
             b_date,
             r_date,
             act_date,
+            fine,
             r.get("status", "Chờ duyệt")
         ]
         ws.append(row_data)
@@ -129,12 +132,12 @@ def generate_borrows_excel(records: List[Dict[str, Any]]) -> bytes:
             cell = ws.cell(row=row_idx, column=col_num)
             cell.font = cell_font
             cell.border = thin_border
-            if col_num in [1, 4, 5, 6, 7, 8]:
+            if col_num in [1, 4, 5, 6, 7, 8, 9]:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
             else:
                 cell.alignment = Alignment(horizontal="left", vertical="center")
 
-    widths = [12, 35, 25, 20, 15, 15, 18, 16]
+    widths = [12, 35, 25, 20, 15, 15, 18, 16, 16]
     for i, w in enumerate(widths, start=1):
         col_letter = openpyxl.utils.get_column_letter(i)
         ws.column_dimensions[col_letter].width = w

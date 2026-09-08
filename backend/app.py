@@ -586,8 +586,8 @@ def get_notifications(role: Optional[str] = Query(None), userId: Optional[int] =
     
     filtered = []
     for n in notifs:
-        if role == "Admin":
-            if n.get("recipientRole") == "Admin":
+        if role in ("Admin", "Librarian"):
+            if n.get("recipientRole") in ("Admin", "Librarian"):
                 filtered.append(n)
         elif role == "Reader":
             if n.get("recipientRole") == "Reader":
@@ -616,7 +616,7 @@ def read_all_notifications(req: NotificationReadRequest):
     db = db_manager.load_db()
     notifs = db.get("notifications", [])
     for n in notifs:
-        if not req.role or n.get("recipientRole") == req.role:
+        if not req.role or n.get("recipientRole") == req.role or (req.role in ("Admin", "Librarian") and n.get("recipientRole") in ("Admin", "Librarian")):
             if req.role == "Reader":
                 rec_id = n.get("recipientUserId")
                 if req.userId and rec_id is not None and int(rec_id) != req.userId:
@@ -822,6 +822,10 @@ def get_stats():
     pending_count = sum(1 for r in records if r.get("status") == "Chờ duyệt")
     returned_count = sum(1 for r in records if r.get("status") == "Đã trả")
 
+    reservations = db.get("reservations", [])
+    fines = db.get("fines", [])
+    total_fines = sum(float(f.get("fineAmount", 0)) for f in fines) or sum(float(r.get("fine_amount", 0)) for r in records)
+
     return {
         "totalBooks": total_books,
         "totalCopies": total_copies,
@@ -833,7 +837,9 @@ def get_stats():
         "pendingCount": pending_count,
         "pendingBorrows": pending_count,
         "returnedCount": returned_count,
-        "returnedBooks": returned_count
+        "returnedBooks": returned_count,
+        "totalReservations": len(reservations),
+        "totalFines": int(total_fines)
     }
 
 

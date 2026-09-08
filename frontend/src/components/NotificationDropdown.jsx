@@ -19,7 +19,7 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
 
   // Tải danh sách phiếu mượn để đối chiếu trạng thái hiện tại của từng yêu cầu
   const loadBorrows = async () => {
-    if (role === 'Admin') {
+    if (role === 'Admin' || role === 'Librarian') {
       try {
         const res = await api.getBorrowRecords();
         setBorrowRecords(res || []);

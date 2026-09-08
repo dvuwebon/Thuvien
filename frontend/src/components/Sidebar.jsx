@@ -130,7 +130,7 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
                 SmartLib
               </div>
               <div style={{ fontSize: '10.5px', fontWeight: 600, color: '#94a3b8' }}>
-                {isAdmin ? 'Quản trị viên' : 'Thư viện số'}
+                {isAdmin ? 'Quản trị viên' : isLibrarian ? 'Nghiệp vụ Thủ thư' : 'Thư viện số'}
               </div>
             </div>
           </div>
