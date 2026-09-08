@@ -243,16 +243,13 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                   </div>
                   <div>
                     <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
-                      Gợi ý riêng cho bạn (AI Recommendations)
+                      Gợi ý riêng cho bạn
                     </h3>
                     <div style={{ fontSize: '12.5px', color: '#2563eb', fontWeight: 600 }}>
                       {recommendations.reason}
                     </div>
                   </div>
                 </div>
-                <span className="badge badge-info" style={{ fontSize: '11px', fontWeight: 700 }}>
-                  Thuật toán Học máy & Lịch sử
-                </span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '14px' }}>
