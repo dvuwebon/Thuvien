@@ -44,7 +44,14 @@ async def serve_spa(full_path: str):
         return FileResponse(candidate)
     
     if os.path.exists(index_file):
-        return FileResponse(index_file)
+        return FileResponse(
+            index_file,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
     return {"message": "Vui lòng build frontend bằng lệnh: cd frontend && npm run build"}
 
 if __name__ == "__main__":

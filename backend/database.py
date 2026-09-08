@@ -24,9 +24,14 @@ def _load_env():
 
 _load_env()
 
-FINE_PER_DAY = 2000  # 2.000 VND/ngày trễ hạn
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
-from mysql_db import MySQLDatabaseManager
+try:
+    from mysql_db import MySQLDatabaseManager
+except ImportError:
+    from backend.mysql_db import MySQLDatabaseManager
 
 
 class DatabaseManager:
