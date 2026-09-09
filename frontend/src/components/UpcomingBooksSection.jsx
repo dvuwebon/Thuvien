@@ -3,113 +3,115 @@ import { Star, ChevronRight, Bell, Check } from 'lucide-react';
 
 const UPCOMING_BOOKS = [
   {
-    id: 'up-1',
+    id: 51,
     title: 'Ao no Hako Season 2 (Chiếc Hộp Xanh)',
+    author: 'Kouji Miura',
     rating: 9.6,
     releaseDate: '04-10-2026',
     countdown: '24d 4h 57m 38s',
     views: '114,874',
     cover: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=600&q=80',
-    category: 'Manga & Thể thao'
+    category: 'Manga & Thể thao',
+    desc: 'Tác phẩm truyện tranh thể thao học đường đình đám kết hợp cầu lông và bóng rổ. Phần tiếp theo khai thác giải đấu liên trường quốc gia và những cung bậc cảm xúc lãng mạn tuổi trẻ.'
   },
   {
-    id: 'up-2',
+    id: 52,
     title: 'Tensei Kizoku, Kantei Skill de Nariagaru',
+    author: 'Miraijin A',
     rating: 8.8,
     releaseDate: '10-2026',
     views: '214,443',
     cover: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=600&q=80',
-    category: 'Light Novel & Kỳ ảo'
+    category: 'Light Novel & Kỳ ảo',
+    desc: 'Hành trình phát triển lãnh địa của quý tộc Ars Louvent nhờ kỹ năng thẩm định thần thánh chiêu mộ hiền tài bảo vệ vương quốc.'
   },
   {
-    id: 'up-3',
+    id: 53,
     title: 'Ma Thuật Đặc Biệt Của Pháp Sư Tái Sinh',
+    author: 'Yuusan',
     rating: 9.4,
     releaseDate: '10-2026',
     views: '85,746',
     cover: 'https://images.unsplash.com/photo-1532012164546-f432f2e3777a?auto=format&fit=crop&w=600&q=80',
-    category: 'Kỳ ảo & Hành động'
+    category: 'Kỳ ảo & Hành động',
+    desc: 'Pháp sư tài ba thức tỉnh sau hàng thế kỷ trong thời đại ma thuật mới suy tàn và bắt đầu hành trình cải cách ma pháp học viện.'
   },
   {
-    id: 'up-4',
-    title: 'Black Clover 2nd Season: Đại Chiến Ma Pháp',
+    id: 54,
+    title: 'Black Clover: Đại Chiến Ma Pháp',
+    author: 'Yūki Tabata',
     rating: 9.6,
     releaseDate: '10-2026',
     views: '196,239',
     cover: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&w=600&q=80',
-    category: 'Manga & Shounen'
+    category: 'Manga & Shounen',
+    desc: 'Cuộc đại chiến ma pháp tối hậu của vương quốc Tam Diệp chống lại các thế lực cổ xưa. Asta tiếp tục bước đi trên con đường trở thành Ma Pháp Vương.'
   },
   {
-    id: 'up-5',
+    id: 55,
     title: 'Thám Tử Lừng Danh Conan - Tuyển Tập 2026',
+    author: 'Gosho Aoyama',
     rating: 8.7,
-    releaseDate: '2026',
+    releaseDate: '11-2026',
     views: '226,521',
     cover: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=600&q=80',
-    category: 'Trinh thám & Bí ẩn'
+    category: 'Trinh thám & Bí ẩn',
+    desc: 'Tuyển tập những vụ án hóc búa nhất của thám tử Edogawa Conan và đối đầu kịch tính cùng Tổ chức Áo đen trong năm 2026.'
   },
   {
-    id: 'up-6',
+    id: 56,
     title: 'Thám Tử Đã Chết 2 (Tantei wa Mou, Shindeiru)',
+    author: 'Nigojū',
     rating: 9.1,
-    releaseDate: '10-2026',
+    releaseDate: '11-2026',
     views: '641,147',
     cover: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=600&q=80',
-    category: 'Light Novel & Trinh thám'
+    category: 'Light Novel & Trinh thám',
+    desc: 'Kimizuka Kimihiko tiếp tục khám phá bí mật đằng sau sự ra đi của nữ thám tử thiên tài Siesta và cuộc chiến với tổ chức SPES.'
   },
   {
-    id: 'up-7',
+    id: 57,
     title: 'Chuyển Sinh Thành Kiếm - Đại Lộ Kiếm Vũ',
+    author: 'Yuu Tanaka',
     rating: 9.6,
-    releaseDate: '10-2026',
+    releaseDate: '11-2026',
     views: '155,757',
     cover: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=600&q=80',
-    category: 'Kỳ ảo & Phiêu lưu'
+    category: 'Kỳ ảo & Phiêu lưu',
+    desc: 'Hành trình vượt qua các đại lục mới của thanh ma kiếm thông minh và cô bé người mèo Fran.'
   },
   {
-    id: 'up-8',
+    id: 58,
     title: 'Dragon Ball Super: Bí Ẩn Đa Vũ Trụ Mới',
+    author: 'Akira Toriyama & Toyotarou',
     rating: 9.1,
-    releaseDate: '10-2026',
+    releaseDate: '12-2026',
     views: '600,202',
     cover: 'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&w=600&q=80',
-    category: 'Hành động & Siêu nhiên'
+    category: 'Hành động & Siêu nhiên',
+    desc: 'Goku và Vegeta tiếp cận cảnh giới sức mạnh mới trước sự xuất hiện của những thực thể quyền năng bí ẩn từ vũ trụ xa xôi.'
   },
   {
-    id: 'up-9',
+    id: 59,
     title: 'Majo no Tabitabi: Hành Trình Elaina 2026',
+    author: 'Jougi Shiraishi',
     rating: 9.6,
-    releaseDate: '20XX',
+    releaseDate: '12-2026',
     views: '374,986',
     cover: 'https://images.unsplash.com/photo-1476275466078-4007374efbbe?auto=format&fit=crop&w=600&q=80',
-    category: 'Light Novel & Du ký'
+    category: 'Light Novel & Du ký',
+    desc: 'Những mẩu chuyện phiêu lưu lắng đọng và kỳ thú của Phù thủy Tro Tàn Elaina qua các vùng đất huyền bí.'
   },
   {
-    id: 'up-10',
-    title: 'Mahou Shoujo ni Akogarete - Ma Lực 20XX',
-    rating: 9.6,
-    releaseDate: '20XX',
-    views: '757,407',
-    cover: 'https://images.unsplash.com/photo-1495640388908-05fa85288e61?auto=format&fit=crop&w=600&q=80',
-    category: 'Hài hước & Ma pháp'
-  },
-  {
-    id: 'up-11',
+    id: 60,
     title: 'Jujutsu Kaisen: Kỷ Nguyên Hậu Phong Ấn',
+    author: 'Gege Akutami',
     rating: 9.8,
-    releaseDate: '11-2026',
+    releaseDate: '12-2026',
     views: '890,120',
     cover: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=600&q=80',
-    category: 'Shounen & Siêu nhiên'
-  },
-  {
-    id: 'up-12',
-    title: 'Kusuriya no Hitorigoto (Dược Sư Tự Sự 2)',
-    rating: 9.7,
-    releaseDate: '12-2026',
-    views: '412,300',
-    cover: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=600&q=80',
-    category: 'Cổ trang & Bí ẩn'
+    category: 'Shounen & Siêu nhiên',
+    desc: 'Kỷ nguyên đỉnh cao của chú thuật sư và nguyền hồn sau khi phong ấn ngục môn cương được giải trừ.'
   }
 ];
 
@@ -118,7 +120,8 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
   const [subscribedIds, setSubscribedIds] = useState([]);
   const [toastMsg, setToastMsg] = useState('');
 
-  const displayedBooks = showAll ? UPCOMING_BOOKS : UPCOMING_BOOKS.slice(0, 10);
+  // Mặc định chỉ hiển thị 5 cuốn, khi click XEM THÊM sẽ hiển thị đủ cả 10 cuốn
+  const displayedBooks = showAll ? UPCOMING_BOOKS : UPCOMING_BOOKS.slice(0, 5);
 
   const handleToggleNotify = (book, e) => {
     e.stopPropagation();
@@ -205,7 +208,7 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
         </div>
 
         <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-          {displayedBooks.length} tác phẩm sắp phát hành (2026)
+          {showAll ? 'Tất cả 10 tác phẩm sắp phát hành (2026)' : '5 / 10 tác phẩm sắp phát hành (2026)'}
         </span>
       </div>
 

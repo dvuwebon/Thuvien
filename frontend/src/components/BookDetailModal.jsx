@@ -6,8 +6,10 @@ import { exportApi } from '../services/exportApi';
 export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve }) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
 
+  const isUpcoming = Boolean(book?.isUpcoming || book?.status === 'Sắp phát hành' || book?.status === 'Sắp có');
+
   useEffect(() => {
-    if (book) {
+    if (book && !isUpcoming) {
       const qrPayload = `SMARTLIB-BOOK-ID:${book.id}|${book.title}|Tác giả:${book.author || 'Chưa rõ'}|Thể loại:${book.category || 'Khác'}`;
       QRCode.toDataURL(qrPayload, {
         width: 220,
@@ -23,7 +25,7 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
           setQrCodeDataUrl(`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrPayload)}`);
         });
     }
-  }, [book]);
+  }, [book, isUpcoming]);
 
   if (!isOpen || !book) return null;
 
@@ -42,13 +44,13 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
         </div>
 
         <div className="modal-body">
-          <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '24px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isUpcoming ? '200px 1fr' : '180px 1fr', gap: '24px' }}>
             {/* Image Column */}
             <div>
               <div
                 style={{
                   width: '100%',
-                  height: '240px',
+                  height: isUpcoming ? '280px' : '240px',
                   borderRadius: '10px',
                   overflow: 'hidden',
                   background: '#f8fafc',
@@ -66,48 +68,50 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                 )}
               </div>
 
-              {/* QR Code */}
-              <div style={{ marginTop: '16px', textAlign: 'center', background: '#f8fafc', padding: '12px 10px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                <div style={{ background: '#ffffff', padding: '6px', borderRadius: '8px', display: 'inline-block', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
-                  {qrCodeDataUrl ? (
-                    <img
-                      src={qrCodeDataUrl}
-                      alt={`Mã QR Sách #${book.id}`}
-                      style={{ width: '96px', height: '96px', display: 'block' }}
-                    />
-                  ) : (
-                    <div style={{ width: '96px', height: '96px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
-                      <QrCode size={36} />
-                    </div>
+              {/* QR Code - Ẩn hoàn toàn đối với sách trong mục Sắp có theo yêu cầu */}
+              {!isUpcoming && (
+                <div style={{ marginTop: '16px', textAlign: 'center', background: '#f8fafc', padding: '12px 10px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ background: '#ffffff', padding: '6px', borderRadius: '8px', display: 'inline-block', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
+                    {qrCodeDataUrl ? (
+                      <img
+                        src={qrCodeDataUrl}
+                        alt={`Mã QR Sách #${book.id}`}
+                        style={{ width: '96px', height: '96px', display: 'block' }}
+                      />
+                    ) : (
+                      <div style={{ width: '96px', height: '96px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                        <QrCode size={36} />
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontSize: '11.5px', color: '#0f172a', fontWeight: 700, display: 'block', marginTop: '6px' }}>
+                    Mã QR Sách #{book.id}
+                  </span>
+                  {qrCodeDataUrl && (
+                    <a
+                      href={qrCodeDataUrl}
+                      download={`SmartLib_QR_Sach_${book.id}.png`}
+                      style={{
+                        fontSize: '11px',
+                        color: '#2563eb',
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px',
+                        marginTop: '4px',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: '#eff6ff'
+                      }}
+                      title="Nhấp để tải ảnh mã QR (PNG) về máy"
+                    >
+                      <Download size={11} /> Tải mã QR
+                    </a>
                   )}
                 </div>
-                <span style={{ fontSize: '11.5px', color: '#0f172a', fontWeight: 700, display: 'block', marginTop: '6px' }}>
-                  Mã QR Sách #{book.id}
-                </span>
-                {qrCodeDataUrl && (
-                  <a
-                    href={qrCodeDataUrl}
-                    download={`SmartLib_QR_Sach_${book.id}.png`}
-                    style={{
-                      fontSize: '11px',
-                      color: '#2563eb',
-                      fontWeight: 600,
-                      textDecoration: 'none',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                      marginTop: '4px',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      background: '#eff6ff'
-                    }}
-                    title="Nhấp để tải ảnh mã QR (PNG) về máy"
-                  >
-                    <Download size={11} /> Tải mã QR
-                  </a>
-                )}
-              </div>
+              )}
             </div>
 
             {/* Info Column */}
@@ -118,18 +122,34 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                 <p style={{ fontSize: '13.5px', color: '#64748b', marginTop: '4px' }}>Tác giả: <strong>{book.author}</strong></p>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Tổng số lượng</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{qty} cuốn</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Sẵn sàng cho mượn</div>
-                  <div style={{ fontSize: '16px', fontWeight: 800, color: available > 0 ? '#16a34a' : '#ef4444' }}>
-                    {available} cuốn
+              {/* Thông tin số lượng / Trạng thái: Sách sắp có sẽ không có mục sẵn sàng cho mượn */}
+              {isUpcoming ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#1e40af', textTransform: 'uppercase', fontWeight: 700 }}>Trạng thái</div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#2563eb' }}>Sắp phát hành</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#1e40af', textTransform: 'uppercase', fontWeight: 700 }}>Dự kiến về thư viện</div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#1e40af' }}>
+                      {book.releaseDate || 'Quý 4/2026'}
+                    </div>
                   </div>
                 </div>
-              </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Tổng số lượng</div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#0f172a' }}>{qty} cuốn</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Sẵn sàng cho mượn</div>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: available > 0 ? '#16a34a' : '#ef4444' }}>
+                      {available} cuốn
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <h4 style={{ fontSize: '13px', fontWeight: 700, color: '#334155', marginBottom: '6px' }}>Mô tả tóm tắt:</h4>
@@ -143,7 +163,7 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
 
         <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            {isAdmin && (
+            {isAdmin && !isUpcoming && (
               <div style={{ display: 'flex', gap: '8px' }}>
                 {onEdit && (
                   <button
@@ -171,7 +191,7 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
 
           <div style={{ display: 'flex', gap: '8px' }}>
             <button onClick={onClose} className="btn btn-outline">Đóng</button>
-            {!isAdmin && available > 0 && (
+            {!isAdmin && !isUpcoming && available > 0 && (
               <button
                 onClick={() => {
                   onClose();
@@ -183,7 +203,7 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                 <span>Đăng ký mượn cuốn này</span>
               </button>
             )}
-            {!isAdmin && available <= 0 && (
+            {!isAdmin && (isUpcoming || available <= 0) && (
               <button
                 onClick={() => {
                   onClose();
@@ -191,20 +211,24 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                 }}
                 className="btn"
                 style={{
-                  background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                  background: isUpcoming
+                    ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+                    : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
                   color: '#ffffff',
                   border: 'none',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  padding: '9px 16px',
+                  padding: '9px 18px',
                   borderRadius: '8px',
                   fontWeight: 700,
                   fontSize: '13px',
-                  boxShadow: '0 4px 12px rgba(234, 88, 12, 0.35)',
+                  boxShadow: isUpcoming
+                    ? '0 4px 12px rgba(37, 99, 235, 0.3)'
+                    : '0 4px 12px rgba(234, 88, 12, 0.35)',
                   cursor: 'pointer'
                 }}
-                title="Sách đang tạm hết. Bấm để xếp hàng chờ nhận sách ưu tiên!"
+                title={isUpcoming ? "Bấm để đăng ký vào hàng chờ đặt trước sách ưu tiên!" : "Sách đang tạm hết. Bấm để xếp hàng chờ nhận sách ưu tiên!"}
               >
                 <Clock size={16} />
                 <span>Đặt trước (Vào hàng chờ)</span>

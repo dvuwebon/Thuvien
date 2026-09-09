@@ -235,9 +235,10 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     }
   };
 
-  const categories = ['All', ...new Set(books.map(b => b.category).filter(Boolean))];
+  const categories = ['All', ...new Set(books.filter(b => b.status !== 'Sắp phát hành').map(b => b.category).filter(Boolean))];
 
   const filteredBooks = books.filter(b => {
+    if (b.status === 'Sắp phát hành' && !bookSearch) return false;
     const matchSearch = b.title.toLowerCase().includes(bookSearch.toLowerCase()) || 
                         (b.author && b.author.toLowerCase().includes(bookSearch.toLowerCase()));
     const matchCat = selectedCategory === 'All' || b.category === selectedCategory;
@@ -358,12 +359,16 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
               setSelectedBook({
                 id: book.id,
                 title: book.title,
-                author: 'Dự kiến phát hành: ' + book.releaseDate,
+                author: book.author || 'Chưa rõ',
                 category: book.category || 'Manga & Light Novel',
                 quantity: 0,
                 available: 0,
                 borrowed: 0,
-                desc: 'Tác phẩm đang chuẩn bị phát hành và sẽ sớm có mặt tại thư viện trong đợt nhập sách tới (' + book.releaseDate + '). Lượt quan tâm hiện tại: ' + book.views + '.',
+                status: 'Sắp phát hành',
+                isUpcoming: true,
+                releaseDate: book.releaseDate,
+                views: book.views,
+                desc: book.desc || `Tác phẩm của tác giả ${book.author || 'nổi tiếng'} đang chuẩn bị phát hành và sẽ sớm có mặt tại thư viện trong đợt nhập sách tới (${book.releaseDate}). Lượt quan tâm hiện tại: ${book.views}.`,
                 imageUrl: book.cover
               });
               setDetailModalOpen(true);
