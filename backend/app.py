@@ -65,6 +65,28 @@ def login(req: LoginRequest):
     if not user:
         raise HTTPException(status_code=401, detail="Tên đăng nhập hoặc mật khẩu không chính xác!")
 
+    # 🔒 Kiểm tra nếu tài khoản đang bị khóa do mượn sách quá hạn chưa nộp phạt sau 3 ngày
+    if user.get("isLocked") or user.get("is_locked"):
+        unpaid_fines = [
+            f for f in db.get("fines", [])
+            if int(f.get("readerId") or f.get("userId") or 0) == int(user.get("id", 0)) and f.get("status") == "Chưa nộp"
+        ]
+        total_unpaid = sum(float(f.get("fineAmount", 0)) for f in unpaid_fines)
+        first_fine = unpaid_fines[0] if unpaid_fines else None
+        lock_reason = user.get("lockReason") or "Tài khoản của bạn đã bị tự động khóa do chưa nộp phạt sách quá hạn sau 3 ngày."
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "ACCOUNT_LOCKED",
+                "message": lock_reason,
+                "readerId": user.get("id"),
+                "readerName": user.get("fullName"),
+                "username": user.get("username"),
+                "unpaidFines": total_unpaid if total_unpaid > 0 else 10000,
+                "fine": first_fine
+            }
+        )
+
     user_data = {
         "id": user.get("id"),
         "UserID": user.get("id"),
@@ -577,6 +599,69 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
         for n in db.get("notifications", []):
             if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") in ["borrow_request", "borrow_approved"]):
                 n["isRead"] = True
+
+    elif req.status == "Quá hạn":
+        record["status"] = "Quá hạn"
+        now = datetime.now()
+        record["overdue_marked_at"] = now.isoformat()
+        
+        # Tính số ngày quá hạn (tối thiểu 3 ngày khi quản trị viên đánh dấu hoặc tính theo ngày hạn trả)
+        overdue_days = 3
+        try:
+            due_str = record.get("returnDate") or record.get("dueDate")
+            if due_str:
+                due = datetime.fromisoformat(due_str.replace("Z", ""))
+                diff = (now.date() - due.date()).days
+                overdue_days = max(3, diff)
+        except Exception:
+            overdue_days = 3
+        
+        fine_amount = float(overdue_days * 2000)
+        record["fine_amount"] = fine_amount
+        record["overdue_days"] = overdue_days
+
+        # Tạo hoặc cập nhật phiếu phạt trong db["fines"]
+        fines = db.setdefault("fines", [])
+        existing_fine = next((f for f in fines if int(f.get("borrowRecordId") or 0) == record_id), None)
+        if not existing_fine:
+            new_fine_id = max([int(f.get("id", 0)) for f in fines], default=0) + 1
+            new_fine = {
+                "id": new_fine_id,
+                "borrowRecordId": record_id,
+                "bookTitle": record.get("bookTitle", "Sách quá hạn"),
+                "readerId": record.get("readerId", 2),
+                "readerName": record.get("readerName", "Độc giả"),
+                "dueDate": record.get("returnDate"),
+                "actualReturnDate": None,
+                "fineAmount": fine_amount,
+                "status": "Chưa nộp",
+                "paymentMethod": None,
+                "transactionRef": None,
+                "createdAt": now.isoformat()
+            }
+            fines.append(new_fine)
+        else:
+            existing_fine["fineAmount"] = fine_amount
+            existing_fine["status"] = "Chưa nộp"
+
+        # Tự động khóa tài khoản độc giả do quá hạn >= 3 ngày
+        target_reader_id = int(record.get("readerId", 0))
+        lock_msg = f"Mượn cuốn sách \"{record.get('bookTitle')}\" quá hạn {overdue_days} ngày chưa trả và chưa nộp phạt sau 3 ngày. Bắt buộc phải nộp phạt để mở khóa tài khoản."
+        for u in db.get("users", []):
+            if int(u.get("id", 0)) == target_reader_id:
+                u["isLocked"] = True
+                u["lockReason"] = lock_msg
+        db_manager.toggle_reader_lock(target_reader_id, True, lock_msg)
+
+        # Gửi thông báo đến độc giả
+        db_manager.add_notification(
+            recipient_role="Reader",
+            recipient_user_id=target_reader_id,
+            title="Cảnh báo: Sách mượn bị chuyển Quá hạn",
+            message=f"Cuốn sách \"{record.get('bookTitle')}\" của bạn đã bị chuyển sang trạng thái Quá hạn (Tiền phạt: {int(fine_amount):,} đ). Tài khoản đã bị khóa đăng nhập sau 3 ngày chưa nộp phạt, vui lòng nộp phạt qua cổng VNPay để mở lại tài khoản!",
+            notif_type="overdue_alert",
+            meta={"recordId": record_id, "fineAmount": fine_amount, "overdueDays": overdue_days}
+        )
 
     # Lưu thay đổi trạng thái mượn và số lượng sách vào CSDL
     db_manager.save_db(db)

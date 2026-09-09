@@ -592,8 +592,60 @@ class MySQLDatabaseManager:
                 if not brid:
                     continue
                 existing_br = session.query(BorrowRecordModel).filter_by(id=brid).first()
+                due_dt = datetime.fromisoformat(br.get("returnDate").replace("Z", "")) if br.get("returnDate") else datetime.utcnow()
+                b_dt = datetime.fromisoformat(br.get("borrowDate").replace("Z", "")) if br.get("borrowDate") else datetime.utcnow()
+                act_dt = datetime.fromisoformat(br.get("actualReturnDate").replace("Z", "")) if br.get("actualReturnDate") else None
+                fine_val = float(br.get("fine_amount") or br.get("fineAmount") or 0.0)
+                overdue_val = int(br.get("overdue_days") or br.get("overdueDays") or 0)
+
                 if existing_br:
                     existing_br.status = br.get("status", existing_br.status)
+                    existing_br.fine_amount = fine_val
+                    existing_br.overdue_days = overdue_val
+                    existing_br.actual_return_date = act_dt
+                else:
+                    new_br = BorrowRecordModel(
+                        id=brid,
+                        user_id=br.get("readerId") or br.get("userId") or 2,
+                        book_id=br.get("bookId") or 1,
+                        borrow_date=b_dt,
+                        due_date=due_dt,
+                        actual_return_date=act_dt,
+                        borrow_type=br.get("borrowType", "Mượn về nhà"),
+                        status=br.get("status", "Chờ duyệt"),
+                        fine_amount=fine_val,
+                        overdue_days=overdue_val
+                    )
+                    session.add(new_br)
+
+            # 4. Sync Fines
+            for f in data.get("fines", []):
+                fid = f.get("id")
+                if not fid:
+                    continue
+                existing_f = session.query(FineModel).filter_by(id=fid).first()
+                due_f = datetime.fromisoformat(f.get("dueDate").replace("Z", "")) if f.get("dueDate") else datetime.utcnow()
+                act_f = datetime.fromisoformat(f.get("actualReturnDate").replace("Z", "")) if f.get("actualReturnDate") else None
+                f_amt = float(f.get("fineAmount") or 0.0)
+                if existing_f:
+                    existing_f.status = f.get("status", existing_f.status)
+                    existing_f.fine_amount = f_amt
+                    existing_f.payment_method = f.get("paymentMethod")
+                    existing_f.transaction_ref = f.get("transactionRef")
+                else:
+                    new_f = FineModel(
+                        id=fid,
+                        record_id=f.get("borrowRecordId") or 1,
+                        user_id=f.get("readerId") or 2,
+                        book_id=f.get("bookId") or 1,
+                        due_date=due_f,
+                        actual_return_date=act_f,
+                        fine_amount=f_amt,
+                        status=f.get("status", "Chưa nộp"),
+                        payment_method=f.get("paymentMethod"),
+                        transaction_ref=f.get("transactionRef")
+                    )
+                    session.add(new_f)
 
             session.commit()
             session.close()

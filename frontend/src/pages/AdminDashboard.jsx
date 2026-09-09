@@ -693,6 +693,16 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     }
   };
 
+  const handleMarkOverdue = async (record) => {
+    try {
+      await api.updateBorrowStatus(record.id, 'Quá hạn');
+      showToast(`⚠️ Đã chuyển phiếu mượn #${record.id} ("${record.bookTitle}") sang trạng thái Quá hạn. Dữ liệu đã chuyển sang mục Quá hạn.`);
+      await loadData(true);
+    } catch (e) {
+      showToast('Lỗi khi chuyển trạng thái quá hạn: ' + (e.message || 'Lỗi'));
+    }
+  };
+
   const handleCancelReservation = async (resId) => {
     try {
       await api.cancelReservation(resId);
@@ -1403,7 +1413,40 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                   </>
                                 )}
 
-                                {(r.status === 'Đang mượn' || r.status === 'Quá hạn') && (
+                                {r.status === 'Đang mượn' && (
+                                  <>
+                                    <button
+                                      onClick={() => setAdminReturnRecord(r)}
+                                      className="btn btn-primary"
+                                      style={{ padding: '4px 10px', fontSize: '12px', background: '#0284c7' }}
+                                      title="Xác nhận trả sách"
+                                    >
+                                      <CheckCircle size={14} /> Trả sách
+                                    </button>
+                                    <button
+                                      onClick={() => handleMarkOverdue(r)}
+                                      className="btn"
+                                      style={{
+                                        padding: '4px 10px',
+                                        fontSize: '12px',
+                                        background: '#dc2626',
+                                        borderColor: '#dc2626',
+                                        color: '#ffffff',
+                                        fontWeight: 600,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer'
+                                      }}
+                                      title="Xác nhận độc giả chưa trả sách và chuyển sang mục Quá hạn"
+                                    >
+                                      <AlertTriangle size={13} /> Quá hạn
+                                    </button>
+                                  </>
+                                )}
+
+                                {r.status === 'Quá hạn' && (
                                   <button
                                     onClick={() => setAdminReturnRecord(r)}
                                     className="btn btn-primary"

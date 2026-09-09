@@ -230,13 +230,20 @@ export const api = {
             db.users = existingUsers;
             saveLocalDb(db);
           } catch (e) {}
-          return data;
+        } else if (res.status === 403) {
+          const err = await res.json().catch(() => ({}));
+          const lockDetail = err.detail || {};
+          const msg = typeof lockDetail === 'object' ? (lockDetail.message || 'Tài khoản của bạn đã bị khóa do chưa nộp phạt sách quá hạn sau 3 ngày!') : lockDetail;
+          const lockErr = new Error(msg);
+          lockErr.isLocked = true;
+          lockErr.lockData = typeof lockDetail === 'object' ? lockDetail : { message: lockDetail };
+          throw lockErr;
         } else if (res.status === 401 || res.status === 400) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.detail || 'Tên đăng nhập hoặc mật khẩu không chính xác!');
         }
       } catch (e) {
-        if (e.message && e.message !== 'Failed to fetch' && !e.message.includes('NetworkError')) {
+        if (e.isLocked || (e.message && e.message !== 'Failed to fetch' && !e.message.includes('NetworkError'))) {
           throw e;
         }
       }
@@ -248,6 +255,17 @@ export const api = {
       u => u.username && u.username.toLowerCase() === trimmedUsername.toLowerCase() && u.password === password
     );
     if (found) {
+      if (found.isLocked) {
+        const lockErr = new Error(found.lockReason || 'Tài khoản của bạn đã bị khóa do chưa nộp phạt sách quá hạn sau 3 ngày!');
+        lockErr.isLocked = true;
+        lockErr.lockData = {
+          readerId: found.id,
+          readerName: found.fullName,
+          message: found.lockReason || 'Tài khoản bị khóa do chưa nộp phạt sách quá hạn sau 3 ngày.',
+          unpaidFines: found.unpaidFines || 10000
+        };
+        throw lockErr;
+      }
       return { user: found };
     }
 
@@ -853,6 +871,42 @@ export const api = {
           title: 'Đã hủy yêu cầu mượn sách',
           message: `Bạn đã hủy thành công yêu cầu mượn cuốn sách "${updated.bookTitle}".`,
           type: 'borrow_rejected',
+          recordId: updated.id,
+          bookId: updated.bookId,
+          bookTitle: updated.bookTitle,
+          isRead: false,
+          createdAt: nowStr
+        },
+        ...(db.notifications || [])
+      ];
+    } else if (status === 'Quá hạn' && updated) {
+      const fineAmount = 6000;
+      const newFine = {
+        id: Date.now(),
+        borrowRecordId: updated.id,
+        bookTitle: updated.bookTitle,
+        readerId: updated.readerId,
+        readerName: updated.readerName,
+        fineAmount: fineAmount,
+        status: 'Chưa nộp',
+        createdAt: new Date().toISOString()
+      };
+      db.fines = [...(db.fines || []), newFine];
+      db.users = (db.users || []).map(u => Number(u.id) === Number(updated.readerId) ? {
+        ...u,
+        isLocked: true,
+        lockReason: `Mượn cuốn sách "${updated.bookTitle}" quá hạn chưa trả và chưa nộp phạt sau 3 ngày`
+      } : u);
+      const maxId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0));
+      const nowStr = new Date().toISOString();
+      db.notifications = [
+        {
+          id: maxId + 1,
+          recipientRole: 'Reader',
+          recipientUserId: updated.readerId || 2,
+          title: 'Cảnh báo: Sách mượn bị chuyển Quá hạn',
+          message: `Cuốn sách "${updated.bookTitle}" của bạn đã bị chuyển sang trạng thái Quá hạn (Tiền phạt: ${fineAmount.toLocaleString('vi-VN')} đ). Tài khoản đã bị khóa đăng nhập sau 3 ngày chưa nộp phạt, vui lòng nộp phạt qua VNPay để mở lại tài khoản!`,
+          type: 'overdue_alert',
           recordId: updated.id,
           bookId: updated.bookId,
           bookTitle: updated.bookTitle,

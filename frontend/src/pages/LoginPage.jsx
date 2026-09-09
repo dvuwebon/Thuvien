@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, User, Lock, Mail, Phone, Calendar, MapPin, ArrowRight, ShieldCheck } from 'lucide-react';
+import { BookOpen, User, Lock, Mail, Phone, Calendar, MapPin, ArrowRight, ShieldCheck, AlertTriangle, CreditCard, X, CheckCircle } from 'lucide-react';
+import VNPayPaymentModal from '../components/VNPayPaymentModal';
 
 export default function LoginPage() {
   const { login, register } = useAuth();
@@ -8,6 +9,9 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [lockedModalData, setLockedModalData] = useState(null);
+  const [vnpayModalOpen, setVnpayModalOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   // Login state
   const [username, setUsername] = useState('');
@@ -43,10 +47,46 @@ export default function LoginPage() {
     try {
       await login(username, password);
     } catch (err) {
-      setError(err.message || 'Tên đăng nhập hoặc mật khẩu không chính xác!');
+      const errMsg = (err.message || '').toLowerCase();
+      if (err.isLocked || errMsg.includes('khóa') || errMsg.includes('nộp phạt') || errMsg.includes('quá hạn')) {
+        const lockInfo = err.lockData || {};
+        setLockedModalData({
+          username,
+          readerName: lockInfo.readerName || username,
+          readerId: lockInfo.readerId || 2,
+          reason: lockInfo.message || err.message || 'Tài khoản của bạn đã bị tự động khóa do chưa nộp phạt sách quá hạn sau 3 ngày.',
+          unpaidFines: Number(lockInfo.unpaidFines || 10000),
+          fine: lockInfo.fine || {
+            id: 1,
+            bookTitle: 'Phí phạt trễ hạn mượn sách',
+            fineAmount: Number(lockInfo.unpaidFines || 10000),
+            readerId: lockInfo.readerId || 2
+          }
+        });
+      } else {
+        setError(err.message || 'Tên đăng nhập hoặc mật khẩu không chính xác!');
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleVNPaySuccess = async (res) => {
+    setToastMessage('🎉 ' + (res.message || 'Thanh toán VNPay thành công! Tài khoản đã được tự động mở khóa. Đang đăng nhập...'));
+    setVnpayModalOpen(false);
+    setLockedModalData(null);
+
+    // Tự động đăng nhập luôn sau khi đã mở khóa thành công
+    setTimeout(async () => {
+      try {
+        setLoading(true);
+        await login(username, password);
+      } catch (e) {
+        setToastMessage('Tài khoản đã mở khóa thành công! Vui lòng bấm Đăng nhập để vào hệ thống.');
+      } finally {
+        setLoading(false);
+      }
+    }, 1200);
   };
 
   const handleRegisterSubmit = async (e) => {
@@ -370,6 +410,195 @@ export default function LoginPage() {
           </form>
         )}
       </div>
+
+      {/* DIV THÔNG BÁO TÀI KHOẢN BỊ KHÓA & BẮT BUỘC NỘP PHẠT */}
+      {lockedModalData && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(5px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+          onClick={() => setLockedModalData(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '20px',
+              padding: '32px',
+              maxWidth: '480px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(220, 38, 38, 0.25)',
+              border: '1.5px solid #fecaca',
+              textAlign: 'center',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Nút đóng góc phải */}
+            <button
+              type="button"
+              onClick={() => setLockedModalData(null)}
+              style={{
+                position: 'absolute',
+                top: '16px',
+                right: '16px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#94a3b8',
+                padding: '4px'
+              }}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Icon Lock đỏ lớn */}
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: '#fef2f2',
+                border: '2px solid #fecaca',
+                color: '#dc2626',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                boxShadow: '0 10px 15px -3px rgba(239, 68, 68, 0.2)'
+              }}
+            >
+              <Lock size={32} />
+            </div>
+
+            <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#991b1b', margin: '0 0 6px 0' }}>
+              Tài Khoản Đang Bị Khóa
+            </h3>
+            <p style={{ fontSize: '13.5px', color: '#64748b', lineHeight: 1.5, margin: '0 0 18px 0' }}>
+              Không thể đăng nhập vào hệ thống thư viện
+            </p>
+
+            {/* Khung thông tin lý do & số tiền phạt */}
+            <div
+              style={{
+                background: '#fef2f2',
+                borderRadius: '12px',
+                padding: '16px',
+                textAlign: 'left',
+                marginBottom: '20px',
+                border: '1px solid #fee2e2'
+              }}
+            >
+              <div style={{ fontSize: '13px', color: '#991b1b', marginBottom: '8px', lineHeight: 1.5 }}>
+                <strong>Lý do:</strong> {lockedModalData.reason}
+              </div>
+              <div style={{ fontSize: '12.5px', color: '#b91c1c', lineHeight: 1.4 }}>
+                <strong>Quy định:</strong> Sau 3 ngày mượn sách quá hạn chưa nộp phạt, tài khoản tự động bị khóa đăng nhập.
+              </div>
+              <div
+                style={{
+                  marginTop: '12px',
+                  paddingTop: '10px',
+                  borderTop: '1px dashed #fca5a5',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}
+              >
+                <span style={{ fontSize: '13px', fontWeight: 700, color: '#7f1d1d' }}>Tiền phạt cần nộp:</span>
+                <span style={{ fontSize: '17px', fontWeight: 800, color: '#dc2626' }}>
+                  {Number(lockedModalData.unpaidFines || 10000).toLocaleString('vi-VN')} đ
+                </span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '12.5px', color: '#475569', marginBottom: '22px', lineHeight: 1.5 }}>
+              👉 Bạn bắt buộc phải nộp tiền phạt để hệ thống <strong>tự động mở khóa</strong> tài khoản ngay lập tức, hoặc liên hệ Quản trị viên/Thủ thư tại quầy thư viện mở khóa thì mới có thể đăng nhập vào để mượn sách tiếp.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {/* Nút nộp phạt ngay qua VNPay */}
+              <button
+                type="button"
+                onClick={() => setVnpayModalOpen(true)}
+                className="btn"
+                style={{
+                  background: 'linear-gradient(135deg, #005baa 0%, #003e75 100%)',
+                  color: '#ffffff',
+                  padding: '12px 20px',
+                  borderRadius: '10px',
+                  fontWeight: 700,
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(0, 91, 170, 0.4)'
+                }}
+              >
+                <CreditCard size={18} />
+                <span>Nộp phạt ngay qua VNPay để mở khóa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLockedModalData(null)}
+                className="btn btn-outline"
+                style={{ padding: '10px', borderRadius: '10px', fontSize: '13px' }}
+              >
+                Đóng thông báo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL THANH TOÁN VNPAY NGAY TRÊN TRANG ĐĂNG NHẬP */}
+      <VNPayPaymentModal
+        isOpen={vnpayModalOpen}
+        onClose={() => setVnpayModalOpen(false)}
+        fine={lockedModalData?.fine || {
+          id: 1,
+          bookTitle: 'Phí phạt trễ hạn mượn sách',
+          fineAmount: lockedModalData?.unpaidFines || 10000
+        }}
+        readerId={lockedModalData?.readerId || 2}
+        onSuccess={handleVNPaySuccess}
+      />
+
+      {/* TOAST THÀNH CÔNG */}
+      {toastMessage && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '28px',
+            background: '#0f172a',
+            color: '#ffffff',
+            padding: '12px 20px',
+            borderRadius: '10px',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.25)',
+            fontSize: '13.5px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            zIndex: 99999
+          }}
+        >
+          <CheckCircle size={18} color="#22c55e" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
     </div>
   );
 }
