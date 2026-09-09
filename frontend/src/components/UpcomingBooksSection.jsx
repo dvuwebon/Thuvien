@@ -171,9 +171,6 @@ export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [
           </span>
         </div>
 
-        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>
-          {showAll ? 'Tất cả 10 tác phẩm sắp phát hành (2026)' : '5 / 10 tác phẩm sắp phát hành (2026)'}
-        </span>
       </div>
 
       {/* Grid 5 cột chuẩn bố cục: Giãn đều 100% đồng bộ với danh sách sách chính */}
