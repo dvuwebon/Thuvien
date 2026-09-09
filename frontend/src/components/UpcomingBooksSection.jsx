@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Star, BookOpen } from 'lucide-react';
+import { ChevronRight, Calendar, BookOpen } from 'lucide-react';
 
 const UPCOMING_BOOKS = [
   {
@@ -113,53 +113,6 @@ const UPCOMING_BOOKS = [
     desc: 'Kỷ nguyên đỉnh cao của chú thuật sư và nguyền hồn sau khi phong ấn ngục môn cương được giải trừ.'
   }
 ];
-
-// Hàm render sao đánh giá chuẩn hệ thống SmartLib
-function renderStars(rating = 5.0) {
-  const stars = [];
-  for (let i = 1; i <= 5; i++) {
-    if (rating >= i) {
-      stars.push(
-        <Star key={i} size={11.5} fill="#eab308" color="#eab308" style={{ flexShrink: 0 }} />
-      );
-    } else if (rating >= i - 0.5) {
-      stars.push(
-        <div
-          key={i}
-          style={{
-            position: 'relative',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '11.5px',
-            height: '11.5px',
-            flexShrink: 0
-          }}
-        >
-          <Star size={11.5} fill="#fefce8" color="#eab308" style={{ display: 'block' }} />
-          <div
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '50%',
-              height: '100%',
-              overflow: 'hidden',
-              display: 'flex'
-            }}
-          >
-            <Star size={11.5} fill="#eab308" color="#eab308" style={{ flexShrink: 0 }} />
-          </div>
-        </div>
-      );
-    } else {
-      stars.push(
-        <Star key={i} size={11.5} fill="none" color="#cbd5e1" style={{ flexShrink: 0 }} />
-      );
-    }
-  }
-  return stars;
-}
 
 export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [] }) {
   const [showAll, setShowAll] = useState(false);
@@ -369,7 +322,7 @@ export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [
                   </p>
                 </div>
 
-                {/* 3. Footer: Đánh giá sao (0) & Nút Xem » */}
+                {/* 3. Footer: Thời gian dự kiến có truyện (ngày-tháng-năm / tháng-năm) & Nút Xem » */}
                 <div
                   style={{
                     display: 'flex',
@@ -381,22 +334,22 @@ export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [
                   }}
                 >
                   <div
-                    style={{ display: 'flex', alignItems: 'center', gap: '3px' }}
-                    title={`Đánh giá: ${item.rating || 5.0} / 5.0 sao`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      color: '#2563eb',
+                      background: '#eff6ff',
+                      border: '1px solid #dbeafe',
+                      padding: '2px 7px',
+                      borderRadius: '5px',
+                      fontSize: '11px',
+                      fontWeight: 700
+                    }}
+                    title={`Dự kiến có truyện: ${item.releaseDate}`}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5px', color: '#eab308' }}>
-                      {renderStars(item.rating || 5.0)}
-                    </div>
-                    <span
-                      style={{
-                        color: '#64748b',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        marginLeft: '3px'
-                      }}
-                    >
-                      (0)
-                    </span>
+                    <Calendar size={12} strokeWidth={2.4} />
+                    <span>{item.releaseDate}</span>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
