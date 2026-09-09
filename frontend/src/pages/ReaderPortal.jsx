@@ -16,7 +16,7 @@ import UpcomingBooksSection from '../components/UpcomingBooksSection';
 import VNPayPaymentModal from '../components/VNPayPaymentModal';
 
 export default function ReaderPortal({ activeTab, onTabChange }) {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [books, setBooks] = useState([]);
   const [myBorrows, setMyBorrows] = useState([]);
   const [myReservations, setMyReservations] = useState([]);
@@ -98,6 +98,23 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           }).catch(() => {});
         }
 
+        // Đồng bộ trạng thái khóa tài khoản thực tế từ server
+        if (api.getReaders && updateUser) {
+          api.getReaders().then(readers => {
+            const currentReader = (readers || []).find(rd => Number(rd.id) === uId);
+            if (currentReader) {
+              const serverLocked = Boolean(currentReader.isLocked);
+              const serverReason = currentReader.lockReason || '';
+              if (Boolean(user?.isLocked) !== serverLocked || (user?.lockReason || '') !== serverReason) {
+                updateUser({
+                  isLocked: serverLocked,
+                  lockReason: serverReason
+                });
+              }
+            }
+          }).catch(() => {});
+        }
+
         // Fetch AI recommendations (Loại trừ hoàn toàn sách sắp có)
         api.getRecommendations(uId).then(rec => {
           if (rec && Array.isArray(rec.books)) {
@@ -131,20 +148,36 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     return diffDays >= 3 || (r.daysOverdue && r.daysOverdue >= 3) || (r.overdueDays && r.overdueDays >= 3);
   });
 
-  const unpaidFinesList = (myFines || []).filter(f => f.status === 'Chưa nộp');
-  const totalUnpaidFineAmount = unpaidFinesList.reduce((sum, f) => sum + Number(f.fineAmount || 0), 0) 
-    || (overdueBorrows.length > 0 ? overdueBorrows.reduce((sum, r) => {
-        const dueStr = r.returnDate || r.dueDate || new Date();
-        const diffDays = Math.max(3, Math.floor((new Date() - new Date(dueStr)) / (1000 * 60 * 60 * 24)));
-        return sum + diffDays * 2000;
-      }, 0) : 0);
+  const calculateBorrowFine = (r) => {
+    if (Number(r.fineAmount) > 0) return Number(r.fineAmount);
+    if (Number(r.fine_amount) > 0) return Number(r.fine_amount);
+    const dueStr = r.returnDate || r.dueDate;
+    if (!dueStr) return 6000;
+    const due = new Date(dueStr);
+    const now = new Date();
+    const diffDays = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+    const days = Math.max(3, diffDays, Number(r.daysOverdue || 0), Number(r.overdueDays || 0));
+    return days * 2000;
+  };
 
-  const isReaderLocked = Boolean(user?.isLocked || overdueBorrows.length > 0 || unpaidFinesList.length > 0);
-  const readerLockReason = user?.lockReason || (overdueBorrows.length > 0 
-    ? `Bạn đang mượn ${overdueBorrows.length} cuốn sách quá hạn từ 3 ngày trở lên (${overdueBorrows.map(b => b.bookTitle).join(', ')}). Hệ thống tự động khóa tài khoản theo quy chế thư viện.`
-    : unpaidFinesList.length > 0 
-      ? `Tài khoản còn khoản phạt trễ hạn (${totalUnpaidFineAmount.toLocaleString('vi-VN')} đ) chưa thanh toán. Vui lòng nộp phạt qua VNPay để tự động mở khóa tài khoản.` 
-      : 'Tài khoản đang bị tạm khóa');
+  const unpaidFinesList = (myFines || []).filter(f => f.status === 'Chưa nộp');
+  const fineFromFinesList = unpaidFinesList.reduce((sum, f) => sum + Number(f.fineAmount || 0), 0);
+  const totalUnpaidFineAmount = fineFromFinesList > 0 
+    ? fineFromFinesList 
+    : overdueBorrows.reduce((sum, r) => sum + calculateBorrowFine(r), 0);
+
+  const isReaderLocked = Boolean(user?.isLocked || user?.is_locked || overdueBorrows.length > 0 || (unpaidFinesList.length > 0 && totalUnpaidFineAmount > 0));
+
+  let readerLockReason = user?.lockReason || '';
+  if (!readerLockReason) {
+    if (overdueBorrows.length > 0) {
+      readerLockReason = `Bạn đang mượn ${overdueBorrows.length} cuốn sách quá hạn từ 3 ngày trở lên (${overdueBorrows.map(b => b.bookTitle).join(', ')}). Hệ thống tự động khóa tài khoản theo quy chế thư viện.`;
+    } else if (unpaidFinesList.length > 0) {
+      readerLockReason = `Tài khoản còn khoản phạt trễ hạn (${totalUnpaidFineAmount.toLocaleString('vi-VN')} đ) chưa thanh toán. Vui lòng nộp phạt qua VNPay để tự động mở khóa tài khoản.`;
+    } else {
+      readerLockReason = 'Tài khoản đang bị tạm khóa theo quy định thư viện.';
+    }
+  }
 
   const handleVNPaySuccess = (res) => {
     showToast('🎉 ' + (res?.message || 'Thanh toán VNPay thành công! Tài khoản của bạn đã được tự động mở khóa.'));
@@ -154,6 +187,11 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       cu.lockReason = '';
       localStorage.setItem('currentUser', JSON.stringify(cu));
     } catch (e) {}
+    if (updateUser) {
+      updateUser({ isLocked: false, lockReason: '' });
+    }
+    setMyFines(prev => (prev || []).map(f => ({ ...f, status: 'Đã nộp' })));
+    setMyBorrows(prev => (prev || []).map(r => r.status === 'Quá hạn' ? { ...r, fineAmount: 0, overdueDays: 0 } : r));
     setVnpayModalOpen(false);
     setSelectedFineForPayment(null);
     loadBorrowsOnly(true);
