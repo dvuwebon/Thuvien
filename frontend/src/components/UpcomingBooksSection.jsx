@@ -9,7 +9,7 @@ const UPCOMING_BOOKS = [
     rating: 9.6,
     releaseDate: '04-10-2026',
     views: '114,874',
-    cover: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/1341/145349.jpg',
     category: 'Manga & Thể thao',
     desc: 'Tác phẩm truyện tranh thể thao học đường đình đám kết hợp cầu lông và bóng rổ. Phần tiếp theo khai thác giải đấu liên trường quốc gia và những cung bậc cảm xúc lãng mạn tuổi trẻ.'
   },
@@ -20,7 +20,7 @@ const UPCOMING_BOOKS = [
     rating: 8.8,
     releaseDate: '10-2026',
     views: '214,443',
-    cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/1763/139538.jpg',
     category: 'Light Novel & Kỳ ảo',
     desc: 'Hành trình phát triển lãnh địa của quý tộc Ars Louvent nhờ kỹ năng thẩm định thần thánh chiêu mộ hiền tài bảo vệ vương quốc.'
   },
@@ -31,7 +31,7 @@ const UPCOMING_BOOKS = [
     rating: 9.4,
     releaseDate: '10-2026',
     views: '85,746',
-    cover: 'https://images.unsplash.com/photo-1519682337058-a94d519337bc?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/1222/145668.jpg',
     category: 'Kỳ ảo & Hành động',
     desc: 'Pháp sư tài ba thức tỉnh sau hàng thế kỷ trong thời đại ma thuật mới suy tàn và bắt đầu hành trình cải cách ma pháp học viện.'
   },
@@ -42,7 +42,7 @@ const UPCOMING_BOOKS = [
     rating: 9.6,
     releaseDate: '10-2026',
     views: '196,239',
-    cover: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/2/88336.jpg',
     category: 'Manga & Shounen',
     desc: 'Cuộc đại chiến ma pháp tối hậu của vương quốc Tam Diệp chống lại các thế lực cổ xưa. Asta tiếp tục bước đi trên con đường trở thành Ma Pháp Vương.'
   },
@@ -53,7 +53,7 @@ const UPCOMING_BOOKS = [
     rating: 8.7,
     releaseDate: '11-2026',
     views: '226,521',
-    cover: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/7/75199.jpg',
     category: 'Trinh thám & Bí ẩn',
     desc: 'Tuyển tập những vụ án hóc búa nhất của thám tử Edogawa Conan và đối đầu kịch tính cùng Tổ chức Áo đen trong năm 2026.'
   },
@@ -64,7 +64,7 @@ const UPCOMING_BOOKS = [
     rating: 9.1,
     releaseDate: '11-2026',
     views: '641,147',
-    cover: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/1843/115815.jpg',
     category: 'Light Novel & Trinh thám',
     desc: 'Kimizuka Kimihiko tiếp tục khám phá bí mật đằng sau sự ra đi của nữ thám tử thiên tài Siesta và cuộc chiến với tổ chức SPES.'
   },
@@ -75,7 +75,7 @@ const UPCOMING_BOOKS = [
     rating: 9.6,
     releaseDate: '11-2026',
     views: '155,757',
-    cover: 'https://images.unsplash.com/photo-1595590424283-b8f17842773f?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/1191/127909.jpg',
     category: 'Kỳ ảo & Phiêu lưu',
     desc: 'Hành trình vượt qua các đại lục mới của thanh ma kiếm thông minh và cô bé người mèo Fran.'
   },
@@ -86,7 +86,7 @@ const UPCOMING_BOOKS = [
     rating: 9.1,
     releaseDate: '12-2026',
     views: '600,202',
-    cover: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/7/74606.jpg',
     category: 'Hành động & Siêu nhiên',
     desc: 'Goku và Vegeta tiếp cận cảnh giới sức mạnh mới trước sự xuất hiện của những thực thể quyền năng bí ẩn từ vũ trụ xa xôi.'
   },
@@ -97,7 +97,7 @@ const UPCOMING_BOOKS = [
     rating: 9.6,
     releaseDate: '12-2026',
     views: '374,986',
-    cover: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/1802/108501.jpg',
     category: 'Light Novel & Du ký',
     desc: 'Những mẩu chuyện phiêu lưu lắng đọng và kỳ thú của Phù thủy Tro Tàn Elaina qua các vùng đất huyền bí.'
   },
@@ -108,7 +108,7 @@ const UPCOMING_BOOKS = [
     rating: 9.8,
     releaseDate: '12-2026',
     views: '890,120',
-    cover: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://cdn.myanimelist.net/images/anime/1171/109222.jpg',
     category: 'Shounen & Siêu nhiên',
     desc: 'Kỷ nguyên đỉnh cao của chú thuật sư và nguyền hồn sau khi phong ấn ngục môn cương được giải trừ.'
   }
