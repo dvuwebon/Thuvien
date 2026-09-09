@@ -388,14 +388,10 @@ class MySQLDatabaseManager:
         finally:
             session.close()
 
-    def load_db(self) -> Dict[str, Any]:
-        """
-        Đọc toàn bộ dữ liệu từ các bảng MySQL và trả về Dict tương thích với schema hệ thống.
-        Tự động dùng RAM cache cho danh sách sách để đạt phản hồi siêu nhanh < 3ms.
-        """
-        if not self.SessionLocal:
-            self._init_connection()
-        if not self.SessionLocal:
+    def _load_from_local_sqlite(self) -> Dict[str, Any]:
+        """Dự phòng an toàn: đọc dữ liệu từ CSDL cục bộ khi MySQL tạm thời ngắt kết nối"""
+        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_local.db"))
+        if not os.path.exists(db_path):
             return {
                 "users": [],
                 "books": [],
@@ -404,6 +400,47 @@ class MySQLDatabaseManager:
                 "fines": [],
                 "notifications": []
             }
+        try:
+            sqlite_engine = create_engine(f"sqlite:///{db_path}")
+            SqliteSession = sessionmaker(bind=sqlite_engine)
+            session = SqliteSession()
+            users = [u.to_dict() for u in session.query(UserModel).all()]
+            books = [b.to_dict() for b in session.query(BookModel).all()]
+            borrows = [br.to_dict() for br in session.query(BorrowRecordModel).all()]
+            reservations = [res.to_dict() for res in session.query(ReservationModel).all()]
+            fines = [f.to_dict() for f in session.query(FineModel).all()]
+            notifications = [n.to_dict() for n in session.query(NotificationModel).order_by(NotificationModel.id.desc()).all()]
+            session.close()
+            logger.info(f"✓ Đã nạp dữ liệu dự phòng từ smartlib_local.db ({len(books)} sách, {len(users)} người dùng)")
+            return {
+                "users": users,
+                "books": books,
+                "borrowRecords": borrows,
+                "reservations": reservations,
+                "fines": fines,
+                "notifications": notifications
+            }
+        except Exception as ex:
+            logger.error(f"Lỗi khi đọc SQLite dự phòng: {ex}")
+            return {
+                "users": [],
+                "books": [],
+                "borrowRecords": [],
+                "reservations": [],
+                "fines": [],
+                "notifications": []
+            }
+
+    def load_db(self) -> Dict[str, Any]:
+        """
+        Đọc toàn bộ dữ liệu từ các bảng MySQL và trả về Dict tương thích với schema hệ thống.
+        Tự động dùng RAM cache cho danh sách sách để đạt phản hồi siêu nhanh < 3ms.
+        Có cơ chế Dual-Engine Fallback tự động sang SQLite nếu máy tính chưa kịp khởi động MySQL.
+        """
+        if not self.SessionLocal:
+            self._init_connection()
+        if not self.SessionLocal:
+            return self._load_from_local_sqlite()
 
         session = self.SessionLocal()
         try:
@@ -432,15 +469,8 @@ class MySQLDatabaseManager:
                 "notifications": notifications
             }
         except Exception as e:
-            logger.error(f"Lỗi khi load_db từ MySQL: {e}")
-            return {
-                "users": [],
-                "books": [],
-                "borrowRecords": [],
-                "reservations": [],
-                "fines": [],
-                "notifications": []
-            }
+            logger.error(f"Lỗi khi load_db từ MySQL, chuyển sang SQLite dự phòng: {e}")
+            return self._load_from_local_sqlite()
         finally:
             session.close()
 

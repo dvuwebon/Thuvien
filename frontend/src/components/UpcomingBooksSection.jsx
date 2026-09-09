@@ -143,13 +143,13 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
   return (
     <section
       style={{
-        background: '#090d16',
-        borderRadius: '20px',
-        padding: '24px 28px 30px 28px',
+        background: '#ffffff',
+        borderRadius: '16px',
+        padding: '24px 28px 28px 28px',
         marginBottom: '32px',
-        border: '1px solid #1e293b',
-        boxShadow: '0 10px 35px -5px rgba(0, 0, 0, 0.45)',
-        color: '#f8fafc',
+        border: '1px solid #e2e8f0',
+        boxShadow: '0 4px 20px -2px rgba(15, 23, 42, 0.05)',
+        color: '#0f172a',
         fontFamily: "'Inter', system-ui, -apple-system, sans-serif"
       }}
     >
@@ -159,12 +159,12 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
             position: 'fixed',
             top: '24px',
             right: '24px',
-            background: '#1e293b',
+            background: '#0f172a',
             color: '#f8fafc',
             border: '1px solid #3b82f6',
             padding: '12px 18px',
             borderRadius: '10px',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
             zIndex: 9999,
             fontSize: '13px',
             fontWeight: 600
@@ -174,17 +174,17 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
         </div>
       )}
 
-      {/* Header Tag màu đỏ SẮP CÓ > chuẩn ảnh mẫu */}
+      {/* Header Tag màu xanh dương #2563eb đồng bộ thương hiệu SmartLib */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
           <button
             type="button"
             style={{
-              background: 'linear-gradient(135deg, #b91c1c 0%, #881337 100%)',
+              background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
               color: '#ffffff',
               border: 'none',
               borderRadius: '6px',
-              padding: '7px 18px',
+              padding: '6px 16px',
               fontSize: '13px',
               fontWeight: 800,
               letterSpacing: '0.6px',
@@ -192,14 +192,14 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
               alignItems: 'center',
               gap: '6px',
               cursor: 'pointer',
-              boxShadow: '0 4px 14px rgba(185, 28, 28, 0.4)',
+              boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
               transition: 'all 0.2s ease'
             }}
           >
             <span>SẮP CÓ</span>
             <ChevronRight size={15} strokeWidth={3} />
           </button>
-          <span style={{ fontSize: '12.5px', color: '#94a3b8', fontWeight: 500 }}>
+          <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>
             Kho sách bản quyền & Light Novel chuẩn bị có mặt tại thư viện
           </span>
         </div>
@@ -209,7 +209,7 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
         </span>
       </div>
 
-      {/* Grid 5 cột chuẩn ảnh mẫu */}
+      {/* Grid 5 cột chuẩn bố cục */}
       <div
         style={{
           display: 'grid',
@@ -232,7 +232,7 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                 transition: 'all 0.2s ease'
               }}
             >
-              {/* Poster Container với các lớp Overlay chuẩn ảnh */}
+              {/* Poster Container với các lớp Overlay đồng bộ */}
               <div
                 style={{
                   position: 'relative',
@@ -240,9 +240,10 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                   aspectRatio: '2 / 2.85',
                   borderRadius: '10px',
                   overflow: 'hidden',
-                  background: '#1e293b',
-                  boxShadow: '0 6px 18px rgba(0, 0, 0, 0.45)',
-                  marginBottom: '10px'
+                  background: '#f1f5f9',
+                  boxShadow: '0 4px 14px rgba(15, 23, 42, 0.08)',
+                  marginBottom: '10px',
+                  border: '1px solid #e2e8f0'
                 }}
               >
                 {/* Ảnh bìa poster */}
@@ -262,18 +263,18 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    background: 'linear-gradient(180deg, rgba(0,0,0,0.35) 0%, rgba(0,0,0,0.45) 45%, rgba(0,0,0,0.85) 100%)',
+                    background: 'linear-gradient(180deg, rgba(15,23,42,0.2) 0%, rgba(15,23,42,0.4) 45%, rgba(15,23,42,0.85) 100%)',
                     pointerEvents: 'none'
                   }}
                 />
 
-                {/* Top-left: Huy hiệu ⭐ Rating tròn đen viền mờ */}
+                {/* Top-left: Huy hiệu ⭐ Rating */}
                 <div
                   style={{
                     position: 'absolute',
                     top: '8px',
                     left: '8px',
-                    background: 'rgba(15, 23, 42, 0.85)',
+                    background: 'rgba(15, 23, 42, 0.82)',
                     backdropFilter: 'blur(4px)',
                     color: '#fbbf24',
                     borderRadius: '20px',
@@ -293,7 +294,7 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                 <button
                   type="button"
                   onClick={(e) => handleToggleNotify(item, e)}
-                  title={isSubscribed ? 'Đã đăng ký nhận tin' : 'Nhận thông báo khi có sách'}
+                  title={isSubscribed ? 'Đã đăng ký vào hàng chờ' : 'Đặt trước vào hàng chờ'}
                   style={{
                     position: 'absolute',
                     top: '8px',
@@ -341,18 +342,18 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                   </div>
                 </div>
 
-                {/* Banner màu đỏ đáy poster: SẮP CÓ (hoặc thời gian countdown đỏ) */}
+                {/* Banner đáy poster: Màu xanh dương đồng bộ hệ thống */}
                 <div
                   style={{
                     position: 'absolute',
                     bottom: 0,
                     left: 0,
                     right: 0,
-                    background: '#b91c1c',
+                    background: '#2563eb',
                     color: '#ffffff',
                     textAlign: 'center',
                     padding: item.countdown ? '3px 4px' : '5px 4px',
-                    boxShadow: '0 -2px 10px rgba(185, 28, 28, 0.4)'
+                    boxShadow: '0 -2px 10px rgba(37, 99, 235, 0.3)'
                   }}
                 >
                   {item.countdown ? (
@@ -367,13 +368,13 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                 </div>
               </div>
 
-              {/* Tên sách dưới poster */}
+              {/* Tên sách dưới poster màu tối chuẩn SmartLib */}
               <div
                 title={item.title}
                 style={{
                   fontSize: '13px',
                   fontWeight: 700,
-                  color: '#f8fafc',
+                  color: '#0f172a',
                   lineHeight: 1.35,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
@@ -385,7 +386,7 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
               </div>
 
               {/* Số lượt xem / quan tâm */}
-              <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 500 }}>
+              <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 500 }}>
                 Lượt xem: {item.views}
               </div>
             </div>
@@ -393,24 +394,32 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
         })}
       </div>
 
-      {/* Nút XEM THÊM.. ở đáy căn giữa chuẩn ảnh mẫu */}
+      {/* Nút XEM THÊM.. ở đáy phong cách SmartLib */}
       <div style={{ textAlign: 'center' }}>
         <button
           type="button"
           onClick={() => setShowAll(prev => !prev)}
           style={{
-            background: '#111827',
-            color: '#e2e8f0',
-            border: '1px solid #1f2937',
+            background: '#f8fafc',
+            color: '#2563eb',
+            border: '1px solid #bfdbfe',
             borderRadius: '8px',
-            padding: '10px 48px',
-            fontSize: '13px',
-            fontWeight: 800,
-            letterSpacing: '1px',
+            padding: '9px 40px',
+            fontSize: '12.5px',
+            fontWeight: 700,
+            letterSpacing: '0.8px',
             textTransform: 'uppercase',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+            boxShadow: '0 2px 6px rgba(37, 99, 235, 0.08)'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = '#eff6ff';
+            e.currentTarget.style.borderColor = '#2563eb';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = '#f8fafc';
+            e.currentTarget.style.borderColor = '#bfdbfe';
           }}
         >
           {showAll ? 'THU GỌN' : 'XEM THÊM..'}
