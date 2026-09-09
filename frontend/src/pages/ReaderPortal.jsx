@@ -101,6 +101,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         readerId: uId
       });
       showToast(res.message || '✓ Đặt trước sách thành công! Bạn đã được thêm vào hàng chờ.');
+      setSelectedBook(prev => (prev && Number(prev.id) === Number(book.id)) ? { ...prev, isReserved: true } : prev);
       loadBorrowsOnly(true);
       window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
     } catch (e) {
@@ -112,6 +113,23 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     try {
       await api.cancelReservation(resId);
       showToast('Đã hủy yêu cầu đặt trước sách.');
+      setSelectedBook(prev => prev ? { ...prev, isReserved: false } : null);
+      loadBorrowsOnly(true);
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+    } catch (e) {
+      showToast('Lỗi khi hủy đặt trước: ' + (e.message || ''));
+    }
+  };
+
+  const handleCancelReservationForBook = async (bookId) => {
+    try {
+      const targetRes = myReservations.find(r => Number(r.bookId) === Number(bookId) && r.status !== 'Cancelled' && r.status !== 'Hủy');
+      if (targetRes) {
+        await api.cancelReservation(targetRes.id);
+      }
+      setMyReservations(prev => prev.filter(r => Number(r.bookId) !== Number(bookId)));
+      setSelectedBook(prev => (prev && Number(prev.id) === Number(bookId)) ? { ...prev, isReserved: false } : prev);
+      showToast('✓ Đã hủy đặt trước sách thành công.');
       loadBorrowsOnly(true);
       window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
     } catch (e) {
@@ -354,8 +372,11 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
           {/* Mục SÁCH SẮP CÓ (Upcoming Books Section - Bố cục 5 cột chuẩn theo ảnh mẫu) */}
           <UpcomingBooksSection
+            reservedBookIds={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').map(r => Number(r.bookId))}
             onReserve={handleCreateReservation}
+            onCancelReserve={(book) => handleCancelReservationForBook(book.id)}
             onSelectBook={(book) => {
+              const isResv = myReservations.some(r => Number(r.bookId) === Number(book.id) && r.status !== 'Cancelled' && r.status !== 'Hủy') || Boolean(book.isReserved);
               setSelectedBook({
                 id: book.id,
                 title: book.title,
@@ -366,6 +387,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 borrowed: 0,
                 status: 'Sắp phát hành',
                 isUpcoming: true,
+                isReserved: isResv,
                 releaseDate: book.releaseDate,
                 views: book.views,
                 desc: book.desc || `Tác phẩm của tác giả ${book.author || 'nổi tiếng'} đang chuẩn bị phát hành và sẽ sớm có mặt tại thư viện trong đợt nhập sách tới (${book.releaseDate}). Lượt quan tâm hiện tại: ${book.views}.`,
@@ -422,7 +444,11 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 <BookCard
                   key={b.id}
                   book={b}
-                  onSelect={(book) => { setSelectedBook(book); setDetailModalOpen(true); }}
+                  onSelect={(book) => {
+                    const isResv = myReservations.some(r => Number(r.bookId) === Number(book.id) && r.status !== 'Cancelled' && r.status !== 'Hủy');
+                    setSelectedBook({ ...book, isReserved: isResv });
+                    setDetailModalOpen(true);
+                  }}
                   onBorrow={(book) => { setBorrowTargetBook(book); setBorrowModalOpen(true); }}
                   isAdmin={false}
                 />
@@ -883,6 +909,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         onClose={() => { setDetailModalOpen(false); setSelectedBook(null); }}
         onBorrow={(b) => { setBorrowTargetBook(b); setBorrowModalOpen(true); }}
         onReserve={handleCreateReservation}
+        onCancelReserve={(b) => handleCancelReservationForBook(b.id)}
         isAdmin={false}
       />
 

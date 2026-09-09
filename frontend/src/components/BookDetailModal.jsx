@@ -3,10 +3,11 @@ import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2, Down
 import QRCode from 'qrcode';
 import { exportApi } from '../services/exportApi';
 
-export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve }) {
+export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve, onCancelReserve }) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
 
   const isUpcoming = Boolean(book?.isUpcoming || book?.status === 'Sắp phát hành' || book?.status === 'Sắp có');
+  const isReserved = Boolean(book?.isReserved);
 
   useEffect(() => {
     if (book && !isUpcoming) {
@@ -124,14 +125,16 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
 
               {/* Thông tin số lượng / Trạng thái: Sách sắp có sẽ không có mục sẵn sàng cho mượn */}
               {isUpcoming ? (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: '#eff6ff', padding: '12px', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: isReserved ? '#f0fdf4' : '#eff6ff', padding: '12px', borderRadius: '8px', border: `1px solid ${isReserved ? '#86efac' : '#bfdbfe'}` }}>
                   <div>
-                    <div style={{ fontSize: '11px', color: '#1e40af', textTransform: 'uppercase', fontWeight: 700 }}>Trạng thái</div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#2563eb' }}>Sắp phát hành</div>
+                    <div style={{ fontSize: '11px', color: isReserved ? '#15803d' : '#1e40af', textTransform: 'uppercase', fontWeight: 700 }}>Trạng thái</div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: isReserved ? '#16a34a' : '#2563eb' }}>
+                      {isReserved ? '✓ Đã đặt trước' : 'Sắp phát hành'}
+                    </div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '11px', color: '#1e40af', textTransform: 'uppercase', fontWeight: 700 }}>Dự kiến về thư viện</div>
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: '#1e40af' }}>
+                    <div style={{ fontSize: '11px', color: isReserved ? '#15803d' : '#1e40af', textTransform: 'uppercase', fontWeight: 700 }}>Dự kiến về thư viện</div>
+                    <div style={{ fontSize: '15px', fontWeight: 800, color: isReserved ? '#15803d' : '#1e40af' }}>
                       {book.releaseDate || 'Quý 4/2026'}
                     </div>
                   </div>
@@ -144,8 +147,8 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                   </div>
                   <div>
                     <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Sẵn sàng cho mượn</div>
-                    <div style={{ fontSize: '16px', fontWeight: 800, color: available > 0 ? '#16a34a' : '#ef4444' }}>
-                      {available} cuốn
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: isReserved ? '#2563eb' : (available > 0 ? '#16a34a' : '#ef4444') }}>
+                      {isReserved ? 'Đã xếp hàng chờ' : `${available} cuốn`}
                     </div>
                   </div>
                 </div>
@@ -204,35 +207,63 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
               </button>
             )}
             {!isAdmin && (isUpcoming || available <= 0) && (
-              <button
-                onClick={() => {
-                  onClose();
-                  if (onReserve) onReserve(book);
-                }}
-                className="btn"
-                style={{
-                  background: isUpcoming
-                    ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
-                    : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
-                  color: '#ffffff',
-                  border: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '9px 18px',
-                  borderRadius: '8px',
-                  fontWeight: 700,
-                  fontSize: '13px',
-                  boxShadow: isUpcoming
-                    ? '0 4px 12px rgba(37, 99, 235, 0.3)'
-                    : '0 4px 12px rgba(234, 88, 12, 0.35)',
-                  cursor: 'pointer'
-                }}
-                title={isUpcoming ? "Bấm để đăng ký vào hàng chờ đặt trước sách ưu tiên!" : "Sách đang tạm hết. Bấm để xếp hàng chờ nhận sách ưu tiên!"}
-              >
-                <Clock size={16} />
-                <span>Đặt trước (Vào hàng chờ)</span>
-              </button>
+              isReserved ? (
+                <button
+                  onClick={() => {
+                    onClose();
+                    if (onCancelReserve) onCancelReserve(book);
+                  }}
+                  className="btn"
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.35)',
+                    cursor: 'pointer'
+                  }}
+                  title="Nhấp để hủy đặt trước cuốn sách này"
+                >
+                  <X size={16} />
+                  <span>Hủy đặt trước</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    onClose();
+                    if (onReserve) onReserve(book);
+                  }}
+                  className="btn"
+                  style={{
+                    background: isUpcoming
+                      ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+                      : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    boxShadow: isUpcoming
+                      ? '0 4px 12px rgba(37, 99, 235, 0.3)'
+                      : '0 4px 12px rgba(234, 88, 12, 0.35)',
+                    cursor: 'pointer'
+                  }}
+                  title={isUpcoming ? "Bấm để đăng ký vào hàng chờ đặt trước sách ưu tiên!" : "Sách đang tạm hết. Bấm để xếp hàng chờ nhận sách ưu tiên!"}
+                >
+                  <Clock size={16} />
+                  <span>Đặt trước (Vào hàng chờ)</span>
+                </button>
+              )
             )}
           </div>
         </div>

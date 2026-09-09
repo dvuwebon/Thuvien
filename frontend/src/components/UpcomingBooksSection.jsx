@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Star, ChevronRight, Bell, Check } from 'lucide-react';
 
 const UPCOMING_BOOKS = [
@@ -8,7 +8,7 @@ const UPCOMING_BOOKS = [
     author: 'Kouji Miura',
     rating: 9.6,
     releaseDate: '04-10-2026',
-    countdown: '24d 4h 57m 38s',
+    targetDate: '2026-10-04T00:00:00',
     views: '114,874',
     cover: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=600&q=80',
     category: 'Manga & Thể thao',
@@ -20,6 +20,7 @@ const UPCOMING_BOOKS = [
     author: 'Miraijin A',
     rating: 8.8,
     releaseDate: '10-2026',
+    targetDate: '2026-10-10T00:00:00',
     views: '214,443',
     cover: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=600&q=80',
     category: 'Light Novel & Kỳ ảo',
@@ -31,6 +32,7 @@ const UPCOMING_BOOKS = [
     author: 'Yuusan',
     rating: 9.4,
     releaseDate: '10-2026',
+    targetDate: '2026-10-15T00:00:00',
     views: '85,746',
     cover: 'https://images.unsplash.com/photo-1519682337058-a94d519337bc?auto=format&fit=crop&w=600&q=80',
     category: 'Kỳ ảo & Hành động',
@@ -42,6 +44,7 @@ const UPCOMING_BOOKS = [
     author: 'Yūki Tabata',
     rating: 9.6,
     releaseDate: '10-2026',
+    targetDate: '2026-10-25T00:00:00',
     views: '196,239',
     cover: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&w=600&q=80',
     category: 'Manga & Shounen',
@@ -53,6 +56,7 @@ const UPCOMING_BOOKS = [
     author: 'Gosho Aoyama',
     rating: 8.7,
     releaseDate: '11-2026',
+    targetDate: '2026-11-05T00:00:00',
     views: '226,521',
     cover: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=600&q=80',
     category: 'Trinh thám & Bí ẩn',
@@ -64,6 +68,7 @@ const UPCOMING_BOOKS = [
     author: 'Nigojū',
     rating: 9.1,
     releaseDate: '11-2026',
+    targetDate: '2026-11-15T00:00:00',
     views: '641,147',
     cover: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=600&q=80',
     category: 'Light Novel & Trinh thám',
@@ -75,6 +80,7 @@ const UPCOMING_BOOKS = [
     author: 'Yuu Tanaka',
     rating: 9.6,
     releaseDate: '11-2026',
+    targetDate: '2026-11-28T00:00:00',
     views: '155,757',
     cover: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=600&q=80',
     category: 'Kỳ ảo & Phiêu lưu',
@@ -86,6 +92,7 @@ const UPCOMING_BOOKS = [
     author: 'Akira Toriyama & Toyotarou',
     rating: 9.1,
     releaseDate: '12-2026',
+    targetDate: '2026-12-05T00:00:00',
     views: '600,202',
     cover: 'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&w=600&q=80',
     category: 'Hành động & Siêu nhiên',
@@ -97,6 +104,7 @@ const UPCOMING_BOOKS = [
     author: 'Jougi Shiraishi',
     rating: 9.6,
     releaseDate: '12-2026',
+    targetDate: '2026-12-15T00:00:00',
     views: '374,986',
     cover: 'https://images.unsplash.com/photo-1476275466078-4007374efbbe?auto=format&fit=crop&w=600&q=80',
     category: 'Light Novel & Du ký',
@@ -108,6 +116,7 @@ const UPCOMING_BOOKS = [
     author: 'Gege Akutami',
     rating: 9.8,
     releaseDate: '12-2026',
+    targetDate: '2026-12-25T00:00:00',
     views: '890,120',
     cover: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=600&q=80',
     category: 'Shounen & Siêu nhiên',
@@ -115,19 +124,56 @@ const UPCOMING_BOOKS = [
   }
 ];
 
-export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
+// Hàm tính toán đồng hồ đếm ngược thời gian thực (Real-time Countdown Timer)
+function formatCountdown(targetDateStr) {
+  if (!targetDateStr) return 'SẮP CÓ';
+  const target = new Date(targetDateStr).getTime();
+  const diff = target - Date.now();
+  if (diff <= 0) return 'ĐÃ PHÁT HÀNH';
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${days}d ${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
+}
+
+export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancelReserve, reservedBookIds = [] }) {
   const [showAll, setShowAll] = useState(false);
   const [subscribedIds, setSubscribedIds] = useState([]);
   const [toastMsg, setToastMsg] = useState('');
+  const [, setTick] = useState(0);
+
+  // Đếm lùi thời gian thực: Cập nhật component mỗi giây
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setTick(t => t + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Đồng bộ danh sách sách đã đặt trước từ tài khoản độc giả
+  useEffect(() => {
+    if (reservedBookIds && Array.isArray(reservedBookIds)) {
+      setSubscribedIds(prev => Array.from(new Set([...prev, ...reservedBookIds])));
+    }
+  }, [reservedBookIds]);
 
   // Mặc định chỉ hiển thị 5 cuốn, khi click XEM THÊM sẽ hiển thị đủ cả 10 cuốn
   const displayedBooks = showAll ? UPCOMING_BOOKS : UPCOMING_BOOKS.slice(0, 5);
 
   const handleToggleNotify = (book, e) => {
     e.stopPropagation();
-    if (subscribedIds.includes(book.id)) {
+    const isSub = subscribedIds.includes(book.id) || (reservedBookIds && reservedBookIds.includes(book.id));
+    if (isSub) {
       setSubscribedIds(prev => prev.filter(id => id !== book.id));
-      showToast('Đã hủy đặt trước/nhận tin: ' + book.title);
+      if (onCancelReserve) {
+        onCancelReserve(book);
+      } else {
+        showToast('Đã hủy đặt trước: ' + book.title);
+      }
     } else {
       setSubscribedIds(prev => [...prev, book.id]);
       if (onReserve) {
@@ -215,12 +261,12 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
       {/* Grid 5 cột chuẩn bố cục: Giãn đều 100% không để khoảng trống thừa bên phải */}
       <div className="upcoming-books-grid">
         {displayedBooks.map((item) => {
-          const isSubscribed = subscribedIds.includes(item.id);
+          const isSubscribed = subscribedIds.includes(item.id) || (reservedBookIds && reservedBookIds.includes(item.id));
 
           return (
             <div
               key={item.id}
-              onClick={() => onSelectBook && onSelectBook(item)}
+              onClick={() => onSelectBook && onSelectBook({ ...item, isReserved: isSubscribed })}
               style={{
                 cursor: 'pointer',
                 display: 'flex',
@@ -295,7 +341,7 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                 <button
                   type="button"
                   onClick={(e) => handleToggleNotify(item, e)}
-                  title={isSubscribed ? 'Đã đăng ký vào hàng chờ' : 'Đặt trước vào hàng chờ'}
+                  title={isSubscribed ? 'Đã đặt trước (Bấm để hủy)' : 'Đặt trước vào hàng chờ'}
                   style={{
                     position: 'absolute',
                     top: '8px',
@@ -310,7 +356,9 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    boxShadow: isSubscribed ? '0 2px 8px rgba(22, 163, 74, 0.4)' : 'none'
                   }}
                 >
                   {isSubscribed ? <Check size={13} strokeWidth={3} /> : <Bell size={13} />}
@@ -343,7 +391,7 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                   </div>
                 </div>
 
-                {/* Banner đáy poster: Màu xanh dương đồng bộ hệ thống */}
+                {/* Banner đáy poster: Đồng hồ đếm lùi thời gian thực */}
                 <div
                   style={{
                     position: 'absolute',
@@ -353,19 +401,20 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                     background: '#2563eb',
                     color: '#ffffff',
                     textAlign: 'center',
-                    padding: item.countdown ? '3px 4px' : '5px 4px',
+                    padding: '4px 2px',
                     boxShadow: '0 -2px 10px rgba(37, 99, 235, 0.3)'
                   }}
                 >
-                  {item.countdown ? (
-                    <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.4px' }}>
-                      {item.countdown}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: '11.5px', fontWeight: 800, letterSpacing: '0.6px', textTransform: 'uppercase' }}>
-                      SẮP CÓ
-                    </div>
-                  )}
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      letterSpacing: '0.4px',
+                      fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace"
+                    }}
+                  >
+                    {formatCountdown(item.targetDate)}
+                  </div>
                 </div>
               </div>
 
