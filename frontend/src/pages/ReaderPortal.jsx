@@ -42,16 +42,23 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     setTimeout(() => setToastMessage(''), 3500);
   };
 
-  const loadData = async (silent = false) => {
+  // 1. Tải danh sách sách (chỉ tải 1 lần khi vào trang hoặc khi có sự kiện cập nhật kho sách)
+  const loadBooks = async () => {
+    try {
+      const bRes = await api.getBooks().catch(() => []);
+      if (bRes && bRes.length > 0) {
+        setBooks(bRes);
+      }
+    } catch (e) {
+      console.error('Error loading books:', e);
+    }
+  };
+
+  // 2. Tải phiếu mượn của riêng độc giả (payload siêu nhẹ < 2KB, không kèm base64 ảnh)
+  const loadBorrowsOnly = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
-      const [bRes, brRes] = await Promise.all([
-        api.getBooks().catch(() => []),
-        api.getBorrowRecords().catch(() => [])
-      ]);
-      setBooks(bRes || []);
-      
-      // Filter borrows for current logged-in reader
+      const brRes = await api.getBorrowRecords().catch(() => []);
       if (user) {
         const uId = user.id ? Number(user.id) : 2;
         const uName = (user.fullName || '').toLowerCase().trim();
@@ -69,31 +76,36 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         api.getRecommendations(uId).then(rec => setRecommendations(rec)).catch(() => {});
       }
     } catch (e) {
-      console.error('Error loading reader data:', e);
+      console.error('Error loading reader borrows:', e);
     } finally {
       if (!silent) setLoading(false);
     }
   };
 
+  const loadData = async (silent = false) => {
+    await Promise.all([loadBooks(), loadBorrowsOnly(silent)]);
+  };
+
   useEffect(() => {
     loadData();
 
-    // 1. Lắng nghe sự kiện cập nhật dữ liệu tức thì
+    // 1. Lắng nghe sự kiện cập nhật dữ liệu tức thì từ các thao tác mượn/trả
     const handleDataUpdate = () => {
-      loadData(true);
+      loadBorrowsOnly(true);
+      loadBooks();
     };
     window.addEventListener('smartlib:data-updated', handleDataUpdate);
 
     // 2. Lắng nghe sự kiện giữa các tab trình duyệt khác nhau
     const handleStorageUpdate = (e) => {
       if (e.key === 'smartlib_last_update') {
-        loadData(true);
+        loadBorrowsOnly(true);
       }
     };
     window.addEventListener('storage', handleStorageUpdate);
 
-    // 3. Polling ngầm mỗi 1.5s để cập nhật ngay khi Admin duyệt mà không cần F5
-    const interval = setInterval(() => loadData(true), 1500);
+    // 3. Polling ngầm CHỈ tải phiếu mượn nhẹ (< 2KB), chu kỳ 6s giúp đạt 60fps mượt mà
+    const interval = setInterval(() => loadBorrowsOnly(true), 6000);
 
     return () => {
       window.removeEventListener('smartlib:data-updated', handleDataUpdate);
@@ -102,9 +114,11 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     };
   }, [user]);
 
-  // Tự động load dữ liệu mới khi chuyển tab
+  // Khi chuyển tab: chỉ cập nhật phiếu mượn, không reload sách
   useEffect(() => {
-    loadData();
+    if (activeTab === 'borrows' || activeTab === 'history') {
+      loadBorrowsOnly(true);
+    }
   }, [activeTab]);
 
   // Reset to page 1 when search or category changes

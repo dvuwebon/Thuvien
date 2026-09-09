@@ -127,8 +127,8 @@ export const NotificationProvider = ({ children }) => {
     window.addEventListener('smartlib:data-updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
     
-    // Polling ngầm mỗi 1.8s để đảm bảo không bao giờ bị trễ
-    const interval = setInterval(fetchNotifications, 1800);
+    // Polling ngầm định kỳ 5s kết hợp cùng event listener tức thì
+    const interval = setInterval(fetchNotifications, 5000);
 
     return () => {
       window.removeEventListener('smartlib:data-updated', handleUpdate);

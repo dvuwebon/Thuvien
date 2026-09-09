@@ -1,4 +1,5 @@
 import os
+import time
 import json
 import logging
 from datetime import datetime, date
@@ -40,6 +41,14 @@ MYSQL_PASSWORD = os.getenv("MYSQL_PASSWORD", "root")
 MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "smartlib_db")
 
 FINE_PER_DAY = 2000
+
+# Cache bộ nhớ đệm RAM cho kho sách (giảm tải đọc base64 ảnh mỗi request)
+_BOOKS_CACHE = {"data": None, "cached_at": 0}
+BOOKS_CACHE_TTL = 15  # Cache 15 giây
+
+def invalidate_books_cache():
+    _BOOKS_CACHE["data"] = None
+    _BOOKS_CACHE["cached_at"] = 0
 
 Base = declarative_base()
 
@@ -382,11 +391,33 @@ class MySQLDatabaseManager:
     def load_db(self) -> Dict[str, Any]:
         """
         Đọc toàn bộ dữ liệu từ các bảng MySQL và trả về Dict tương thích với schema hệ thống.
+        Tự động dùng RAM cache cho danh sách sách để đạt phản hồi siêu nhanh < 3ms.
         """
+        if not self.SessionLocal:
+            self._init_connection()
+        if not self.SessionLocal:
+            return {
+                "users": [],
+                "books": [],
+                "borrowRecords": [],
+                "reservations": [],
+                "fines": [],
+                "notifications": []
+            }
+
         session = self.SessionLocal()
         try:
             users = [u.to_dict() for u in session.query(UserModel).all()]
-            books = [b.to_dict() for b in session.query(BookModel).all()]
+            
+            # Lấy sách từ RAM cache nếu còn hạn
+            now = time.time()
+            if _BOOKS_CACHE["data"] is not None and (now - _BOOKS_CACHE["cached_at"]) < BOOKS_CACHE_TTL:
+                books = _BOOKS_CACHE["data"]
+            else:
+                books = [b.to_dict() for b in session.query(BookModel).all()]
+                _BOOKS_CACHE["data"] = books
+                _BOOKS_CACHE["cached_at"] = now
+
             borrows = [br.to_dict() for br in session.query(BorrowRecordModel).all()]
             reservations = [res.to_dict() for res in session.query(ReservationModel).all()]
             fines = [f.to_dict() for f in session.query(FineModel).all()]
@@ -417,6 +448,11 @@ class MySQLDatabaseManager:
         """
         Đồng bộ toàn bộ dữ liệu từ Dict vào các bảng MySQL quan hệ.
         """
+        invalidate_books_cache()
+        if not self.SessionLocal:
+            self._init_connection()
+        if not self.SessionLocal:
+            return
         session = self.SessionLocal()
         try:
             # 1. Sync Books

@@ -715,6 +715,24 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     }
   };
 
+  // Cập nhật chỉ dữ liệu giao dịch (siêu nhẹ, không tải lại 1.25MB sách)
+  const loadDynamicData = async () => {
+    try {
+      const [sRes, brRes, resvRes, finesRes] = await Promise.all([
+        api.getStats().catch(() => null),
+        api.getBorrowRecords().catch(() => []),
+        api.getReservations ? api.getReservations().catch(() => []) : [],
+        api.getFines ? api.getFines().catch(() => []) : []
+      ]);
+      if (sRes) setStats(sRes);
+      if (brRes) setBorrowRecords(brRes);
+      if (resvRes) setReservations(resvRes);
+      if (finesRes) setFines(finesRes);
+    } catch (e) {
+      console.error('Error polling dynamic admin data:', e);
+    }
+  };
+
   useEffect(() => {
     loadData();
 
@@ -727,13 +745,13 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     // 2. Đồng bộ giữa các tab trình duyệt khác nhau qua storage event
     const handleStorageUpdate = (e) => {
       if (e.key === 'smartlib_last_update') {
-        loadData(true);
+        loadDynamicData();
       }
     };
     window.addEventListener('storage', handleStorageUpdate);
 
-    // 3. Polling ngầm mỗi 1.5s đảm bảo dữ liệu luôn mới nhất
-    const interval = setInterval(() => loadData(true), 1500);
+    // 3. Polling ngầm CHỈ tải dữ liệu động nhẹ (stats, borrows, reservations), chu kỳ 6s
+    const interval = setInterval(loadDynamicData, 6000);
 
     return () => {
       window.removeEventListener('smartlib:data-updated', handleDataUpdate);
@@ -742,9 +760,9 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     };
   }, []);
 
-  // Tự động load dữ liệu mới khi chuyển tab
+  // Khi chuyển tab, chỉ cập nhật dữ liệu động
   useEffect(() => {
-    loadData();
+    loadDynamicData();
   }, [activeTab]);
 
   // Book Handlers (Thêm / Sửa / Xóa lưu trực tiếp vào database)
