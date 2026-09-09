@@ -121,17 +121,21 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
   // Kiểm tra tài khoản có bị khóa hoặc có sách trễ hạn >= 3 ngày không
   const overdueBorrows = myBorrows.filter(r => {
-    if (r.status === 'Đã trả' || !r.returnDate) return false;
-    const due = new Date(r.returnDate);
+    if (r.status === 'Đã trả' || r.status === 'Từ chối' || r.status === 'Chờ duyệt') return false;
+    if (r.status === 'Quá hạn') return true;
+    const dueStr = r.returnDate || r.dueDate;
+    if (!dueStr) return false;
+    const due = new Date(dueStr);
     const now = new Date();
     const diffDays = Math.floor((now - due) / (1000 * 60 * 60 * 24));
-    return diffDays >= 3 || (r.daysOverdue && r.daysOverdue >= 3);
+    return diffDays >= 3 || (r.daysOverdue && r.daysOverdue >= 3) || (r.overdueDays && r.overdueDays >= 3);
   });
 
   const unpaidFinesList = (myFines || []).filter(f => f.status === 'Chưa nộp');
   const totalUnpaidFineAmount = unpaidFinesList.reduce((sum, f) => sum + Number(f.fineAmount || 0), 0) 
     || (overdueBorrows.length > 0 ? overdueBorrows.reduce((sum, r) => {
-        const diffDays = Math.max(3, Math.floor((new Date() - new Date(r.returnDate)) / (1000 * 60 * 60 * 24)));
+        const dueStr = r.returnDate || r.dueDate || new Date();
+        const diffDays = Math.max(3, Math.floor((new Date() - new Date(dueStr)) / (1000 * 60 * 60 * 24)));
         return sum + diffDays * 2000;
       }, 0) : 0);
 
@@ -143,13 +147,15 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       : 'Tài khoản đang bị tạm khóa');
 
   const handleVNPaySuccess = (res) => {
-    showToast('🎉 ' + (res.message || 'Thanh toán VNPay thành công! Tài khoản của bạn đã được tự động mở khóa.'));
+    showToast('🎉 ' + (res?.message || 'Thanh toán VNPay thành công! Tài khoản của bạn đã được tự động mở khóa.'));
     try {
       const cu = JSON.parse(localStorage.getItem('currentUser') || '{}');
       cu.isLocked = false;
       cu.lockReason = '';
       localStorage.setItem('currentUser', JSON.stringify(cu));
     } catch (e) {}
+    setVnpayModalOpen(false);
+    setSelectedFineForPayment(null);
     loadBorrowsOnly(true);
     window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
   };
@@ -1138,7 +1144,9 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           fineAmount: totalUnpaidFineAmount || 10000
         })}
         readerId={user?.id || 2}
+        amount={totalUnpaidFineAmount || 10000}
         onSuccess={handleVNPaySuccess}
+        onPaymentSuccess={handleVNPaySuccess}
       />
 
       {/* DIV Xác nhận Trả sách (Thay thế hoàn toàn thông báo của trình duyệt) */}

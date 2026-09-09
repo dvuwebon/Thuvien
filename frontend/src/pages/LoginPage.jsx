@@ -572,7 +572,9 @@ export default function LoginPage() {
           fineAmount: lockedModalData?.unpaidFines || 10000
         }}
         readerId={lockedModalData?.readerId || 2}
+        amount={lockedModalData?.unpaidFines || 10000}
         onSuccess={handleVNPaySuccess}
+        onPaymentSuccess={handleVNPaySuccess}
       />
 
       {/* TOAST THÀNH CÔNG */}

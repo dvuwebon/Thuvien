@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, CheckCircle, ShieldCheck, QrCode, CreditCard, Clock, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
 import { api } from '../services/api';
 
-export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amount, onPaymentSuccess }) {
+export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amount, onPaymentSuccess, onSuccess }) {
   const [activeTab, setActiveTab] = useState('qr'); // 'qr' | 'card'
   const [loading, setLoading] = useState(false);
   const [paymentData, setPaymentData] = useState(null);
@@ -67,6 +67,9 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
       setSuccessInfo(res);
       if (onPaymentSuccess) {
         onPaymentSuccess(res);
+      }
+      if (onSuccess) {
+        onSuccess(res);
       }
     } catch (e) {
       alert('Lỗi xác nhận thanh toán: ' + (e.message || ''));
@@ -225,7 +228,11 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
             </div>
 
             <button
-              onClick={onClose}
+              onClick={() => {
+                if (onPaymentSuccess && successInfo) onPaymentSuccess(successInfo);
+                if (onSuccess && successInfo) onSuccess(successInfo);
+                onClose();
+              }}
               style={{
                 width: '100%',
                 background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',

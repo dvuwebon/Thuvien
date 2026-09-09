@@ -230,6 +230,7 @@ export const api = {
             db.users = existingUsers;
             saveLocalDb(db);
           } catch (e) {}
+          return data;
         } else if (res.status === 403) {
           const err = await res.json().catch(() => ({}));
           const lockDetail = err.detail || {};

@@ -697,6 +697,10 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     try {
       await api.updateBorrowStatus(record.id, 'Quá hạn');
       showToast(`⚠️ Đã chuyển phiếu mượn #${record.id} ("${record.bookTitle}") sang trạng thái Quá hạn. Dữ liệu đã chuyển sang mục Quá hạn.`);
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+      try {
+        localStorage.setItem('smartlib_last_update', String(Date.now()));
+      } catch (err) {}
       await loadData(true);
     } catch (e) {
       showToast('Lỗi khi chuyển trạng thái quá hạn: ' + (e.message || 'Lỗi'));
