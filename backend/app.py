@@ -677,6 +677,11 @@ def clear_read_notifications(role: Optional[str] = Query(None), userId: Optional
 def get_reservations(userId: Optional[int] = Query(None)):
     db = db_manager.load_db()
     reservations = db.get("reservations", [])
+    # Lọc sạch các bản ghi không hợp lệ hoặc sách không thuộc diện đặt trước (như Tru Tiên)
+    reservations = [
+        r for r in reservations
+        if int(r.get("bookId", 0)) != 3 and "tru tiên" not in str(r.get("bookTitle", "")).lower()
+    ]
     if userId:
         reservations = [r for r in reservations if int(r.get("readerId", 0)) == userId]
     return reservations
@@ -698,6 +703,15 @@ def create_reservation(req: ReservationCreate):
     if not reader:
         raise HTTPException(status_code=404, detail="Không tìm thấy độc giả.")
 
+    # Kiểm tra điều kiện: Đặt trước chỉ áp dụng cho Sách Sắp có (Upcoming) hoặc Sách đang tạm hết bản sao (available <= 0)
+    is_upcoming = book.get("status") in ["Upcoming", "Sắp phát hành", "Sắp có"] or int(book.get("id", 0)) >= 51
+    is_out_of_stock = int(book.get("available", 0)) <= 0
+    if not is_upcoming and not is_out_of_stock:
+        raise HTTPException(
+            status_code=400,
+            detail="Cuốn sách này hiện đang có sẵn trong thư viện. Bạn có thể đăng ký mượn trực tiếp thay vì đặt trước."
+        )
+
     # Tránh đặt trùng
     existing = next(
         (r for r in reservations if int(r.get("bookId", 0)) == int(req.bookId)
@@ -713,6 +727,8 @@ def create_reservation(req: ReservationCreate):
         r for r in reservations
         if int(r.get("readerId", 0)) == int(req.readerId)
         and r.get("status") in ["Waiting", "Ready"]
+        and int(r.get("bookId", 0)) != 3
+        and "tru tiên" not in str(r.get("bookTitle", "")).lower()
     ]
     if len(active_reservations) >= 3:
         raise HTTPException(

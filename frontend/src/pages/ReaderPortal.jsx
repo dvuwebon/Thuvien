@@ -76,7 +76,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
         // Tải danh sách sách trong hàng chờ đặt trước của độc giả
         api.getReservations(uId).then(resvs => {
-          setMyReservations(resvs || []);
+          const cleanResvs = (resvs || []).filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+          setMyReservations(cleanResvs);
         }).catch(() => {});
 
         // Fetch AI recommendations
@@ -96,7 +97,10 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     }
 
     // Kiểm tra giới hạn: Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách
-    const activeResvs = myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled');
+    const activeResvs = myReservations.filter(
+      r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' &&
+           Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))
+    );
     if (activeResvs.length >= 3) {
       showToast('Bạn đã hết lượt đặt trước sách! Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách. Nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.');
       return;
@@ -768,70 +772,76 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       )}
 
       {/* TAB 4: HÀNG CHỜ ĐẶT TRƯỚC SÁCH (FIFO QUEUE) */}
-      {activeTab === 'reservations' && (
-        <div>
-          <div style={{ marginBottom: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ea580c', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Clock size={18} />
-              </div>
-              <h2 style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                Hàng chờ đặt trước sách
-              </h2>
-            </div>
-            <p style={{ margin: 0, fontSize: '13.5px', color: '#64748b' }}>
-              Hệ thống quản lý hàng chờ tự động theo thứ tự ưu tiên FIFO. Khi sách được trả về thư viện, độc giả đứng đầu hàng chờ sẽ nhận được thông báo để mượn sách trong vòng 48 giờ.
-            </p>
-          </div>
+      {activeTab === 'reservations' && (() => {
+        const cleanActiveReservations = myReservations.filter(
+          r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' &&
+               Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))
+        );
 
-          {/* Thẻ tóm tắt trạng thái */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
-            <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #3b82f6' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Sách đang đặt trước (Tối đa 3)</div>
-              <div style={{ fontSize: '22px', fontWeight: 800, color: myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length >= 3 ? '#dc2626' : '#1e293b', marginTop: '4px' }}>
-                {myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length} / 3
+        return (
+          <div>
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ea580c', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Clock size={18} />
+                </div>
+                <h2 style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                  Hàng chờ đặt trước sách
+                </h2>
               </div>
-              <div style={{ fontSize: '11px', color: myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length >= 3 ? '#ef4444' : '#64748b', fontWeight: 600, marginTop: '2px' }}>
-                {myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length >= 3 ? '⚠️ Hết lượt (Cần hủy bớt để đặt tiếp)' : `Còn lại: ${3 - myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length} lượt đặt`}
-              </div>
-            </div>
-
-            <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #f59e0b' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Đang xếp hàng chờ sách về</div>
-              <div style={{ fontSize: '22px', fontWeight: 800, color: '#d97706', marginTop: '4px' }}>
-                {myReservations.filter(r => r.status === 'Waiting').length}
-              </div>
-            </div>
-
-            <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #16a34a' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Sách đã về (Sẵn sàng mượn)</div>
-              <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
-                {myReservations.filter(r => r.status === 'Ready').length}
-              </div>
-            </div>
-          </div>
-
-          {/* Danh sách bản ghi hàng chờ */}
-          {myReservations.length === 0 ? (
-            <div className="card" style={{ textAlign: 'center', padding: '56px 20px' }}>
-              <Clock size={48} style={{ margin: '0 auto 12px', color: '#cbd5e1' }} />
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#334155', margin: '0 0 6px 0' }}>
-                Hàng chờ hiện đang trống
-              </h3>
-              <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '480px', margin: '0 auto 18px auto' }}>
-                Khi bạn tìm kiếm thấy một cuốn sách đang hết bản sao sẵn có hoặc tại mục "Sách sắp có", bạn có thể bấm <strong>"Đặt trước"</strong> để xếp hàng ưu tiên nhận sách sớm nhất.
+              <p style={{ margin: 0, fontSize: '13.5px', color: '#64748b' }}>
+                Hệ thống quản lý hàng chờ tự động theo thứ tự ưu tiên FIFO. Khi sách được trả về thư viện, độc giả đứng đầu hàng chờ sẽ nhận được thông báo để mượn sách trong vòng 48 giờ.
               </p>
-              <button
-                onClick={() => onTabChange && onTabChange('catalog')}
-                className="btn btn-primary"
-                style={{ padding: '8px 20px', fontSize: '13px' }}
-              >
-                Khám phá kho sách
-              </button>
             </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-              {myReservations.map(res => {
+
+            {/* Thẻ tóm tắt trạng thái */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+              <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #3b82f6' }}>
+                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Sách đang đặt trước (Tối đa 3)</div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: cleanActiveReservations.length >= 3 ? '#dc2626' : '#1e293b', marginTop: '4px' }}>
+                  {cleanActiveReservations.length} / 3
+                </div>
+                <div style={{ fontSize: '11px', color: cleanActiveReservations.length >= 3 ? '#ef4444' : '#64748b', fontWeight: 600, marginTop: '2px' }}>
+                  {cleanActiveReservations.length >= 3 ? '⚠️ Hết lượt (Cần hủy bớt để đặt tiếp)' : `Còn lại: ${3 - cleanActiveReservations.length} lượt đặt`}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #f59e0b' }}>
+                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Đang xếp hàng chờ sách về</div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: '#d97706', marginTop: '4px' }}>
+                  {cleanActiveReservations.filter(r => r.status === 'Waiting').length}
+                </div>
+              </div>
+
+              <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #16a34a' }}>
+                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Sách đã về (Sẵn sàng mượn)</div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
+                  {cleanActiveReservations.filter(r => r.status === 'Ready').length}
+                </div>
+              </div>
+            </div>
+
+            {/* Danh sách bản ghi hàng chờ */}
+            {cleanActiveReservations.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '56px 20px' }}>
+                <Clock size={48} style={{ margin: '0 auto 12px', color: '#cbd5e1' }} />
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#334155', margin: '0 0 6px 0' }}>
+                  Hàng chờ hiện đang trống
+                </h3>
+                <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '480px', margin: '0 auto 18px auto' }}>
+                  Khi bạn tìm kiếm thấy một cuốn sách đang hết bản sao sẵn có hoặc tại mục "Sách sắp có", bạn có thể bấm <strong>"Đặt trước"</strong> để xếp hàng ưu tiên nhận sách sớm nhất.
+                </p>
+                <button
+                  onClick={() => onTabChange && onTabChange('catalog')}
+                  className="btn btn-primary"
+                  style={{ padding: '8px 20px', fontSize: '13px' }}
+                >
+                  Khám phá kho sách
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                {cleanActiveReservations.map(res => {
                 const isReady = res.status === 'Ready';
                 const isWaiting = res.status === 'Waiting';
 
@@ -911,7 +921,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Modals */}
       <BookDetailModal
@@ -921,7 +932,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         onBorrow={(b) => { setBorrowTargetBook(b); setBorrowModalOpen(true); }}
         onReserve={handleCreateReservation}
         onCancelReserve={(b) => handleCancelReservationForBook(b.id)}
-        activeReservationCount={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled').length}
+        activeReservationCount={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' && Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))).length}
         isAdmin={false}
       />
 
