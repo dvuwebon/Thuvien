@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2, Download, Clock } from 'lucide-react';
+import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2, Download, Clock, AlertCircle } from 'lucide-react';
 import QRCode from 'qrcode';
 import { exportApi } from '../services/exportApi';
 
-export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve, onCancelReserve }) {
+export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve, onCancelReserve, activeReservationCount = 0 }) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
 
   const isUpcoming = Boolean(book?.isUpcoming || book?.status === 'Sắp phát hành' || book?.status === 'Sắp có');
@@ -36,43 +36,40 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" style={{ width: '640px' }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
         <div className="modal-header">
-          <span>Thông tin chi tiết sách</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
+          <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
+            Chi tiết ấn phẩm {isUpcoming ? '(Sách sắp có)' : ''}
+          </h3>
+          <button onClick={onClose} className="modal-close" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
             <X size={20} />
           </button>
         </div>
 
         <div className="modal-body">
-          <div style={{ display: 'grid', gridTemplateColumns: isUpcoming ? '200px 1fr' : '180px 1fr', gap: '24px' }}>
-            {/* Image Column */}
-            <div>
-              <div
-                style={{
-                  width: '100%',
-                  height: isUpcoming ? '280px' : '240px',
-                  borderRadius: '10px',
-                  overflow: 'hidden',
-                  background: '#f8fafc',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: '1px solid #e2e8f0',
-                  padding: '8px'
-                }}
-              >
+          <div style={{ display: 'grid', gridTemplateColumns: '180px 1fr', gap: '20px' }}>
+            {/* Book Cover / QR Column */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', alignItems: 'center' }}>
+              <div style={{ width: '100%', height: '230px', borderRadius: '8px', overflow: 'hidden', background: '#f8fafc', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {book.imageUrl ? (
-                  <img src={book.imageUrl} alt={book.title} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))' }} />
+                  <img
+                    src={book.imageUrl}
+                    alt={book.title}
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
                 ) : (
-                  <BookOpen size={48} className="text-slate-400" />
+                  <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                    <BookOpen size={48} style={{ margin: '0 auto 8px' }} />
+                    <span style={{ fontSize: '11px', display: 'block' }}>Chưa có ảnh bìa</span>
+                  </div>
                 )}
               </div>
 
-              {/* QR Code - Ẩn hoàn toàn đối với sách trong mục Sắp có theo yêu cầu */}
+              {/* KHÔNG hiển thị mã QR nếu là sách sắp có */}
               {!isUpcoming && (
-                <div style={{ marginTop: '16px', textAlign: 'center', background: '#f8fafc', padding: '12px 10px', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-                  <div style={{ background: '#ffffff', padding: '6px', borderRadius: '8px', display: 'inline-block', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
+                <div style={{ textAlign: 'center', width: '100%', background: '#f8fafc', padding: '10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '96px' }}>
                     {qrCodeDataUrl ? (
                       <img
                         src={qrCodeDataUrl}
@@ -123,7 +120,7 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                 <p style={{ fontSize: '13.5px', color: '#64748b', marginTop: '4px' }}>Tác giả: <strong>{book.author}</strong></p>
               </div>
 
-              {/* Thông tin số lượng / Trạng thái: Sách sắp có sẽ không có mục sẵn sàng cho mượn */}
+              {/* Thông tin số lượng / Trạng thái */}
               {isUpcoming ? (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', background: isReserved ? '#f0fdf4' : '#eff6ff', padding: '12px', borderRadius: '8px', border: `1px solid ${isReserved ? '#86efac' : '#bfdbfe'}` }}>
                   <div>
@@ -160,6 +157,30 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                   {book.desc || 'Chưa có thông tin mô tả chi tiết cho cuốn sách này.'}
                 </p>
               </div>
+
+              {/* Thông báo cảnh báo khi độc giả đã hết lượt đặt trước (đủ 3 cuốn) */}
+              {!isAdmin && (isUpcoming || available <= 0) && activeReservationCount >= 3 && !isReserved && (
+                <div
+                  style={{
+                    background: '#fff7ed',
+                    border: '1px solid #fed7aa',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '9px',
+                    color: '#c2410c',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    lineHeight: 1.45
+                  }}
+                >
+                  <AlertCircle size={18} style={{ flexShrink: 0, color: '#ea580c' }} />
+                  <span>
+                    Bạn đã hết lượt đặt trước sách (3/3 cuốn). Nếu muốn đặt cuốn này, bạn cần phải hủy một cuốn sách khác để đặt tiếp.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

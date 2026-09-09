@@ -702,11 +702,23 @@ def create_reservation(req: ReservationCreate):
     existing = next(
         (r for r in reservations if int(r.get("bookId", 0)) == int(req.bookId)
          and int(r.get("readerId", 0)) == int(req.readerId)
-         and r.get("status") == "Waiting"),
+         and r.get("status") in ["Waiting", "Ready"]),
         None
     )
     if existing:
         raise HTTPException(status_code=400, detail="Bạn đã đặt trước cuốn sách này rồi.")
+
+    # Kiểm tra giới hạn: Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách
+    active_reservations = [
+        r for r in reservations
+        if int(r.get("readerId", 0)) == int(req.readerId)
+        and r.get("status") in ["Waiting", "Ready"]
+    ]
+    if len(active_reservations) >= 3:
+        raise HTTPException(
+            status_code=400,
+            detail="Bạn đã hết lượt đặt trước sách. Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách, nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp."
+        )
 
     # Xác định thứ tự ưu tiên (FIFO)
     same_book_waiting = [r for r in reservations if int(r.get("bookId", 0)) == int(req.bookId) and r.get("status") == "Waiting"]

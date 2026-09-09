@@ -1020,27 +1020,38 @@ export const api = {
   },
 
   createReservation: async (bookId, readerId) => {
+    const bId = typeof bookId === 'object' ? bookId.bookId : bookId;
+    const rId = typeof bookId === 'object' ? bookId.readerId : readerId;
     if (!isStaticHost) {
       try {
         const res = await fetch(`${API_BASE}/reservations`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookId: Number(bookId), readerId: Number(readerId) })
+          body: JSON.stringify({ bookId: Number(bId), readerId: Number(rId) })
         });
         if (res.ok) {
           const result = await res.json();
           notifyDataUpdated('reservation');
           return result;
+        } else {
+          const err = await res.json();
+          throw new Error(err.detail || 'Lỗi khi đặt trước sách');
         }
-      } catch (e) {}
+      } catch (e) {
+        if (e.message && !e.message.includes('fetch')) throw e;
+      }
     }
     const db = getLocalDb();
     const books = db.books || [];
     const users = db.users || [];
     const reservations = db.reservations || [];
-    const book = books.find(b => Number(b.id) === Number(bookId));
-    const reader = users.find(u => Number(u.id) === Number(readerId));
-    const sameWaiting = reservations.filter(r => Number(r.bookId) === Number(bookId) && r.status === 'Waiting');
+    const activeResvs = reservations.filter(r => Number(r.readerId) === Number(rId) && (r.status === 'Waiting' || r.status === 'Ready'));
+    if (activeResvs.length >= 3) {
+      throw new Error('Bạn đã hết lượt đặt trước sách. Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách, nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.');
+    }
+    const book = books.find(b => Number(b.id) === Number(bId));
+    const reader = users.find(u => Number(u.id) === Number(rId));
+    const sameWaiting = reservations.filter(r => Number(r.bookId) === Number(bId) && r.status === 'Waiting');
     const priority = sameWaiting.length + 1;
     const newId = Math.max(0, ...reservations.map(r => Number(r.id) || 0)) + 1;
     const newRes = {
@@ -1198,6 +1209,10 @@ export const api = {
     }
     const db = getLocalDb();
     const resvs = db.reservations || [];
+    const activeResvs = resvs.filter(r => Number(r.readerId) === Number(data.readerId) && (r.status === 'Waiting' || r.status === 'Ready'));
+    if (activeResvs.length >= 3) {
+      throw new Error('Bạn đã hết lượt đặt trước sách. Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách, nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.');
+    }
     const sameWaiting = resvs.filter(r => Number(r.bookId) === Number(data.bookId) && r.status === 'Waiting');
     const priority = sameWaiting.length + 1;
     const newRes = {

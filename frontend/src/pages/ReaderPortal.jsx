@@ -94,6 +94,14 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       showToast('Vui lòng đăng nhập để đặt trước sách.');
       return;
     }
+
+    // Kiểm tra giới hạn: Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách
+    const activeResvs = myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled');
+    if (activeResvs.length >= 3) {
+      showToast('Bạn đã hết lượt đặt trước sách! Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách. Nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.');
+      return;
+    }
+
     try {
       const uId = user.id ? Number(user.id) : 2;
       const res = await api.createReservation({
@@ -779,9 +787,12 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           {/* Thẻ tóm tắt trạng thái */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
             <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #3b82f6' }}>
-              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Tổng số sách đã đặt</div>
-              <div style={{ fontSize: '22px', fontWeight: 800, color: '#1e293b', marginTop: '4px' }}>
-                {myReservations.length}
+              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Sách đang đặt trước (Tối đa 3)</div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length >= 3 ? '#dc2626' : '#1e293b', marginTop: '4px' }}>
+                {myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length} / 3
+              </div>
+              <div style={{ fontSize: '11px', color: myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length >= 3 ? '#ef4444' : '#64748b', fontWeight: 600, marginTop: '2px' }}>
+                {myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length >= 3 ? '⚠️ Hết lượt (Cần hủy bớt để đặt tiếp)' : `Còn lại: ${3 - myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').length} lượt đặt`}
               </div>
             </div>
 
@@ -910,6 +921,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         onBorrow={(b) => { setBorrowTargetBook(b); setBorrowModalOpen(true); }}
         onReserve={handleCreateReservation}
         onCancelReserve={(b) => handleCancelReservationForBook(b.id)}
+        activeReservationCount={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled').length}
         isAdmin={false}
       />
 
