@@ -822,7 +822,11 @@ def get_recommendations(reader_id: int, limit: int = Query(6, ge=1, le=20)):
     Thuật toán: Tìm thể loại yêu thích (mượn nhiều nhất) → gợi ý sách cùng thể loại chưa mượn.
     """
     db = db_manager.load_db()
-    books = db.get("books", [])
+    # Loại trừ hoàn toàn sách Sắp phát hành / Sắp có / Upcoming khỏi gợi ý sách
+    books = [
+        b for b in db.get("books", [])
+        if b.get("status") not in ["Upcoming", "Sắp phát hành", "Sắp có"] and int(b.get("id", 0)) < 51
+    ]
     records = db.get("borrowRecords", [])
 
     # Lấy lịch sử mượn của độc giả

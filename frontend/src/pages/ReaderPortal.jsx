@@ -80,8 +80,19 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           setMyReservations(cleanResvs);
         }).catch(() => {});
 
-        // Fetch AI recommendations
-        api.getRecommendations(uId).then(rec => setRecommendations(rec)).catch(() => {});
+        // Fetch AI recommendations (Loại trừ hoàn toàn sách sắp có)
+        api.getRecommendations(uId).then(rec => {
+          if (rec && Array.isArray(rec.books)) {
+            rec.books = rec.books.filter(
+              b => b.status !== 'Upcoming' && 
+                   b.status !== 'Sắp phát hành' && 
+                   b.status !== 'Sắp có' && 
+                   Number(b.id) < 51 && 
+                   !b.isUpcoming
+            );
+          }
+          setRecommendations(rec);
+        }).catch(() => {});
       }
     } catch (e) {
       console.error('Error loading reader borrows:', e);
@@ -265,10 +276,17 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     }
   };
 
-  const categories = ['All', ...new Set(books.filter(b => b.status !== 'Sắp phát hành').map(b => b.category).filter(Boolean))];
+  const actualBooks = books.filter(b => 
+    b.status !== 'Upcoming' && 
+    b.status !== 'Sắp phát hành' && 
+    b.status !== 'Sắp có' && 
+    Number(b.id) < 51 && 
+    !b.isUpcoming
+  );
 
-  const filteredBooks = books.filter(b => {
-    if (b.status === 'Sắp phát hành' && !bookSearch) return false;
+  const categories = ['All', ...new Set(actualBooks.map(b => b.category).filter(Boolean))];
+
+  const filteredBooks = actualBooks.filter(b => {
     const matchSearch = b.title.toLowerCase().includes(bookSearch.toLowerCase()) || 
                         (b.author && b.author.toLowerCase().includes(bookSearch.toLowerCase()));
     const matchCat = selectedCategory === 'All' || b.category === selectedCategory;
@@ -302,7 +320,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         <div>
           {/* Top Div: Hệ thống đề xuất 6 cuốn sách luân phiên (Matching Image 2) */}
           <FeaturedCarousel
-            books={books}
+            books={actualBooks}
             onSelectBook={(book) => { setSelectedBook(book); setDetailModalOpen(true); }}
             onBorrowBook={(book) => { setBorrowTargetBook(book); setBorrowModalOpen(true); }}
           />

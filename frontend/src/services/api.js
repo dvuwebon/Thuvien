@@ -1143,11 +1143,22 @@ export const api = {
     if (!isStaticHost) {
       try {
         const res = await fetch(`${API_BASE}/recommendations/${readerId}?limit=${limit}`);
-        if (res.ok) return await res.json();
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.books)) {
+            data.books = data.books.filter(
+              b => b.status !== 'Upcoming' && b.status !== 'Sắp phát hành' && b.status !== 'Sắp có' && Number(b.id) < 51 && !b.isUpcoming
+            );
+          }
+          return data;
+        }
       } catch (e) {}
     }
     const db = getLocalDb();
-    const books = db.books || [];
+    // Loại trừ hoàn toàn sách sắp có / sắp phát hành khỏi danh sách đề xuất
+    const books = (db.books || []).filter(
+      b => b.status !== 'Upcoming' && b.status !== 'Sắp phát hành' && b.status !== 'Sắp có' && Number(b.id) < 51 && !b.isUpcoming
+    );
     const records = db.borrowRecords || [];
     const readerRecords = records.filter(r => Number(r.readerId) === Number(readerId));
     const borrowedIds = new Set(readerRecords.map(r => Number(r.bookId)));

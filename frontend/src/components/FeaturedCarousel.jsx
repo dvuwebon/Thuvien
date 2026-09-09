@@ -9,7 +9,15 @@ export default function FeaturedCarousel({ books, onSelectBook, onBorrowBook }) 
 
   // Pick 6 rotating books alternating per session
   useEffect(() => {
-    if (!books || books.length === 0) return;
+    // Loại trừ hoàn toàn sách sắp có / sắp phát hành khỏi danh sách đề xuất
+    const eligibleBooks = (books || []).filter(
+      b => b.status !== 'Upcoming' && 
+           b.status !== 'Sắp phát hành' && 
+           b.status !== 'Sắp có' && 
+           Number(b.id) < 51 && 
+           !b.isUpcoming
+    );
+    if (!eligibleBooks || eligibleBooks.length === 0) return;
 
     // Use session-based rotation
     let seed = sessionStorage.getItem('smartlib_featured_seed');
@@ -20,7 +28,7 @@ export default function FeaturedCarousel({ books, onSelectBook, onBorrowBook }) 
     const seedNum = parseInt(seed) || 0;
 
     // Deterministic shuffle using seed so it stays consistent during the session, but alternates between logins
-    const shuffled = [...books].sort((a, b) => {
+    const shuffled = [...eligibleBooks].sort((a, b) => {
       const hashA = (a.id * 9301 + seedNum * 49297) % 233280;
       const hashB = (b.id * 9301 + seedNum * 49297) % 233280;
       return hashA - hashB;
