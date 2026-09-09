@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --bg-body: #f1f5f9;
   --bg-surface: #ffffff;
   --bg-muted: #f8fafc;
@@ -365,4 +365,27 @@ tr:hover td {
 
 .serif-title {
   font-family: 'Lora', Georgia, serif;
+}
+
+/* Sách Sắp Có: Giãn đều 5 cột trên màn hình desktop, loại bỏ hoàn toàn khoảng trống thừa */
+.upcoming-books-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 18px;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .upcoming-books-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .upcoming-books-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
 }

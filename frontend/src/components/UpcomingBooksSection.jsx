@@ -32,7 +32,7 @@ const UPCOMING_BOOKS = [
     rating: 9.4,
     releaseDate: '10-2026',
     views: '85,746',
-    cover: 'https://images.unsplash.com/photo-1532012164546-f432f2e3777a?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1519682337058-a94d519337bc?auto=format&fit=crop&w=600&q=80',
     category: 'Kỳ ảo & Hành động',
     desc: 'Pháp sư tài ba thức tỉnh sau hàng thế kỷ trong thời đại ma thuật mới suy tàn và bắt đầu hành trình cải cách ma pháp học viện.'
   },
@@ -212,15 +212,8 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
         </span>
       </div>
 
-      {/* Grid 5 cột chuẩn bố cục */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-          gap: '16px',
-          marginBottom: '24px'
-        }}
-      >
+      {/* Grid 5 cột chuẩn bố cục: Giãn đều 100% không để khoảng trống thừa bên phải */}
+      <div className="upcoming-books-grid">
         {displayedBooks.map((item) => {
           const isSubscribed = subscribedIds.includes(item.id);
 
@@ -232,7 +225,8 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                 cursor: 'pointer',
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'all 0.2s ease'
+                transition: 'all 0.2s ease',
+                width: '100%'
               }}
             >
               {/* Poster Container với các lớp Overlay đồng bộ */}
@@ -257,6 +251,10 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve }) {
                     width: '100%',
                     height: '100%',
                     objectFit: 'cover'
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=600&q=80';
                   }}
                   loading="lazy"
                 />
