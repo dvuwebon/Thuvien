@@ -8,9 +8,8 @@ const UPCOMING_BOOKS = [
     author: 'Kouji Miura',
     rating: 9.6,
     releaseDate: '04-10-2026',
-    targetDate: '2026-10-04T00:00:00',
     views: '114,874',
-    cover: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=600&q=80',
     category: 'Manga & Thể thao',
     desc: 'Tác phẩm truyện tranh thể thao học đường đình đám kết hợp cầu lông và bóng rổ. Phần tiếp theo khai thác giải đấu liên trường quốc gia và những cung bậc cảm xúc lãng mạn tuổi trẻ.'
   },
@@ -20,9 +19,8 @@ const UPCOMING_BOOKS = [
     author: 'Miraijin A',
     rating: 8.8,
     releaseDate: '10-2026',
-    targetDate: '2026-10-10T00:00:00',
     views: '214,443',
-    cover: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80',
     category: 'Light Novel & Kỳ ảo',
     desc: 'Hành trình phát triển lãnh địa của quý tộc Ars Louvent nhờ kỹ năng thẩm định thần thánh chiêu mộ hiền tài bảo vệ vương quốc.'
   },
@@ -32,7 +30,6 @@ const UPCOMING_BOOKS = [
     author: 'Yuusan',
     rating: 9.4,
     releaseDate: '10-2026',
-    targetDate: '2026-10-15T00:00:00',
     views: '85,746',
     cover: 'https://images.unsplash.com/photo-1519682337058-a94d519337bc?auto=format&fit=crop&w=600&q=80',
     category: 'Kỳ ảo & Hành động',
@@ -44,9 +41,8 @@ const UPCOMING_BOOKS = [
     author: 'Yūki Tabata',
     rating: 9.6,
     releaseDate: '10-2026',
-    targetDate: '2026-10-25T00:00:00',
     views: '196,239',
-    cover: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?auto=format&fit=crop&w=600&q=80',
     category: 'Manga & Shounen',
     desc: 'Cuộc đại chiến ma pháp tối hậu của vương quốc Tam Diệp chống lại các thế lực cổ xưa. Asta tiếp tục bước đi trên con đường trở thành Ma Pháp Vương.'
   },
@@ -56,9 +52,8 @@ const UPCOMING_BOOKS = [
     author: 'Gosho Aoyama',
     rating: 8.7,
     releaseDate: '11-2026',
-    targetDate: '2026-11-05T00:00:00',
     views: '226,521',
-    cover: 'https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=600&q=80',
     category: 'Trinh thám & Bí ẩn',
     desc: 'Tuyển tập những vụ án hóc búa nhất của thám tử Edogawa Conan và đối đầu kịch tính cùng Tổ chức Áo đen trong năm 2026.'
   },
@@ -68,9 +63,8 @@ const UPCOMING_BOOKS = [
     author: 'Nigojū',
     rating: 9.1,
     releaseDate: '11-2026',
-    targetDate: '2026-11-15T00:00:00',
     views: '641,147',
-    cover: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?auto=format&fit=crop&w=600&q=80',
     category: 'Light Novel & Trinh thám',
     desc: 'Kimizuka Kimihiko tiếp tục khám phá bí mật đằng sau sự ra đi của nữ thám tử thiên tài Siesta và cuộc chiến với tổ chức SPES.'
   },
@@ -80,9 +74,8 @@ const UPCOMING_BOOKS = [
     author: 'Yuu Tanaka',
     rating: 9.6,
     releaseDate: '11-2026',
-    targetDate: '2026-11-28T00:00:00',
     views: '155,757',
-    cover: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1595590424283-b8f17842773f?auto=format&fit=crop&w=600&q=80',
     category: 'Kỳ ảo & Phiêu lưu',
     desc: 'Hành trình vượt qua các đại lục mới của thanh ma kiếm thông minh và cô bé người mèo Fran.'
   },
@@ -92,9 +85,8 @@ const UPCOMING_BOOKS = [
     author: 'Akira Toriyama & Toyotarou',
     rating: 9.1,
     releaseDate: '12-2026',
-    targetDate: '2026-12-05T00:00:00',
     views: '600,202',
-    cover: 'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=600&q=80',
     category: 'Hành động & Siêu nhiên',
     desc: 'Goku và Vegeta tiếp cận cảnh giới sức mạnh mới trước sự xuất hiện của những thực thể quyền năng bí ẩn từ vũ trụ xa xôi.'
   },
@@ -104,9 +96,8 @@ const UPCOMING_BOOKS = [
     author: 'Jougi Shiraishi',
     rating: 9.6,
     releaseDate: '12-2026',
-    targetDate: '2026-12-15T00:00:00',
     views: '374,986',
-    cover: 'https://images.unsplash.com/photo-1476275466078-4007374efbbe?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=600&q=80',
     category: 'Light Novel & Du ký',
     desc: 'Những mẩu chuyện phiêu lưu lắng đọng và kỳ thú của Phù thủy Tro Tàn Elaina qua các vùng đất huyền bí.'
   },
@@ -116,43 +107,17 @@ const UPCOMING_BOOKS = [
     author: 'Gege Akutami',
     rating: 9.8,
     releaseDate: '12-2026',
-    targetDate: '2026-12-25T00:00:00',
     views: '890,120',
-    cover: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=600&q=80',
+    cover: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?auto=format&fit=crop&w=600&q=80',
     category: 'Shounen & Siêu nhiên',
     desc: 'Kỷ nguyên đỉnh cao của chú thuật sư và nguyền hồn sau khi phong ấn ngục môn cương được giải trừ.'
   }
 ];
 
-// Hàm tính toán đồng hồ đếm ngược thời gian thực (Real-time Countdown Timer)
-function formatCountdown(targetDateStr) {
-  if (!targetDateStr) return 'SẮP CÓ';
-  const target = new Date(targetDateStr).getTime();
-  const diff = target - Date.now();
-  if (diff <= 0) return 'ĐÃ PHÁT HÀNH';
-
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${days}d ${pad(hours)}h ${pad(minutes)}m ${pad(seconds)}s`;
-}
-
 export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancelReserve, reservedBookIds = [] }) {
   const [showAll, setShowAll] = useState(false);
   const [subscribedIds, setSubscribedIds] = useState([]);
   const [toastMsg, setToastMsg] = useState('');
-  const [, setTick] = useState(0);
-
-  // Đếm lùi thời gian thực: Cập nhật component mỗi giây
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTick(t => t + 1);
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Đồng bộ danh sách sách đã đặt trước từ tài khoản độc giả
   useEffect(() => {
@@ -391,7 +356,7 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancel
                   </div>
                 </div>
 
-                {/* Banner đáy poster: Đồng hồ đếm lùi thời gian thực */}
+                {/* Banner đáy poster: Nhãn SẮP CÓ */}
                 <div
                   style={{
                     position: 'absolute',
@@ -407,13 +372,13 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancel
                 >
                   <div
                     style={{
-                      fontSize: '11px',
+                      fontSize: '11.5px',
                       fontWeight: 800,
-                      letterSpacing: '0.4px',
-                      fontFamily: "'JetBrains Mono', 'Roboto Mono', monospace"
+                      letterSpacing: '0.8px',
+                      textTransform: 'uppercase'
                     }}
                   >
-                    {formatCountdown(item.targetDate)}
+                    SẮP CÓ
                   </div>
                 </div>
               </div>
