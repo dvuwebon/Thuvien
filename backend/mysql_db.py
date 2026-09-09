@@ -66,6 +66,8 @@ class UserModel(Base):
     address = Column(String(255), nullable=True)
     birth_date = Column(Date, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True)
+    is_locked = Column(Boolean, nullable=False, default=False)
+    lock_reason = Column(String(255), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -83,7 +85,9 @@ class UserModel(Base):
             "phone": self.phone or "",
             "address": self.address or "",
             "birthDate": self.birth_date.isoformat() if self.birth_date else None,
-            "isActive": bool(self.is_active)
+            "isActive": bool(self.is_active),
+            "isLocked": bool(getattr(self, "is_locked", False)),
+            "lockReason": getattr(self, "lock_reason", None) or ""
         }
 
 
@@ -204,6 +208,8 @@ class FineModel(Base):
     actual_return_date = Column(DateTime, nullable=False)
     fine_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     status = Column(String(50), nullable=False, default="Chưa nộp", index=True)
+    payment_method = Column(String(50), nullable=True, default="Tiền mặt")
+    transaction_ref = Column(String(100), nullable=True)
     paid_at = Column(DateTime, nullable=True)
     note = Column(String(255), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -225,6 +231,8 @@ class FineModel(Base):
             "actualReturnDate": self.actual_return_date.isoformat() if self.actual_return_date else None,
             "fineAmount": float(self.fine_amount or 0.0),
             "status": self.status,
+            "paymentMethod": getattr(self, "payment_method", None) or "Tiền mặt",
+            "transactionRef": getattr(self, "transaction_ref", None) or "",
             "paidAt": self.paid_at.isoformat() if self.paid_at else None,
             "note": self.note
         }
@@ -416,6 +424,8 @@ class MySQLDatabaseManager:
             fines = [f.to_dict() for f in session.query(FineModel).all()]
             notifications = [n.to_dict() for n in session.query(NotificationModel).order_by(NotificationModel.id.desc()).all()]
             session.close()
+
+            users = self._apply_auto_lock_rules(users, borrows, fines)
             logger.info(f"✓ Đã nạp dữ liệu dự phòng từ smartlib_local.db ({len(books)} sách, {len(users)} người dùng)")
             return {
                 "users": users,
@@ -435,6 +445,57 @@ class MySQLDatabaseManager:
                 "fines": [],
                 "notifications": []
             }
+
+    def _apply_auto_lock_rules(self, users: List[Dict[str, Any]], borrows: List[Dict[str, Any]], fines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Tự động khóa tài khoản độc giả khi mượn sách quá hạn từ 3 ngày trở lên hoặc còn nợ tiền phạt chưa nộp.
+        Khi đã nộp phạt hết và không còn sách quá hạn >= 3 ngày, tự động mở khóa tài khoản.
+        """
+        now = datetime.now()
+        for u in users:
+            if u.get("role") != "Reader":
+                continue
+            uid = int(u.get("id", 0))
+
+            overdue_days_max = 0
+            for b in borrows:
+                b_uid = int(b.get("readerId") or b.get("userId") or 0)
+                if b_uid != uid:
+                    continue
+                st = b.get("status", "")
+                if st in ["Đang mượn", "Quá hạn"]:
+                    due_str = b.get("returnDate") or b.get("dueDate")
+                    if due_str:
+                        try:
+                            due = datetime.fromisoformat(due_str.replace("Z", ""))
+                            diff_days = (now.date() - due.date()).days
+                            if diff_days > overdue_days_max:
+                                overdue_days_max = diff_days
+                        except Exception:
+                            pass
+
+            unpaid_fines = [
+                f for f in fines
+                if int(f.get("readerId") or f.get("userId") or 0) == uid and f.get("status") == "Chưa nộp"
+            ]
+            total_unpaid = sum(float(f.get("fineAmount", 0)) for f in unpaid_fines)
+            u["unpaidFines"] = total_unpaid
+
+            # Quy tắc tự động khóa
+            if overdue_days_max >= 3:
+                u["isLocked"] = True
+                u["lockReason"] = f"Mượn sách quá hạn {overdue_days_max} ngày (Cần nộp phạt để mở khóa)"
+            elif total_unpaid > 0:
+                u["isLocked"] = True
+                u["lockReason"] = f"Còn khoản tiền phạt chưa thanh toán ({int(total_unpaid):,} đ)"
+            else:
+                # Nếu lý do khóa tự động trước đó đã được giải quyết
+                current_reason = u.get("lockReason", "") or ""
+                if current_reason.startswith("Mượn sách quá hạn") or current_reason.startswith("Còn khoản tiền phạt"):
+                    u["isLocked"] = False
+                    u["lockReason"] = ""
+
+        return users
 
     def load_db(self) -> Dict[str, Any]:
         """
@@ -464,6 +525,8 @@ class MySQLDatabaseManager:
             reservations = [res.to_dict() for res in session.query(ReservationModel).all()]
             fines = [f.to_dict() for f in session.query(FineModel).all()]
             notifications = [n.to_dict() for n in session.query(NotificationModel).order_by(NotificationModel.id.desc()).all()]
+
+            users = self._apply_auto_lock_rules(users, borrows, fines)
 
             return {
                 "users": users,
@@ -565,6 +628,36 @@ class MySQLDatabaseManager:
                 logger.info(f"✓ Đã cập nhật Cancelled cho đặt trước #{res_id} trong SQLite")
             except Exception as e:
                 logger.error(f"Lỗi hủy đặt trước trên SQLite: {e}")
+
+    def toggle_reader_lock(self, reader_id: int, is_locked: bool, reason: Optional[str] = None):
+        """Khóa hoặc mở khóa tài khoản độc giả trên cả MySQL và SQLite"""
+        if self.SessionLocal:
+            try:
+                session = self.SessionLocal()
+                user = session.query(UserModel).filter_by(id=reader_id).first()
+                if user:
+                    user.is_locked = is_locked
+                    user.lock_reason = reason if is_locked else ""
+                    session.commit()
+                session.close()
+            except Exception as e:
+                logger.error(f"Lỗi toggle_reader_lock trên MySQL: {e}")
+
+        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_local.db"))
+        if os.path.exists(db_path):
+            try:
+                sqlite_engine = create_engine(f"sqlite:///{db_path}")
+                SqliteSession = sessionmaker(bind=sqlite_engine)
+                session = SqliteSession()
+                user = session.query(UserModel).filter_by(id=reader_id).first()
+                if user:
+                    user.is_locked = is_locked
+                    user.lock_reason = reason if is_locked else ""
+                    session.commit()
+                session.close()
+                logger.info(f"✓ Đã cập nhật trạng thái khóa={is_locked} cho độc giả #{reader_id} trong SQLite")
+            except Exception as e:
+                logger.error(f"Lỗi toggle_reader_lock trên SQLite: {e}")
 
     def save_db(self, data: Dict[str, Any]):
         """

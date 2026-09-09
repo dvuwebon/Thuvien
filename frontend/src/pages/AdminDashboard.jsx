@@ -10,7 +10,7 @@ import ExportReportModal from '../components/ExportReportModal';
 import {
   BookOpen, Users, Clock, AlertTriangle, CheckCircle, Search, Plus,
   FileSpreadsheet, Filter, Grid, List, Check, X, Printer, Edit2, Trash2, BookMarked, Eye,
-  TrendingUp, BookmarkCheck, XCircle, QrCode
+  TrendingUp, BookmarkCheck, XCircle, QrCode, Lock, Unlock, ShieldAlert
 } from 'lucide-react';
 
 const getReaderCode = (id) => {
@@ -678,6 +678,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
       loadData(true);
     } catch (e) {
       showToast('Lỗi khi cập nhật nộp phạt: ' + (e.message || 'Lỗi'));
+    }
+  };
+
+  const handleToggleReaderLock = async (reader) => {
+    try {
+      const nextLocked = !reader.isLocked;
+      const reason = nextLocked ? 'Khóa thủ công bởi Quản trị viên' : '';
+      await api.toggleReaderLock(reader.id, nextLocked, reason);
+      showToast(nextLocked ? `🔒 Đã khóa tài khoản độc giả "${reader.fullName}"` : `🔓 Đã mở khóa tài khoản độc giả "${reader.fullName}"`);
+      loadData(true);
+    } catch (e) {
+      showToast('Lỗi khi cập nhật trạng thái khóa: ' + (e.message || 'Lỗi'));
     }
   };
 
@@ -1525,6 +1537,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                         <th>Hạn Trả</th>
                         <th>Ngày Trả</th>
                         <th>Tiền Phạt (VND)</th>
+                        <th>Phương Thức</th>
                         <th>Trạng Thái</th>
                         <th style={{ textAlign: 'right' }}>Thao Tác</th>
                       </tr>
@@ -1532,7 +1545,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                     <tbody>
                       {fines.length === 0 ? (
                         <tr>
-                          <td colSpan="9" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
+                          <td colSpan="10" style={{ textAlign: 'center', padding: '36px', color: '#64748b' }}>
                             Tuyệt vời! Hiện không có khoản tiền phạt quá hạn nào chưa thanh toán.
                           </td>
                         </tr>
@@ -1560,6 +1573,33 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                               }}>
                                 {Number(f.fineAmount || 0).toLocaleString('vi-VN')} đ
                               </span>
+                            </td>
+                            <td>
+                              {f.paymentMethod ? (
+                                <div>
+                                  <span style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '2px 8px',
+                                    borderRadius: '6px',
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    background: f.paymentMethod === 'VNPay' ? '#eff6ff' : '#f8fafc',
+                                    color: f.paymentMethod === 'VNPay' ? '#1d4ed8' : '#475569',
+                                    border: f.paymentMethod === 'VNPay' ? '1px solid #bfdbfe' : '1px solid #cbd5e1'
+                                  }}>
+                                    {f.paymentMethod === 'VNPay' ? '💳 VNPay' : '💵 Tiền mặt'}
+                                  </span>
+                                  {f.transactionRef && (
+                                    <div style={{ fontSize: '10px', color: '#64748b', marginTop: '2px', fontFamily: 'monospace' }}>
+                                      {f.transactionRef}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <span style={{ color: '#94a3b8', fontSize: '12px' }}>-</span>
+                              )}
                             </td>
                             <td>
                               <span className={`badge ${f.status === 'Đã nộp' ? 'badge-success' : 'badge-danger'}`}>
@@ -2064,7 +2104,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                     <th>Số Điện Thoại</th>
                     <th>Email</th>
                     <th>Địa Chỉ</th>
-                    <th>Ngày Sinh</th>
+                    <th>Trạng Thái / Khóa</th>
                     <th style={{ textAlign: 'right' }}>Thao Tác</th>
                   </tr>
                 </thead>
@@ -2084,9 +2124,52 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                         <td>{r.phone || '-'}</td>
                         <td>{r.email || '-'}</td>
                         <td>{r.address || '-'}</td>
-                        <td>{r.birthDate || '-'}</td>
+                        <td>
+                          {r.isLocked ? (
+                            <div>
+                              <span className="badge badge-danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <Lock size={12} /> Bị khóa
+                              </span>
+                              {r.lockReason && (
+                                <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '2px', maxWidth: '200px', lineHeight: 1.3 }}>
+                                  {r.lockReason}
+                                </div>
+                              )}
+                              {r.unpaidFines > 0 && (
+                                <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+                                  Nợ phạt: {Number(r.unpaidFines).toLocaleString('vi-VN')} đ
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div>
+                              <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <Check size={12} /> Hoạt động
+                              </span>
+                              {r.unpaidFines > 0 && (
+                                <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600, marginTop: '2px' }}>
+                                  Nợ phạt: {Number(r.unpaidFines).toLocaleString('vi-VN')} đ
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </td>
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                            <button
+                              onClick={() => handleToggleReaderLock(r)}
+                              className="btn btn-outline"
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: '12px',
+                                color: r.isLocked ? '#16a34a' : '#ef4444',
+                                borderColor: r.isLocked ? '#86efac' : '#fca5a5',
+                                background: r.isLocked ? '#f0fdf4' : '#fef2f2'
+                              }}
+                              title={r.isLocked ? "Mở khóa tài khoản độc giả" : "Khóa tài khoản độc giả này"}
+                            >
+                              {r.isLocked ? <Unlock size={14} /> : <Lock size={14} />}
+                            </button>
                             <button
                               onClick={() => { setEditingReader(r); setReaderModalOpen(true); }}
                               className="btn btn-outline"

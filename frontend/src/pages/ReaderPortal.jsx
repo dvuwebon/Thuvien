@@ -7,11 +7,13 @@ import BookDetailModal from '../components/BookDetailModal';
 import BorrowModal from '../components/BorrowModal';
 import {
   Search, BookOpen, Clock, CheckCircle, AlertTriangle, Printer,
-  BookMarked, Calendar, ArrowRight, Sparkles, Filter, ChevronLeft, ChevronRight
+  BookMarked, Calendar, ArrowRight, Sparkles, Filter, ChevronLeft, ChevronRight,
+  Lock, ShieldAlert, CreditCard
 } from 'lucide-react';
 
 import FeaturedCarousel from '../components/FeaturedCarousel';
 import UpcomingBooksSection from '../components/UpcomingBooksSection';
+import VNPayPaymentModal from '../components/VNPayPaymentModal';
 
 export default function ReaderPortal({ activeTab, onTabChange }) {
   const { user } = useAuth();
@@ -38,6 +40,9 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const [returnConfirmRecord, setReturnConfirmRecord] = useState(null);
   const [isReturning, setIsReturning] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
+  const [myFines, setMyFines] = useState([]);
+  const [vnpayModalOpen, setVnpayModalOpen] = useState(false);
+  const [selectedFineForPayment, setSelectedFineForPayment] = useState(null);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -86,6 +91,13 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           setMyReservations(cleanResvs);
         }).catch(() => {});
 
+        // Tải danh sách các khoản phạt của độc giả
+        if (api.getFines) {
+          api.getFines(uId).then(fList => {
+            setMyFines(fList || []);
+          }).catch(() => {});
+        }
+
         // Fetch AI recommendations (Loại trừ hoàn toàn sách sắp có)
         api.getRecommendations(uId).then(rec => {
           if (rec && Array.isArray(rec.books)) {
@@ -107,9 +119,62 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     }
   };
 
+  // Kiểm tra tài khoản có bị khóa hoặc có sách trễ hạn >= 3 ngày không
+  const overdueBorrows = myBorrows.filter(r => {
+    if (r.status === 'Đã trả' || !r.returnDate) return false;
+    const due = new Date(r.returnDate);
+    const now = new Date();
+    const diffDays = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+    return diffDays >= 3 || (r.daysOverdue && r.daysOverdue >= 3);
+  });
+
+  const unpaidFinesList = (myFines || []).filter(f => f.status === 'Chưa nộp');
+  const totalUnpaidFineAmount = unpaidFinesList.reduce((sum, f) => sum + Number(f.fineAmount || 0), 0) 
+    || (overdueBorrows.length > 0 ? overdueBorrows.reduce((sum, r) => {
+        const diffDays = Math.max(3, Math.floor((new Date() - new Date(r.returnDate)) / (1000 * 60 * 60 * 24)));
+        return sum + diffDays * 2000;
+      }, 0) : 0);
+
+  const isReaderLocked = Boolean(user?.isLocked || overdueBorrows.length > 0 || unpaidFinesList.length > 0);
+  const readerLockReason = user?.lockReason || (overdueBorrows.length > 0 
+    ? `Bạn đang mượn ${overdueBorrows.length} cuốn sách quá hạn từ 3 ngày trở lên (${overdueBorrows.map(b => b.bookTitle).join(', ')}). Hệ thống tự động khóa tài khoản theo quy chế thư viện.`
+    : unpaidFinesList.length > 0 
+      ? `Tài khoản còn khoản phạt trễ hạn (${totalUnpaidFineAmount.toLocaleString('vi-VN')} đ) chưa thanh toán. Vui lòng nộp phạt qua VNPay để tự động mở khóa tài khoản.` 
+      : 'Tài khoản đang bị tạm khóa');
+
+  const handleVNPaySuccess = (res) => {
+    showToast('🎉 ' + (res.message || 'Thanh toán VNPay thành công! Tài khoản của bạn đã được tự động mở khóa.'));
+    try {
+      const cu = JSON.parse(localStorage.getItem('currentUser') || '{}');
+      cu.isLocked = false;
+      cu.lockReason = '';
+      localStorage.setItem('currentUser', JSON.stringify(cu));
+    } catch (e) {}
+    loadBorrowsOnly(true);
+    window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+  };
+
+  const handleOpenBorrowModal = (book) => {
+    if (isReaderLocked) {
+      showToast('Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ 3 ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản.');
+      setSelectedFineForPayment(unpaidFinesList[0] || null);
+      setVnpayModalOpen(true);
+      return;
+    }
+    setBorrowTargetBook(book);
+    setBorrowModalOpen(true);
+  };
+
   const handleCreateReservation = async (book) => {
     if (!user) {
       showToast('Vui lòng đăng nhập để đặt trước sách.');
+      return;
+    }
+
+    if (isReaderLocked) {
+      showToast('Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ 3 ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản.');
+      setSelectedFineForPayment(unpaidFinesList[0] || null);
+      setVnpayModalOpen(true);
       return;
     }
 
@@ -237,6 +302,12 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   };
 
   const handleBorrowRequest = async (formData) => {
+    if (isReaderLocked) {
+      showToast('Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ 3 ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản.');
+      setSelectedFineForPayment(unpaidFinesList[0] || null);
+      setVnpayModalOpen(true);
+      return;
+    }
     try {
       await api.createBorrowRecord(formData);
       showToast(`✓ Đã gửi yêu cầu mượn cuốn sách "${formData.bookTitle || 'sách'}" thành công!`);
@@ -324,6 +395,92 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
   return (
     <div style={{ padding: '32px 36px', flex: 1, background: '#ffffff', minHeight: '100vh', boxSizing: 'border-box' }}>
+      {/* BANNER CẢNH BÁO TÀI KHOẢN BỊ KHÓA & NỘP PHẠT VNPAY */}
+      {isReaderLocked && (
+        <div style={{
+          background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+          border: '1.5px solid #f87171',
+          borderRadius: '16px',
+          padding: '18px 24px',
+          marginBottom: '26px',
+          boxShadow: '0 4px 20px rgba(239, 68, 68, 0.12)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '16px',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1, minWidth: '280px' }}>
+            <div style={{
+              width: '46px',
+              height: '46px',
+              borderRadius: '12px',
+              background: '#ef4444',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              boxShadow: '0 4px 10px rgba(239, 68, 68, 0.3)'
+            }}>
+              <Lock size={24} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 800, color: '#991b1b' }}>
+                  TÀI KHOẢN ĐANG BỊ KHÓA DO QUÁ HẠN MƯỢN SÁCH
+                </h4>
+                <span style={{
+                  background: '#b91c1c',
+                  color: '#fff',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '999px'
+                }}>
+                  Tự động khóa sau 3 ngày trễ hạn
+                </span>
+              </div>
+              <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#b91c1c', lineHeight: 1.4 }}>
+                {readerLockReason}
+              </p>
+              {totalUnpaidFineAmount > 0 && (
+                <div style={{ marginTop: '6px', fontSize: '13px', color: '#7f1d1d', fontWeight: 700 }}>
+                  Tổng tiền phạt cần nộp: <span style={{ color: '#dc2626', fontSize: '15px', textDecoration: 'underline' }}>{totalUnpaidFineAmount.toLocaleString('vi-VN')} đ</span> (2.000 đ/ngày/sách)
+                </div>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <button
+              onClick={() => {
+                setSelectedFineForPayment(unpaidFinesList[0] || null);
+                setVnpayModalOpen(true);
+              }}
+              className="btn"
+              style={{
+                background: '#005baa',
+                color: '#ffffff',
+                border: 'none',
+                padding: '10px 20px',
+                borderRadius: '10px',
+                fontWeight: 700,
+                fontSize: '13.5px',
+                boxShadow: '0 4px 12px rgba(0, 91, 170, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              <CreditCard size={18} />
+              <span>Nộp phạt qua VNPay ngay</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* TAB 1: TRA CỨU SÁCH */}
       {activeTab === 'catalog' && (
         <div>
@@ -331,7 +488,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           <FeaturedCarousel
             books={actualBooks}
             onSelectBook={(book) => { setSelectedBook(book); setDetailModalOpen(true); }}
-            onBorrowBook={(book) => { setBorrowTargetBook(book); setBorrowModalOpen(true); }}
+            onBorrowBook={handleOpenBorrowModal}
           />
 
           {/* Mục SÁCH SẮP CÓ (Upcoming Books Section - Bố cục 5 cột chuẩn theo ảnh mẫu) */}
@@ -538,12 +695,15 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 );
                 const canReturn = r.status === 'Đang mượn' || r.status === 'Quá hạn';
                 const canCancel = r.status === 'Chờ duyệt';
+                const diffDays = r.returnDate ? Math.max(0, Math.floor((new Date() - new Date(r.returnDate)) / (1000 * 60 * 60 * 24))) : 0;
+                const isOverdue = r.status === 'Quá hạn' || diffDays > 0;
+                const itemFineAmount = Math.max(diffDays * 2000, 2000);
 
                 return (
-                  <div key={r.id} className="card" style={{ padding: '20px', margin: 0, borderLeft: `4px solid ${r.status === 'Đang mượn' ? '#16a34a' : r.status === 'Quá hạn' ? '#ef4444' : '#f59e0b'}` }}>
+                  <div key={r.id} className="card" style={{ padding: '20px', margin: 0, borderLeft: `4px solid ${r.status === 'Đang mượn' ? '#16a34a' : (r.status === 'Quá hạn' || diffDays > 0) ? '#ef4444' : '#f59e0b'}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                      <span className={`badge ${r.status === 'Đang mượn' ? 'badge-success' : r.status === 'Quá hạn' ? 'badge-danger' : 'badge-warning'}`}>
-                        {r.status}
+                      <span className={`badge ${r.status === 'Đang mượn' && diffDays === 0 ? 'badge-success' : (r.status === 'Quá hạn' || diffDays > 0) ? 'badge-danger' : 'badge-warning'}`}>
+                        {diffDays > 0 ? `Quá hạn ${diffDays} ngày` : r.status}
                       </span>
                       <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Phiếu #{r.id}</span>
                     </div>
@@ -577,48 +737,119 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
                     <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div>Ngày mượn: <strong>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</strong></div>
-                      <div>Hạn trả sách: <strong style={{ color: r.status === 'Quá hạn' ? '#ef4444' : '#0f172a' }}>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</strong></div>
+                      <div>Hạn trả sách: <strong style={{ color: (r.status === 'Quá hạn' || diffDays > 0) ? '#ef4444' : '#0f172a' }}>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</strong></div>
                     </div>
 
-                    <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                      {/* Nút Trả sách cho tất cả các sách đang mượn */}
-                      {canReturn ? (
-                        <button
-                          onClick={() => setReturnConfirmRecord(r)}
-                          className="btn btn-primary"
-                          style={{
-                            padding: '6px 14px',
-                            fontSize: '12.5px',
-                            background: '#16a34a',
-                            borderColor: '#16a34a',
-                            cursor: 'pointer',
-                            fontWeight: 600
-                          }}
-                          title="Trả sách về thư viện"
-                        >
-                          Trả sách
-                        </button>
-                      ) : null}
+                    {diffDays > 0 && (
+                      <div style={{
+                        marginTop: '10px',
+                        padding: '8px 12px',
+                        background: '#fef2f2',
+                        border: '1px solid #fecaca',
+                        borderRadius: '8px',
+                        fontSize: '12px',
+                        color: '#b91c1c',
+                        fontWeight: 600,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <span>Tiền phạt: <strong style={{ color: '#dc2626' }}>{itemFineAmount.toLocaleString('vi-VN')} đ</strong> (2.000 đ/ngày)</span>
+                        {diffDays >= 3 && (
+                          <span style={{
+                            background: '#dc2626',
+                            color: '#fff',
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}>
+                            <Lock size={11} /> Đã khóa tài khoản
+                          </span>
+                        )}
+                      </div>
+                    )}
 
-                      {/* Nút Hủy yêu cầu cho sách đang Chờ duyệt */}
-                      {canCancel ? (
+                    <div style={{ marginTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {/* Nút Trả sách cho tất cả các sách đang mượn */}
+                        {canReturn ? (
+                          <button
+                            onClick={() => setReturnConfirmRecord(r)}
+                            className="btn btn-primary"
+                            style={{
+                              padding: '6px 14px',
+                              fontSize: '12.5px',
+                              background: '#16a34a',
+                              borderColor: '#16a34a',
+                              cursor: 'pointer',
+                              fontWeight: 600
+                            }}
+                            title="Trả sách về thư viện"
+                          >
+                            Trả sách
+                          </button>
+                        ) : null}
+
+                        {/* Nút Hủy yêu cầu cho sách đang Chờ duyệt */}
+                        {canCancel ? (
+                          <button
+                            onClick={() => handleCancelBorrow(r.id, r.bookTitle)}
+                            className="btn btn-outline"
+                            style={{
+                              padding: '6px 14px',
+                              fontSize: '12.5px',
+                              color: '#dc2626',
+                              borderColor: '#fca5a5',
+                              background: '#fef2f2',
+                              cursor: 'pointer',
+                              fontWeight: 600
+                            }}
+                            title="Hủy yêu cầu mượn cuốn sách này"
+                          >
+                            Hủy yêu cầu
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {/* Nút Nộp phạt VNPay khi trễ hạn */}
+                      {diffDays > 0 && (
                         <button
-                          onClick={() => handleCancelBorrow(r.id, r.bookTitle)}
-                          className="btn btn-outline"
-                          style={{
-                            padding: '6px 14px',
-                            fontSize: '12.5px',
-                            color: '#dc2626',
-                            borderColor: '#fca5a5',
-                            background: '#fef2f2',
-                            cursor: 'pointer',
-                            fontWeight: 600
+                          type="button"
+                          onClick={() => {
+                            setSelectedFineForPayment({
+                              id: r.id,
+                              borrowRecordId: r.id,
+                              bookTitle: r.bookTitle,
+                              fineAmount: itemFineAmount,
+                              readerId: user?.id || 2
+                            });
+                            setVnpayModalOpen(true);
                           }}
-                          title="Hủy yêu cầu mượn cuốn sách này"
+                          className="btn"
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            background: '#005baa',
+                            color: '#ffffff',
+                            border: 'none',
+                            fontWeight: 700,
+                            borderRadius: '6px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 6px rgba(0, 91, 170, 0.25)'
+                          }}
+                          title="Nộp tiền phạt trễ hạn ngay qua VNPay"
                         >
-                          Hủy yêu cầu
+                          <CreditCard size={13} />
+                          <span>Nộp phạt VNPay</span>
                         </button>
-                      ) : null}
+                      )}
                     </div>
                   </div>
                 );
@@ -886,6 +1117,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         onCancelReserve={(b) => handleCancelReservationForBook(b.id)}
         activeReservationCount={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' && Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))).length}
         isAdmin={false}
+        isUserLocked={isReaderLocked}
       />
 
       <BorrowModal
@@ -894,6 +1126,19 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         onClose={() => { setBorrowModalOpen(false); setBorrowTargetBook(null); }}
         onConfirm={handleBorrowRequest}
         isAdmin={false}
+      />
+
+      <VNPayPaymentModal
+        isOpen={vnpayModalOpen}
+        onClose={() => setVnpayModalOpen(false)}
+        fine={selectedFineForPayment || (unpaidFinesList.length > 0 ? unpaidFinesList[0] : {
+          id: overdueBorrows[0]?.id || 1,
+          borrowRecordId: overdueBorrows[0]?.id || 1,
+          bookTitle: overdueBorrows[0]?.bookTitle || 'Phí phạt trễ hạn mượn sách',
+          fineAmount: totalUnpaidFineAmount || 10000
+        })}
+        readerId={user?.id || 2}
+        onSuccess={handleVNPaySuccess}
       />
 
       {/* DIV Xác nhận Trả sách (Thay thế hoàn toàn thông báo của trình duyệt) */}

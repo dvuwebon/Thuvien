@@ -19,7 +19,8 @@ from models import (
     LoginRequest, RegisterRequest, UpdateProfileRequest, ChangePasswordRequest,
     BookCreate, BookUpdate, ReaderCreate, ReaderUpdate,
     BorrowRequestCreate, BorrowStatusUpdate, NotificationReadRequest,
-    ReservationCreate, FineStatusUpdate
+    ReservationCreate, FineStatusUpdate, ReaderLockUpdate,
+    VNPayPaymentCreate, VNPayPaymentVerify
 )
 from export_service import (
     generate_books_excel, generate_borrows_excel, generate_readers_csv,
@@ -277,11 +278,38 @@ def get_readers():
             "birthDate": u.get("birthDate"),
             "email": u.get("email"),
             "phone": u.get("phone"),
-            "address": u.get("address")
+            "address": u.get("address"),
+            "isActive": u.get("isActive", True),
+            "isLocked": bool(u.get("isLocked", False)),
+            "lockReason": u.get("lockReason", "") or "",
+            "unpaidFines": float(u.get("unpaidFines", 0.0))
         }
         for u in users if u.get("role") == "Reader"
     ]
     return readers
+
+
+@app.put("/api/readers/{reader_id}/toggle-lock")
+def toggle_reader_lock(reader_id: int, req: ReaderLockUpdate):
+    db = db_manager.load_db()
+    users = db.get("users", [])
+    reader = next((u for u in users if int(u.get("id", 0)) == reader_id and u.get("role") == "Reader"), None)
+    if not reader:
+        raise HTTPException(status_code=404, detail="Không tìm thấy độc giả.")
+
+    reader["isLocked"] = req.isLocked
+    reader["lockReason"] = req.reason or ("Khóa bởi thủ thư" if req.isLocked else "")
+    db["users"] = users
+    db_manager.save_db(db)
+    db_manager.toggle_reader_lock(reader_id, req.isLocked, reader["lockReason"])
+
+    action_text = "khóa" if req.isLocked else "mở khóa"
+    return {
+        "message": f"Đã {action_text} tài khoản độc giả thành công!",
+        "readerId": reader_id,
+        "isLocked": req.isLocked,
+        "lockReason": reader["lockReason"]
+    }
 
 
 @app.post("/api/readers", status_code=201)
@@ -389,6 +417,14 @@ def create_borrow_record(req: BorrowRequestCreate):
         target_user = next((u for u in users if u.get("fullName", "").lower() == req.readerName.strip().lower()), None)
     if not target_user:
         target_user = next((u for u in users if u.get("role") == "Reader"), {"id": 2, "fullName": req.readerName or "Độc giả"})
+
+    # 🔒 Chặn mượn sách nếu tài khoản độc giả đang bị khóa do quá hạn / nợ phạt
+    if target_user.get("isLocked"):
+        reason = target_user.get("lockReason") or "mượn sách quá hạn từ 3 ngày trở lên"
+        raise HTTPException(
+            status_code=403,
+            detail=f"Tài khoản của bạn đang bị khóa do {reason}. Vui lòng nộp phạt qua cổng VNPay để mở khóa tài khoản trước khi đăng ký mượn sách mới!"
+        )
 
     # ✅ Kiểm tra giới hạn tối đa 5 cuốn sách đang mượn cùng lúc (UC-09, F18)
     reader_active_borrows = sum(
@@ -703,6 +739,14 @@ def create_reservation(req: ReservationCreate):
     if not reader:
         raise HTTPException(status_code=404, detail="Không tìm thấy độc giả.")
 
+    # 🔒 Chặn đặt trước nếu tài khoản đang bị khóa do mượn sách quá hạn >= 3 ngày / nợ phạt
+    if reader.get("isLocked"):
+        reason = reader.get("lockReason") or "mượn sách quá hạn từ 3 ngày trở lên"
+        raise HTTPException(
+            status_code=403,
+            detail=f"Tài khoản của bạn đang bị khóa do {reason}. Vui lòng nộp phạt qua cổng VNPay để mở khóa tài khoản trước khi đặt trước sách!"
+        )
+
     # Kiểm tra điều kiện: Đặt trước chỉ áp dụng cho Sách Sắp có (Upcoming) hoặc Sách đang tạm hết bản sao (available <= 0)
     is_upcoming = book.get("status") in ["Upcoming", "Sắp phát hành", "Sắp có"] or int(book.get("id", 0)) >= 51
     is_out_of_stock = int(book.get("available", 0)) <= 0
@@ -799,20 +843,141 @@ def pay_fine(fine_id: int, req: FineStatusUpdate):
     fine = next((f for f in fines if int(f.get("id", 0)) == fine_id), None)
     if not fine:
         raise HTTPException(status_code=404, detail="Không tìm thấy khoản phạt.")
+    
+    now_iso = datetime.now().isoformat()
     fine["status"] = "Đã nộp"
-    fine["paidAt"] = datetime.now().isoformat()
+    fine["paidAt"] = now_iso
+    fine["paymentMethod"] = req.paymentMethod or "Tiền mặt"
+    if req.transactionRef:
+        fine["transactionRef"] = req.transactionRef
     db["fines"] = fines
+
+    # Tự động mở khóa tài khoản nếu độc giả không còn khoản phạt chưa nộp
+    reader_id = int(fine.get("readerId", 0))
+    users = db.get("users", [])
+    reader = next((u for u in users if int(u.get("id", 0)) == reader_id), None)
+    unpaid_left = [
+        f for f in fines
+        if int(f.get("readerId", 0)) == reader_id and f.get("status") == "Chưa nộp" and int(f.get("id", 0)) != fine_id
+    ]
+
+    is_unlocked = False
+    if reader and len(unpaid_left) == 0:
+        reader["isLocked"] = False
+        reader["lockReason"] = ""
+        db["users"] = users
+        db_manager.toggle_reader_lock(reader_id, False, "")
+        is_unlocked = True
+
     db_manager.save_db(db)
 
+    unlock_text = " Tài khoản của bạn đã được TỰ ĐỘNG MỞ KHÓA!" if is_unlocked else ""
     db_manager.add_notification(
         recipient_role="Reader",
         recipient_user_id=fine.get("readerId"),
         title="Xác nhận nộp phạt thành công",
-        message=f"Bạn đã nộp tiền phạt {int(fine.get('fineAmount', 0)):,} VND cho cuốn sách \"{fine.get('bookTitle')}\". Cảm ơn!",
+        message=f"Bạn đã nộp tiền phạt {int(fine.get('fineAmount', 0)):,} VND cho cuốn sách \"{fine.get('bookTitle')}\" qua {fine.get('paymentMethod')}.{unlock_text}",
         notif_type="fine_paid",
-        meta={"fineId": fine_id, "fineAmount": fine.get("fineAmount")}
+        meta={"fineId": fine_id, "fineAmount": fine.get("fineAmount"), "unlocked": is_unlocked}
     )
-    return {"message": "Đã xác nhận nộp phạt thành công!", "fine": fine}
+    return {"message": "Đã xác nhận nộp phạt thành công!", "fine": fine, "unlocked": is_unlocked}
+
+
+# ================= VNPAY PAYMENT GATEWAY =================
+@app.post("/api/payment/vnpay/create")
+def create_vnpay_payment(req: VNPayPaymentCreate):
+    import random
+    import urllib.parse
+
+    now = datetime.now()
+    txn_ref = f"VNP{int(now.timestamp())}{random.randint(100, 999)}"
+    amount = int(req.amount)
+    order_desc = req.orderInfo or f"SMARTLIB NOP PHAT DG-{str(req.readerId).zfill(3)}"
+
+    account_number = "0987654321"
+    account_name = "THU VIEN SMARTLIB"
+    bank_bin = "970422"  # MBBank
+    qr_url = f"https://api.vietqr.io/image/{bank_bin}-{account_number}-compact2.jpg?amount={amount}&addInfo={urllib.parse.quote(order_desc)}&accountName={urllib.parse.quote(account_name)}"
+
+    return {
+        "txnRef": txn_ref,
+        "amount": amount,
+        "orderInfo": order_desc,
+        "bankName": "Ngân hàng TMCP Quân Đội (MBBank)",
+        "bankBin": bank_bin,
+        "accountNumber": account_number,
+        "accountName": account_name,
+        "qrCodeUrl": qr_url,
+        "fineId": req.fineId,
+        "readerId": req.readerId,
+        "createdAt": now.isoformat(),
+        "expiresAt": (now + timedelta(minutes=15)).isoformat()
+    }
+
+
+@app.post("/api/payment/vnpay/verify")
+def verify_vnpay_payment(req: VNPayPaymentVerify):
+    db = db_manager.load_db()
+    fines = db.get("fines", [])
+    fine = None
+    if req.fineId:
+        fine = next((f for f in fines if int(f.get("id", 0)) == int(req.fineId)), None)
+    if not fine:
+        fine = next((f for f in fines if int(f.get("readerId", 0)) == int(req.readerId) and f.get("status") == "Chưa nộp"), None)
+
+    now_iso = datetime.now().isoformat()
+    if fine:
+        fine["status"] = "Đã nộp"
+        fine["paidAt"] = now_iso
+        fine["paymentMethod"] = "VNPay"
+        fine["transactionRef"] = req.transactionRef
+        db["fines"] = fines
+    else:
+        new_id = max([int(f.get("id", 0)) for f in fines], default=0) + 1
+        fine = {
+            "id": new_id,
+            "borrowRecordId": 1,
+            "readerId": req.readerId,
+            "bookTitle": "Phí phạt trễ hạn mượn sách",
+            "fineAmount": req.amount,
+            "status": "Đã nộp",
+            "paidAt": now_iso,
+            "paymentMethod": "VNPay",
+            "transactionRef": req.transactionRef,
+            "note": "Nộp phạt trực tuyến qua VNPay"
+        }
+        fines.append(fine)
+        db["fines"] = fines
+
+    # TỰ ĐỘNG MỞ KHÓA TÀI KHOẢN ĐỘC GIẢ
+    users = db.get("users", [])
+    reader = next((u for u in users if int(u.get("id", 0)) == int(req.readerId)), None)
+    if reader:
+        reader["isLocked"] = False
+        reader["lockReason"] = ""
+        db["users"] = users
+        db_manager.toggle_reader_lock(req.readerId, False, "")
+
+    db_manager.save_db(db)
+
+    db_manager.add_notification(
+        recipient_role="Reader",
+        recipient_user_id=req.readerId,
+        title="Thanh toán VNPay thành công 🎉",
+        message=f"Giao dịch VNPay #{req.transactionRef} số tiền {int(req.amount):,} đ đã được xác nhận. Tài khoản của bạn đã được TỰ ĐỘNG MỞ KHÓA thành công!",
+        notif_type="fine_paid_vnpay",
+        meta={"txnRef": req.transactionRef, "amount": req.amount, "unlocked": True}
+    )
+
+    return {
+        "success": True,
+        "message": "Thanh toán qua VNPay thành công! Tài khoản đã được tự động mở khóa.",
+        "transactionRef": req.transactionRef,
+        "amount": req.amount,
+        "unlocked": True,
+        "paidAt": now_iso,
+        "fine": fine
+    }
 
 
 # ================= RECOMMENDATIONS (Gợi ý sách cá nhân hóa) =================

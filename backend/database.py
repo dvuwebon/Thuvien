@@ -115,6 +115,10 @@ class DatabaseManager:
         """Hủy đặt trước sách trên cả MySQL và SQLite"""
         return self.mysql_mgr.cancel_reservation(res_id)
 
+    def toggle_reader_lock(self, reader_id: int, is_locked: bool, reason: Optional[str] = None):
+        """Khóa hoặc mở khóa tài khoản độc giả"""
+        return self.mysql_mgr.toggle_reader_lock(reader_id, is_locked, reason)
+
 
 # Khởi tạo Singleton Database Manager kết nối trực tiếp MySQL
 db_manager = DatabaseManager()

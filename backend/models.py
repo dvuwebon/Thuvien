@@ -85,3 +85,23 @@ class ReservationCreate(BaseModel):
 class FineStatusUpdate(BaseModel):
     status: Optional[str] = "Đã nộp"
     note: Optional[str] = None
+    paymentMethod: Optional[str] = "Tiền mặt"
+    transactionRef: Optional[str] = None
+
+class ReaderLockUpdate(BaseModel):
+    isLocked: bool
+    reason: Optional[str] = None
+
+class VNPayPaymentCreate(BaseModel):
+    fineId: Optional[int] = None
+    readerId: int
+    amount: float
+    orderInfo: Optional[str] = None
+    bankCode: Optional[str] = None
+
+class VNPayPaymentVerify(BaseModel):
+    fineId: Optional[int] = None
+    readerId: int
+    transactionRef: str
+    amount: float
+    status: Optional[str] = "SUCCESS"

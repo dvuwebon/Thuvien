@@ -3,7 +3,7 @@ import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2, Down
 import QRCode from 'qrcode';
 import { exportApi } from '../services/exportApi';
 
-export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve, onCancelReserve, activeReservationCount = 0 }) {
+export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve, onCancelReserve, activeReservationCount = 0, isUserLocked = false }) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
 
   const isUpcoming = Boolean(book?.isUpcoming || book?.status === 'Sắp phát hành' || book?.status === 'Sắp có');
@@ -211,6 +211,23 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                 )}
               </div>
             )}
+            {isUserLocked && (
+              <div style={{
+                background: '#fef2f2',
+                border: '1px solid #fca5a5',
+                borderRadius: '8px',
+                padding: '10px 14px',
+                fontSize: '12.5px',
+                color: '#991b1b',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginTop: '12px'
+              }}>
+                <AlertCircle size={18} style={{ color: '#ef4444', flexShrink: 0 }} />
+                <span>Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ 3 ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản trước khi mượn hoặc đặt trước sách.</span>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -218,13 +235,19 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
             {!isAdmin && !isUpcoming && available > 0 && (
               <button
                 onClick={() => {
+                  if (isUserLocked) {
+                    alert('Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ 3 ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản.');
+                    return;
+                  }
                   onClose();
                   onBorrow(book);
                 }}
                 className="btn btn-primary"
+                style={isUserLocked ? { opacity: 0.6, cursor: 'not-allowed', background: '#94a3b8', borderColor: '#94a3b8' } : {}}
+                title={isUserLocked ? "Tài khoản đang bị khóa do quá hạn mượn sách" : "Đăng ký mượn cuốn này"}
               >
                 <BookMarked size={16} />
-                <span>Đăng ký mượn cuốn này</span>
+                <span>{isUserLocked ? 'Tài khoản đang bị khóa' : 'Đăng ký mượn cuốn này'}</span>
               </button>
             )}
             {!isAdmin && (isUpcoming || available <= 0) && (
@@ -257,11 +280,28 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
               ) : (
                 <button
                   onClick={() => {
+                    if (isUserLocked) {
+                      alert('Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ 3 ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản.');
+                      return;
+                    }
                     onClose();
                     if (onReserve) onReserve(book);
                   }}
                   className="btn"
-                  style={{
+                  style={isUserLocked ? {
+                    background: '#94a3b8',
+                    color: '#ffffff',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '9px 18px',
+                    borderRadius: '8px',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    opacity: 0.6,
+                    cursor: 'not-allowed'
+                  } : {
                     background: isUpcoming
                       ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
                       : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
@@ -279,10 +319,10 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                       : '0 4px 12px rgba(234, 88, 12, 0.35)',
                     cursor: 'pointer'
                   }}
-                  title={isUpcoming ? "Bấm để đăng ký vào hàng chờ đặt trước sách ưu tiên!" : "Sách đang tạm hết. Bấm để xếp hàng chờ nhận sách ưu tiên!"}
+                  title={isUserLocked ? "Tài khoản đang bị khóa do quá hạn mượn sách" : (isUpcoming ? "Bấm để đăng ký vào hàng chờ đặt trước sách ưu tiên!" : "Sách đang tạm hết. Bấm để xếp hàng chờ nhận sách ưu tiên!")}
                 >
                   <Clock size={16} />
-                  <span>Đặt trước (Vào hàng chờ)</span>
+                  <span>{isUserLocked ? 'Tài khoản đang bị khóa' : 'Đặt trước (Vào hàng chờ)'}</span>
                 </button>
               )
             )}

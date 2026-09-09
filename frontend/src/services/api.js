@@ -1119,13 +1119,13 @@ export const api = {
     return list;
   },
 
-  payFine: async (fineId) => {
+  payFine: async (fineId, paymentMethod = 'Tiền mặt', transactionRef = '') => {
     if (!isStaticHost) {
       try {
         const res = await fetch(`${API_BASE}/fines/${fineId}/pay`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'Đã nộp' })
+          body: JSON.stringify({ status: 'Đã nộp', paymentMethod, transactionRef })
         });
         if (res.ok) {
           const result = await res.json();
@@ -1135,10 +1135,126 @@ export const api = {
       } catch (e) {}
     }
     const db = getLocalDb();
-    db.fines = (db.fines || []).map(f => Number(f.id) === Number(fineId) ? { ...f, status: 'Đã nộp', paidAt: new Date().toISOString() } : f);
+    let readerIdToUnlock = null;
+    db.fines = (db.fines || []).map(f => {
+      if (Number(f.id) === Number(fineId)) {
+        readerIdToUnlock = f.readerId;
+        return { ...f, status: 'Đã nộp', paymentMethod, transactionRef, paidAt: new Date().toISOString() };
+      }
+      return f;
+    });
+    if (readerIdToUnlock) {
+      const unpaid = (db.fines || []).filter(f => Number(f.readerId) === Number(readerIdToUnlock) && f.status === 'Chưa nộp');
+      if (unpaid.length === 0) {
+        db.users = (db.users || []).map(u => Number(u.id) === Number(readerIdToUnlock) ? { ...u, isLocked: false, lockReason: '' } : u);
+      }
+    }
     saveLocalDb(db);
     notifyDataUpdated('fine');
-    return { success: true };
+    return { success: true, message: 'Đã thanh toán tiền phạt thành công!' };
+  },
+
+  // Cổng thanh toán VNPay
+  createVNPayPayment: async (data) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/payment/vnpay/create`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
+    // Offline / GitHub Pages fallback
+    const txnRef = `VNP${Date.now()}`;
+    const amount = Number(data.amount || 0);
+    const orderInfo = data.orderInfo || `SMARTLIB NOP PHAT DG-${String(data.readerId).padStart(3, '0')}`;
+    const qrCodeUrl = `https://api.vietqr.io/image/970422-0987654321-compact2.jpg?amount=${amount}&addInfo=${encodeURIComponent(orderInfo)}&accountName=${encodeURIComponent('THU VIEN SMARTLIB')}`;
+    return {
+      txnRef,
+      amount,
+      orderInfo,
+      bankName: 'Ngân hàng TMCP Quân Đội (MBBank)',
+      accountNumber: '0987654321',
+      accountName: 'THƯ VIỆN THÔNG MINH SMARTLIB',
+      qrCodeUrl,
+      fineId: data.fineId,
+      readerId: data.readerId
+    };
+  },
+
+  verifyVNPayPayment: async (data) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/payment/vnpay/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('fine');
+          notifyDataUpdated('reader');
+          return result;
+        }
+      } catch (e) {}
+    }
+    // Offline / LocalStorage fallback
+    const db = getLocalDb();
+    const nowIso = new Date().toISOString();
+    let found = false;
+    db.fines = (db.fines || []).map(f => {
+      if (Number(f.readerId) === Number(data.readerId) && f.status === 'Chưa nộp') {
+        found = true;
+        return { ...f, status: 'Đã nộp', paidAt: nowIso, paymentMethod: 'VNPay', transactionRef: data.transactionRef };
+      }
+      return f;
+    });
+    if (!found) {
+      db.fines = [...(db.fines || []), {
+        id: Date.now(),
+        readerId: data.readerId,
+        bookTitle: 'Phí phạt trễ hạn mượn sách',
+        fineAmount: data.amount,
+        status: 'Đã nộp',
+        paidAt: nowIso,
+        paymentMethod: 'VNPay',
+        transactionRef: data.transactionRef
+      }];
+    }
+    db.users = (db.users || []).map(u => Number(u.id) === Number(data.readerId) ? { ...u, isLocked: false, lockReason: '' } : u);
+    saveLocalDb(db);
+    notifyDataUpdated('fine');
+    notifyDataUpdated('reader');
+    return {
+      success: true,
+      message: 'Thanh toán qua VNPay thành công! Tài khoản đã được tự động mở khóa.',
+      unlocked: true,
+      paidAt: nowIso
+    };
+  },
+
+  toggleReaderLock: async (readerId, isLocked, reason = '') => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/readers/${readerId}/toggle-lock`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isLocked, reason })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('reader');
+          return result;
+        }
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    db.users = (db.users || []).map(u => Number(u.id) === Number(readerId) ? { ...u, isLocked, lockReason: isLocked ? (reason || 'Khóa bởi thủ thư') : '' } : u);
+    saveLocalDb(db);
+    notifyDataUpdated('reader');
+    return { success: true, isLocked, lockReason: isLocked ? reason : '' };
   },
 
   // Recommendations (Gợi ý sách cá nhân hóa)
