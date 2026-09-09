@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Star, BookOpen } from 'lucide-react';
 
 const UPCOMING_BOOKS = [
   {
@@ -114,6 +114,53 @@ const UPCOMING_BOOKS = [
   }
 ];
 
+// Hàm render sao đánh giá chuẩn hệ thống SmartLib
+function renderStars(rating = 5.0) {
+  const stars = [];
+  for (let i = 1; i <= 5; i++) {
+    if (rating >= i) {
+      stars.push(
+        <Star key={i} size={11.5} fill="#eab308" color="#eab308" style={{ flexShrink: 0 }} />
+      );
+    } else if (rating >= i - 0.5) {
+      stars.push(
+        <div
+          key={i}
+          style={{
+            position: 'relative',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '11.5px',
+            height: '11.5px',
+            flexShrink: 0
+          }}
+        >
+          <Star size={11.5} fill="#fefce8" color="#eab308" style={{ display: 'block' }} />
+          <div
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '50%',
+              height: '100%',
+              overflow: 'hidden',
+              display: 'flex'
+            }}
+          >
+            <Star size={11.5} fill="#eab308" color="#eab308" style={{ flexShrink: 0 }} />
+          </div>
+        </div>
+      );
+    } else {
+      stars.push(
+        <Star key={i} size={11.5} fill="none" color="#cbd5e1" style={{ flexShrink: 0 }} />
+      );
+    }
+  }
+  return stars;
+}
+
 export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [] }) {
   const [showAll, setShowAll] = useState(false);
   const [subscribedIds, setSubscribedIds] = useState([]);
@@ -141,7 +188,6 @@ export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [
         fontFamily: "'Inter', system-ui, -apple-system, sans-serif"
       }}
     >
-
       {/* Header Tag màu xanh dương #2563eb đồng bộ thương hiệu SmartLib */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
@@ -177,7 +223,7 @@ export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [
         </span>
       </div>
 
-      {/* Grid 5 cột chuẩn bố cục: Giãn đều 100% không để khoảng trống thừa bên phải */}
+      {/* Grid 5 cột chuẩn bố cục: Giãn đều 100% đồng bộ với danh sách sách chính */}
       <div className="upcoming-books-grid">
         {displayedBooks.map((item) => {
           const isSubscribed = subscribedIds.includes(item.id) || (reservedBookIds && reservedBookIds.includes(item.id));
@@ -187,121 +233,185 @@ export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [
               key={item.id}
               onClick={() => onSelectBook && onSelectBook({ ...item, isReserved: isSubscribed })}
               style={{
+                background: '#ffffff',
+                border: '1px solid #eef2f6',
+                borderRadius: '12px',
+                overflow: 'hidden',
                 cursor: 'pointer',
+                transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'all 0.2s ease',
-                width: '100%'
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.02)',
+                position: 'relative',
+                userSelect: 'none',
+                height: '100%'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-5px)';
+                e.currentTarget.style.boxShadow = '0 12px 24px -4px rgba(0, 0, 0, 0.08)';
+                e.currentTarget.style.borderColor = '#cbd5e1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.02)';
+                e.currentTarget.style.borderColor = '#eef2f6';
               }}
             >
-              {/* Poster Container với các lớp Overlay đồng bộ */}
+              {/* 1. Bìa sách nguyên vẹn chuẩn BookCard (Không cắt xén, nền nhẹ, bóng đổ tinh tế) */}
               <div
                 style={{
-                  position: 'relative',
                   width: '100%',
-                  aspectRatio: '2 / 2.85',
-                  borderRadius: '10px',
+                  height: '240px',
                   overflow: 'hidden',
-                  background: '#f1f5f9',
-                  boxShadow: '0 4px 14px rgba(15, 23, 42, 0.08)',
-                  marginBottom: '10px',
-                  border: '1px solid #e2e8f0'
+                  background: 'linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%)',
+                  position: 'relative',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '10px 8px',
+                  borderBottom: '1px solid #f1f5f9'
                 }}
               >
-                {/* Ảnh bìa poster */}
-                <img
-                  src={item.cover}
-                  alt={item.title}
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover'
-                  }}
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=600&q=80';
-                  }}
-                  loading="lazy"
-                />
-
-                {/* Gradient tối che trên dưới để làm nổi chữ ngày phát hành */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    background: 'linear-gradient(180deg, rgba(15,23,42,0.15) 0%, rgba(15,23,42,0.35) 45%, rgba(15,23,42,0.85) 100%)',
-                    pointerEvents: 'none'
-                  }}
-                />
-
-                {/* Chính giữa: Ngày phát hành chữ trắng lớn */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: '50%',
-                    transform: 'translate(-50%, -50%)',
-                    textAlign: 'center',
-                    width: '92%',
-                    pointerEvents: 'none'
-                  }}
-                >
-                  <div
+                {item.cover ? (
+                  <img
+                    src={item.cover}
+                    alt={item.title}
                     style={{
-                      fontFamily: "'Inter', sans-serif",
-                      fontSize: item.releaseDate.length > 8 ? '20px' : '22px',
-                      fontWeight: 900,
-                      color: '#ffffff',
-                      textShadow: '0 2px 10px rgba(0,0,0,0.95), 0 0 16px rgba(0,0,0,0.85)',
-                      letterSpacing: '0.5px',
-                      lineHeight: 1.15
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                      display: 'block',
+                      filter: 'drop-shadow(0 4px 10px rgba(0, 0, 0, 0.12))',
+                      borderRadius: '4px'
                     }}
-                  >
-                    {item.releaseDate}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                    }}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: '#94a3b8', gap: '6px' }}>
+                    <BookOpen size={40} />
+                    <span style={{ fontSize: '11px', fontWeight: 600 }}>Không có ảnh bìa</span>
                   </div>
-                </div>
+                )}
 
-                {/* Banner đáy poster: Nhãn SẮP CÓ */}
+                {/* Huy hiệu Sắp có / Đã đặt ở góc trên bên phải */}
                 <div
                   style={{
                     position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    background: '#2563eb',
+                    top: '10px',
+                    right: '10px',
+                    background: isSubscribed ? 'rgba(22, 163, 74, 0.92)' : 'rgba(37, 99, 235, 0.92)',
                     color: '#ffffff',
-                    textAlign: 'center',
-                    padding: '4px 2px',
-                    boxShadow: '0 -2px 10px rgba(37, 99, 235, 0.3)'
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    padding: '2.5px 8px',
+                    borderRadius: '6px',
+                    backdropFilter: 'blur(4px)',
+                    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.12)',
+                    letterSpacing: '0.2px'
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: '11.5px',
-                      fontWeight: 800,
-                      letterSpacing: '0.8px',
-                      textTransform: 'uppercase'
-                    }}
-                  >
-                    SẮP CÓ
-                  </div>
+                  {isSubscribed ? '✓ Đã đặt' : 'Sắp có'}
                 </div>
               </div>
 
-              {/* Tên sách dưới poster màu tối chuẩn SmartLib */}
+              {/* 2. Phần thông tin sách (Tiêu đề sách & Tác giả) */}
               <div
-                title={item.title}
                 style={{
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color: '#0f172a',
-                  lineHeight: 1.35,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
+                  padding: '12px 14px 14px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  justifyContent: 'space-between',
+                  background: '#ffffff'
                 }}
               >
-                {item.title}
+                <div>
+                  <h3
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      lineHeight: 1.35,
+                      margin: '0 0 3px 0',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.color = '#2563eb';
+                      e.currentTarget.style.textDecoration = 'underline';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.color = '#0f172a';
+                      e.currentTarget.style.textDecoration = 'none';
+                    }}
+                    title={item.title}
+                  >
+                    {item.title}
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: '12px',
+                      color: '#64748b',
+                      margin: '0 0 10px 0',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title={item.author}
+                  >
+                    {item.author || 'Chưa rõ tác giả'}
+                  </p>
+                </div>
+
+                {/* 3. Footer: Đánh giá sao (0) & Nút Xem » */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    borderTop: '1px solid #f1f5f9',
+                    paddingTop: '8px',
+                    marginTop: '4px'
+                  }}
+                >
+                  <div
+                    style={{ display: 'flex', alignItems: 'center', gap: '3px' }}
+                    title={`Đánh giá: ${item.rating || 5.0} / 5.0 sao`}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5px', color: '#eab308' }}>
+                      {renderStars(item.rating || 5.0)}
+                    </div>
+                    <span
+                      style={{
+                        color: '#64748b',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        marginLeft: '3px'
+                      }}
+                    >
+                      (0)
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span
+                      style={{
+                        color: '#2563eb',
+                        fontWeight: 700,
+                        fontSize: '12px',
+                        letterSpacing: '0.2px'
+                      }}
+                    >
+                      Xem »
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           );
