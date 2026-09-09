@@ -910,8 +910,16 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     loadData();
   };
 
+  // Chỉ tính các đầu sách thực tế trong kho thư viện (loại trừ 10 cuốn sách sắp về / sắp phát hành)
+  const actualBooks = books.filter(b => 
+    b.status !== 'Upcoming' && 
+    b.status !== 'Sắp phát hành' && 
+    b.status !== 'Sắp có' && 
+    Number(b.id) < 51
+  );
+
   // Filtered Lists
-  const filteredBooks = books.filter(b => {
+  const filteredBooks = actualBooks.filter(b => {
     const matchSearch = b.title.toLowerCase().includes(bookSearch.toLowerCase()) || (b.author && b.author.toLowerCase().includes(bookSearch.toLowerCase()));
     const matchCat = bookCategory === 'All' || b.category === bookCategory;
     return matchSearch && matchCat;
@@ -934,7 +942,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
            (r.email && r.email.toLowerCase().includes(readerSearch.toLowerCase()));
   });
 
-  const categories = ['All', ...new Set(books.map(b => b.category).filter(Boolean))];
+  const categories = ['All', ...new Set(actualBooks.map(b => b.category).filter(Boolean))];
 
   return (
     <div style={{ padding: '28px 32px', flex: 1, background: '#ffffff' }}>
@@ -977,7 +985,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   Tổng số sách
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: '6px 0 8px 0', lineHeight: 1 }}>
-                  {books.length}
+                  {stats?.totalBooks || actualBooks.length}
                 </div>
                 <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <TrendingUp size={13} /> +12 so với tháng trước
@@ -1253,7 +1261,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                       title="Chuyển sang tab Quản lý Kho sách để xem toàn bộ 50 đầu sách"
                     >
                       <BookOpen size={13} />
-                      <span>Xem Kho sách ({books.length} đầu sách) →</span>
+                      <span>Xem Kho sách ({actualBooks.length} đầu sách) →</span>
                     </button>
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
@@ -1592,7 +1600,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
             <div>
               <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>Quản lý Kho Sách Thư Viện</h2>
               <p style={{ color: '#64748b', fontSize: '13.5px', marginTop: '2px' }}>
-                Quản lý chi tiết toàn bộ {books.length} đầu sách, tồn kho và cập nhật trực tiếp vào cơ sở dữ liệu
+                Quản lý chi tiết toàn bộ {actualBooks.length} đầu sách thực tế, tồn kho và cập nhật trực tiếp vào cơ sở dữ liệu
               </p>
             </div>
             <button

@@ -988,7 +988,8 @@ export const api = {
 
     const db = getLocalDb();
     const books = db.books || [];
-    const totalBooks = books.length;
+    const actualBooks = books.filter(b => b.status !== 'Upcoming' && b.status !== 'Sắp phát hành' && b.status !== 'Sắp có' && Number(b.id) < 51);
+    const totalBooks = actualBooks.length;
     const totalReaders = (db.users || []).filter(u => u.role === 'Reader').length;
     const records = db.borrowRecords || [];
     const activeBorrows = records.filter(r => r.status === 'Đang mượn').length;

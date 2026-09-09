@@ -886,8 +886,13 @@ def get_stats():
     users = db.get("users", [])
     records = db.get("borrowRecords", [])
 
-    total_books = len(books)
-    total_copies = sum(int(b.get("quantity", 1)) for b in books)
+    # Chỉ tính các đầu sách thực tế trong kho (loại trừ sách Sắp phát hành / Sắp về)
+    actual_books = [
+        b for b in books
+        if b.get("status") not in ["Upcoming", "Sắp phát hành", "Sắp có"] and int(b.get("id", 0)) < 51
+    ]
+    total_books = len(actual_books)
+    total_copies = sum(int(b.get("quantity", 1)) for b in actual_books)
     total_readers = sum(1 for u in users if u.get("role") == "Reader")
     
     borrowing_count = sum(1 for r in records if r.get("status") == "Đang mượn")
@@ -920,7 +925,10 @@ def get_stats():
 @app.get("/api/export/books/excel")
 def export_books_excel():
     db = db_manager.load_db()
-    books = db.get("books", [])
+    books = [
+        b for b in db.get("books", [])
+        if b.get("status") not in ["Upcoming", "Sắp phát hành", "Sắp có"] and int(b.get("id", 0)) < 51
+    ]
     records = db.get("borrowRecords", [])
     
     books_with_borrowed = []
