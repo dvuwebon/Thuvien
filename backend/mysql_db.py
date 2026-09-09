@@ -279,6 +279,7 @@ class MySQLDatabaseManager:
         self.engine = None
         self.SessionLocal = None
         self._is_connected = False
+        self._last_connect_attempt = 0
         self._init_connection()
 
     def _get_connection_url(self, with_db: bool = True) -> str:
@@ -287,6 +288,10 @@ class MySQLDatabaseManager:
         return f"mysql+pymysql://{self.user}:{encoded_pass}@{self.host}:{self.port}{db_part}?charset=utf8mb4"
 
     def _init_connection(self):
+        now = time.time()
+        if now - getattr(self, "_last_connect_attempt", 0) < 15:
+            return
+        self._last_connect_attempt = now
         try:
             # 1. Kết nối tới MySQL server (không chỉ định DB để tạo DB nếu chưa có)
             root_engine = create_engine(self._get_connection_url(with_db=False), echo=False, pool_pre_ping=True)
