@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Star, ChevronRight, Bell, Check } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 const UPCOMING_BOOKS = [
   {
@@ -114,10 +114,9 @@ const UPCOMING_BOOKS = [
   }
 ];
 
-export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancelReserve, reservedBookIds = [] }) {
+export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [] }) {
   const [showAll, setShowAll] = useState(false);
   const [subscribedIds, setSubscribedIds] = useState([]);
-  const [toastMsg, setToastMsg] = useState('');
 
   // Đồng bộ danh sách sách đã đặt trước từ tài khoản độc giả
   useEffect(() => {
@@ -128,31 +127,6 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancel
 
   // Mặc định chỉ hiển thị 5 cuốn, khi click XEM THÊM sẽ hiển thị đủ cả 10 cuốn
   const displayedBooks = showAll ? UPCOMING_BOOKS : UPCOMING_BOOKS.slice(0, 5);
-
-  const handleToggleNotify = (book, e) => {
-    e.stopPropagation();
-    const isSub = subscribedIds.includes(book.id) || (reservedBookIds && reservedBookIds.includes(book.id));
-    if (isSub) {
-      setSubscribedIds(prev => prev.filter(id => id !== book.id));
-      if (onCancelReserve) {
-        onCancelReserve(book);
-      } else {
-        showToast('Đã hủy đặt trước: ' + book.title);
-      }
-    } else {
-      setSubscribedIds(prev => [...prev, book.id]);
-      if (onReserve) {
-        onReserve(book);
-      } else {
-        showToast('✓ Đã đăng ký vào hàng chờ đặt trước: ' + book.title);
-      }
-    }
-  };
-
-  const showToast = (msg) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(''), 3000);
-  };
 
   return (
     <section
@@ -167,26 +141,6 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancel
         fontFamily: "'Inter', system-ui, -apple-system, sans-serif"
       }}
     >
-      {toastMsg && (
-        <div
-          style={{
-            position: 'fixed',
-            top: '24px',
-            right: '24px',
-            background: '#0f172a',
-            color: '#f8fafc',
-            border: '1px solid #3b82f6',
-            padding: '12px 18px',
-            borderRadius: '10px',
-            boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-            zIndex: 9999,
-            fontSize: '13px',
-            fontWeight: 600
-          }}
-        >
-          {toastMsg}
-        </div>
-      )}
 
       {/* Header Tag màu xanh dương #2563eb đồng bộ thương hiệu SmartLib */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
@@ -275,59 +229,10 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancel
                   style={{
                     position: 'absolute',
                     inset: 0,
-                    background: 'linear-gradient(180deg, rgba(15,23,42,0.2) 0%, rgba(15,23,42,0.4) 45%, rgba(15,23,42,0.85) 100%)',
+                    background: 'linear-gradient(180deg, rgba(15,23,42,0.15) 0%, rgba(15,23,42,0.35) 45%, rgba(15,23,42,0.85) 100%)',
                     pointerEvents: 'none'
                   }}
                 />
-
-                {/* Top-left: Huy hiệu ⭐ Rating */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '8px',
-                    left: '8px',
-                    background: 'rgba(15, 23, 42, 0.82)',
-                    backdropFilter: 'blur(4px)',
-                    color: '#fbbf24',
-                    borderRadius: '20px',
-                    padding: '3px 9px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    fontSize: '11px',
-                    fontWeight: 800
-                  }}
-                >
-                  <Star size={12} fill="#fbbf24" strokeWidth={0} />
-                  <span>{item.rating}</span>
-                </div>
-
-                {/* Top-right: Nút chuông đăng ký nhận thông báo */}
-                <button
-                  type="button"
-                  onClick={(e) => handleToggleNotify(item, e)}
-                  title={isSubscribed ? 'Đã đặt trước (Bấm để hủy)' : 'Đặt trước vào hàng chờ'}
-                  style={{
-                    position: 'absolute',
-                    top: '8px',
-                    right: '8px',
-                    background: isSubscribed ? '#16a34a' : 'rgba(15, 23, 42, 0.75)',
-                    backdropFilter: 'blur(4px)',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '50%',
-                    width: '26px',
-                    height: '26px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    boxShadow: isSubscribed ? '0 2px 8px rgba(22, 163, 74, 0.4)' : 'none'
-                  }}
-                >
-                  {isSubscribed ? <Check size={13} strokeWidth={3} /> : <Bell size={13} />}
-                </button>
 
                 {/* Chính giữa: Ngày phát hành chữ trắng lớn */}
                 <div
@@ -393,16 +298,10 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancel
                   lineHeight: 1.35,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  marginBottom: '3px'
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {item.title}
-              </div>
-
-              {/* Số lượt xem / quan tâm */}
-              <div style={{ fontSize: '11.5px', color: '#64748b', fontWeight: 500 }}>
-                Lượt xem: {item.views}
               </div>
             </div>
           );
