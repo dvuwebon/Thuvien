@@ -567,6 +567,47 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
             notif_type="book_returned",
             meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle"), "readerName": record.get("readerName"), "fineAmount": fine_amount}
         )
+
+        # ✅ TỰ ĐỘNG QUÉT BẢNG HÀNG CHỜ ĐẶT TRƯỚC (FIFO QUEUE)
+        book_id = record.get("bookId")
+        if book_id:
+            reservations = db.get("reservations", [])
+            waiting_queue = [
+                r for r in reservations
+                if int(r.get("bookId", 0)) == int(book_id) and r.get("status") == "Waiting"
+            ]
+            if waiting_queue:
+                waiting_queue.sort(key=lambda x: (int(x.get("priority", 999)), x.get("reservedAt", "")))
+                top_res = waiting_queue[0]
+                top_res["status"] = "Ready"
+                exp_dt = datetime.now() + timedelta(hours=48)
+                top_res["expiresAt"] = exp_dt.isoformat()
+                db_manager.save_db(db)
+
+                # Gửi thông báo ưu tiên trực tiếp tới độc giả đứng đầu hàng chờ
+                db_manager.add_notification(
+                    recipient_role="Reader",
+                    recipient_user_id=top_res.get("readerId"),
+                    title="🎉 Sách bạn đặt trước đã về thư viện!",
+                    message=f"Cuốn sách \"{record.get('bookTitle')}\" bạn đang chờ trong hàng chờ (Ưu tiên #{top_res.get('priority', 1)}) đã có sẵn tại thư viện! Hệ thống đã kích hoạt quyền ưu tiên cho bạn trong vòng 48 giờ (trước {exp_dt.strftime('%H:%M ngày %d/%m/%Y')}).",
+                    notif_type="reservation_ready",
+                    meta={
+                        "reservationId": top_res.get("id"),
+                        "bookId": book_id,
+                        "bookTitle": record.get("bookTitle"),
+                        "priority": top_res.get("priority", 1),
+                        "expiresAt": top_res["expiresAt"]
+                    }
+                )
+
+                # Gửi thông báo cho Quản trị viên / Thủ thư
+                db_manager.add_notification(
+                    recipient_role="Admin",
+                    title="Sách hàng chờ đã về kho",
+                    message=f"Cuốn sách \"{record.get('bookTitle')}\" vừa được trả về. Hệ thống đã kích hoạt lượt ưu tiên số 1 cho độc giả {top_res.get('readerName')} (Hàng chờ #{top_res.get('priority', 1)}) - Thời hạn giữ sách: 48h.",
+                    notif_type="reservation_ready",
+                    meta={"reservationId": top_res.get("id"), "bookId": book_id, "readerId": top_res.get("readerId")}
+                )
     elif req.status == "Đã hủy":
         db_manager.add_notification(
             recipient_role="Admin",

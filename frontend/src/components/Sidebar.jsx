@@ -4,7 +4,7 @@ import { useNotifications } from '../context/NotificationContext';
 import NotificationDropdown from './NotificationDropdown';
 import {
   BookOpen, BookmarkCheck, History, Settings, LogOut,
-  LayoutDashboard, Users, FileSpreadsheet, MessageSquare
+  LayoutDashboard, Users, FileSpreadsheet, MessageSquare, Clock
 } from 'lucide-react';
 
 function NavItem({ active, onClick, icon, label }) {
@@ -280,6 +280,12 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
                 onClick={() => onTabChange('history')}
                 icon={<History size={17} strokeWidth={2} />}
                 label="Lịch sử mượn trả"
+              />
+              <NavItem
+                active={activeTab === 'reservations'}
+                onClick={() => onTabChange('reservations')}
+                icon={<Clock size={17} strokeWidth={2} />}
+                label="Hàng chờ đặt trước"
               />
             </>
           ) : (

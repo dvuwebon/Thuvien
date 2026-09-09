@@ -1159,5 +1159,78 @@ export const api = {
       favoriteCategory: favCat,
       books: recs.slice(0, limit)
     };
+  },
+
+  // Reservations & Queue Management (Hàng chờ & Đặt trước sách)
+  getReservations: async (userId = null) => {
+    if (!isStaticHost) {
+      try {
+        const url = userId ? `${API_BASE}/reservations?userId=${userId}` : `${API_BASE}/reservations`;
+        const res = await fetch(url);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    let resvs = db.reservations || [];
+    if (userId) resvs = resvs.filter(r => Number(r.readerId) === Number(userId));
+    return resvs;
+  },
+
+  createReservation: async (data) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/reservations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('reservation');
+          return result;
+        } else {
+          const err = await res.json();
+          throw new Error(err.detail || 'Lỗi khi đặt trước sách');
+        }
+      } catch (e) {
+        if (e.message && !e.message.includes('fetch')) throw e;
+      }
+    }
+    const db = getLocalDb();
+    const resvs = db.reservations || [];
+    const sameWaiting = resvs.filter(r => Number(r.bookId) === Number(data.bookId) && r.status === 'Waiting');
+    const priority = sameWaiting.length + 1;
+    const newRes = {
+      id: Date.now(),
+      bookId: data.bookId,
+      readerId: data.readerId,
+      status: 'Waiting',
+      priority,
+      reservedAt: new Date().toISOString()
+    };
+    db.reservations = [...resvs, newRes];
+    saveLocalDb(db);
+    notifyDataUpdated('reservation');
+    return { success: true, reservation: newRes, message: 'Đặt trước sách thành công! Vị trí hàng chờ: #' + priority };
+  },
+
+  cancelReservation: async (resId) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/reservations/${resId}`, {
+          method: 'DELETE'
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('reservation');
+          return result;
+        }
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    db.reservations = (db.reservations || []).map(r => Number(r.id) === Number(resId) ? { ...r, status: 'Cancelled' } : r);
+    saveLocalDb(db);
+    notifyDataUpdated('reservation');
+    return { success: true, message: 'Đã hủy đặt trước.' };
   }
 };

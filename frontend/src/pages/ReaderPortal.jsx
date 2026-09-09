@@ -11,11 +11,13 @@ import {
 } from 'lucide-react';
 
 import FeaturedCarousel from '../components/FeaturedCarousel';
+import UpcomingBooksSection from '../components/UpcomingBooksSection';
 
 export default function ReaderPortal({ activeTab, onTabChange }) {
   const { user } = useAuth();
   const [books, setBooks] = useState([]);
   const [myBorrows, setMyBorrows] = useState([]);
+  const [myReservations, setMyReservations] = useState([]);
   const [recommendations, setRecommendations] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -54,7 +56,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     }
   };
 
-  // 2. Tải phiếu mượn của riêng độc giả (payload siêu nhẹ < 2KB, không kèm base64 ảnh)
+  // 2. Tải phiếu mượn & hàng chờ của riêng độc giả (payload siêu nhẹ < 2KB, không kèm base64 ảnh)
   const loadBorrowsOnly = async (silent = false) => {
     try {
       if (!silent) setLoading(true);
@@ -72,6 +74,11 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         });
         setMyBorrows(myFiltered);
 
+        // Tải danh sách sách trong hàng chờ đặt trước của độc giả
+        api.getReservations(uId).then(resvs => {
+          setMyReservations(resvs || []);
+        }).catch(() => {});
+
         // Fetch AI recommendations
         api.getRecommendations(uId).then(rec => setRecommendations(rec)).catch(() => {});
       }
@@ -79,6 +86,36 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       console.error('Error loading reader borrows:', e);
     } finally {
       if (!silent) setLoading(false);
+    }
+  };
+
+  const handleCreateReservation = async (book) => {
+    if (!user) {
+      showToast('Vui lòng đăng nhập để đặt trước sách.');
+      return;
+    }
+    try {
+      const uId = user.id ? Number(user.id) : 2;
+      const res = await api.createReservation({
+        bookId: book.id,
+        readerId: uId
+      });
+      showToast(res.message || '✓ Đặt trước sách thành công! Bạn đã được thêm vào hàng chờ.');
+      loadBorrowsOnly(true);
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+    } catch (e) {
+      showToast(e.message || 'Không thể đặt trước sách lúc này.');
+    }
+  };
+
+  const handleCancelReservation = async (resId) => {
+    try {
+      await api.cancelReservation(resId);
+      showToast('Đã hủy yêu cầu đặt trước sách.');
+      loadBorrowsOnly(true);
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+    } catch (e) {
+      showToast('Lỗi khi hủy đặt trước: ' + (e.message || ''));
     }
   };
 
@@ -114,12 +151,13 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     };
   }, [user]);
 
-  // Khi chuyển tab: chỉ cập nhật phiếu mượn, không reload sách
+  // Khi chuyển tab: chỉ cập nhật phiếu mượn/hàng chờ, không reload sách
   useEffect(() => {
-    if (activeTab === 'borrows' || activeTab === 'history') {
+    if (activeTab === 'borrows' || activeTab === 'history' || activeTab === 'reservations' || activeTab === 'active-borrows') {
       loadBorrowsOnly(true);
     }
   }, [activeTab]);
+
 
   // Reset to page 1 when search or category changes
   useEffect(() => {
@@ -313,6 +351,24 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
             </div>
           )}
 
+          {/* Mục SÁCH SẮP CÓ (Upcoming Books Section - Bố cục 5 cột chuẩn theo ảnh mẫu) */}
+          <UpcomingBooksSection
+            onReserve={handleCreateReservation}
+            onSelectBook={(book) => {
+              setSelectedBook({
+                id: book.id,
+                title: book.title,
+                author: 'Dự kiến phát hành: ' + book.releaseDate,
+                category: book.category || 'Manga & Light Novel',
+                quantity: 0,
+                available: 0,
+                borrowed: 0,
+                desc: 'Tác phẩm đang chuẩn bị phát hành và sẽ sớm có mặt tại thư viện trong đợt nhập sách tới (' + book.releaseDate + '). Lượt quan tâm hiện tại: ' + book.views + '.',
+                imageUrl: book.cover
+              });
+              setDetailModalOpen(true);
+            }}
+          />
 
           {/* Header Kho sách (My Library) & Search/Filter */}
           <div
@@ -672,6 +728,148 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         </div>
       )}
 
+      {/* TAB 4: HÀNG CHỜ ĐẶT TRƯỚC SÁCH (FIFO QUEUE) */}
+      {activeTab === 'reservations' && (
+        <div>
+          <div style={{ marginBottom: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+              <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ea580c', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Clock size={18} />
+              </div>
+              <h2 style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                Hàng chờ đặt trước sách
+              </h2>
+            </div>
+            <p style={{ margin: 0, fontSize: '13.5px', color: '#64748b' }}>
+              Hệ thống quản lý hàng chờ tự động theo thứ tự ưu tiên FIFO. Khi sách được trả về thư viện, độc giả đứng đầu hàng chờ sẽ nhận được thông báo để mượn sách trong vòng 48 giờ.
+            </p>
+          </div>
+
+          {/* Thẻ tóm tắt trạng thái */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
+            <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #3b82f6' }}>
+              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Tổng số sách đã đặt</div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: '#1e293b', marginTop: '4px' }}>
+                {myReservations.length}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #f59e0b' }}>
+              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Đang xếp hàng chờ sách về</div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: '#d97706', marginTop: '4px' }}>
+                {myReservations.filter(r => r.status === 'Waiting').length}
+              </div>
+            </div>
+
+            <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #16a34a' }}>
+              <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Sách đã về (Sẵn sàng mượn)</div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
+                {myReservations.filter(r => r.status === 'Ready').length}
+              </div>
+            </div>
+          </div>
+
+          {/* Danh sách bản ghi hàng chờ */}
+          {myReservations.length === 0 ? (
+            <div className="card" style={{ textAlign: 'center', padding: '56px 20px' }}>
+              <Clock size={48} style={{ margin: '0 auto 12px', color: '#cbd5e1' }} />
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#334155', margin: '0 0 6px 0' }}>
+                Hàng chờ hiện đang trống
+              </h3>
+              <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '480px', margin: '0 auto 18px auto' }}>
+                Khi bạn tìm kiếm thấy một cuốn sách đang hết bản sao sẵn có hoặc tại mục "Sách sắp có", bạn có thể bấm <strong>"Đặt trước"</strong> để xếp hàng ưu tiên nhận sách sớm nhất.
+              </p>
+              <button
+                onClick={() => onTabChange && onTabChange('catalog')}
+                className="btn btn-primary"
+                style={{ padding: '8px 20px', fontSize: '13px' }}
+              >
+                Khám phá kho sách
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+              {myReservations.map(res => {
+                const isReady = res.status === 'Ready';
+                const isWaiting = res.status === 'Waiting';
+
+                return (
+                  <div
+                    key={res.id}
+                    className="card"
+                    style={{
+                      padding: '20px',
+                      margin: 0,
+                      borderLeft: `4px solid ${isReady ? '#16a34a' : isWaiting ? '#ea580c' : '#94a3b8'}`,
+                      background: isReady ? '#f0fdf4' : '#ffffff'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                      <span className={`badge ${isReady ? 'badge-success' : isWaiting ? 'badge-warning' : 'badge-neutral'}`}>
+                        {isReady ? '🎉 Sách đã về kho!' : isWaiting ? `⏳ Hàng chờ #${res.priority || 1}` : res.status}
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Mã #{res.id}</span>
+                    </div>
+
+                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '6px', lineHeight: 1.35 }}>
+                      {res.bookTitle}
+                    </h3>
+
+                    <div style={{ background: isReady ? '#dcfce7' : '#f8fafc', padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '14px' }}>
+                      <div>Thời gian đăng ký: <strong>{res.reservedAt ? res.reservedAt.substring(0, 16).replace('T', ' ') : '-'}</strong></div>
+                      <div>
+                        Vị trí ưu tiên: <strong style={{ color: '#2563eb' }}>Số #{res.priority || 1} trong hàng chờ</strong>
+                      </div>
+                      {isReady && res.expiresAt && (
+                        <div style={{ color: '#b91c1c', fontWeight: 700 }}>
+                          ⏰ Hạn giữ chỗ ưu tiên: Đến {res.expiresAt.substring(0, 16).replace('T', ' ')}
+                        </div>
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      {isReady && (
+                        <button
+                          onClick={() => {
+                            const b = books.find(item => Number(item.id) === Number(res.bookId)) || { id: res.bookId, title: res.bookTitle };
+                            setBorrowTargetBook(b);
+                            setBorrowModalOpen(true);
+                          }}
+                          className="btn btn-primary"
+                          style={{
+                            background: '#16a34a',
+                            borderColor: '#16a34a',
+                            fontSize: '12.5px',
+                            padding: '6px 16px',
+                            fontWeight: 700
+                          }}
+                        >
+                          Mượn sách ngay
+                        </button>
+                      )}
+
+                      {isWaiting && (
+                        <button
+                          onClick={() => handleCancelReservation(res.id)}
+                          className="btn btn-outline"
+                          style={{
+                            color: '#dc2626',
+                            borderColor: '#fca5a5',
+                            fontSize: '12px',
+                            padding: '5px 12px'
+                          }}
+                        >
+                          Hủy đặt trước
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modals */}
       <BookDetailModal
@@ -679,6 +877,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         isOpen={detailModalOpen}
         onClose={() => { setDetailModalOpen(false); setSelectedBook(null); }}
         onBorrow={(b) => { setBorrowTargetBook(b); setBorrowModalOpen(true); }}
+        onReserve={handleCreateReservation}
         isAdmin={false}
       />
 

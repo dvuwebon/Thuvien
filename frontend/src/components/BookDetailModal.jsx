@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2, Download } from 'lucide-react';
+import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2, Download, Clock } from 'lucide-react';
 import QRCode from 'qrcode';
 import { exportApi } from '../services/exportApi';
 
-export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin }) {
+export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve }) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
 
   useEffect(() => {
@@ -181,6 +181,33 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
               >
                 <BookMarked size={16} />
                 <span>Đăng ký mượn cuốn này</span>
+              </button>
+            )}
+            {!isAdmin && available <= 0 && (
+              <button
+                onClick={() => {
+                  onClose();
+                  if (onReserve) onReserve(book);
+                }}
+                className="btn"
+                style={{
+                  background: 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                  color: '#ffffff',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  boxShadow: '0 4px 12px rgba(234, 88, 12, 0.35)',
+                  cursor: 'pointer'
+                }}
+                title="Sách đang tạm hết. Bấm để xếp hàng chờ nhận sách ưu tiên!"
+              >
+                <Clock size={16} />
+                <span>Đặt trước (Vào hàng chờ)</span>
               </button>
             )}
           </div>
