@@ -121,7 +121,9 @@ export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [
   // Đồng bộ danh sách sách đã đặt trước từ tài khoản độc giả
   useEffect(() => {
     if (reservedBookIds && Array.isArray(reservedBookIds)) {
-      setSubscribedIds(prev => Array.from(new Set([...prev, ...reservedBookIds])));
+      setSubscribedIds(reservedBookIds);
+    } else {
+      setSubscribedIds([]);
     }
   }, [reservedBookIds]);
 

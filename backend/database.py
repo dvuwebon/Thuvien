@@ -111,6 +111,10 @@ class DatabaseManager:
         """Dọn dẹp các thông báo đã đọc trong MySQL"""
         return self.mysql_mgr.clear_read_notifications(role=role, user_id=user_id)
 
+    def cancel_reservation(self, res_id: int):
+        """Hủy đặt trước sách trên cả MySQL và SQLite"""
+        return self.mysql_mgr.cancel_reservation(res_id)
+
 
 # Khởi tạo Singleton Database Manager kết nối trực tiếp MySQL
 db_manager = DatabaseManager()

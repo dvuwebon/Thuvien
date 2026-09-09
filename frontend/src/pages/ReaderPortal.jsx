@@ -76,7 +76,13 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
         // Tải danh sách sách trong hàng chờ đặt trước của độc giả
         api.getReservations(uId).then(resvs => {
-          const cleanResvs = (resvs || []).filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+          const cleanResvs = (resvs || []).filter(r => 
+            Number(r.bookId) !== 3 && 
+            !((r.bookTitle || '').toLowerCase().includes('tru tiên')) &&
+            r.status !== 'Cancelled' && 
+            r.status !== 'Hủy' && 
+            r.status !== 'Fulfilled'
+          );
           setMyReservations(cleanResvs);
         }).catch(() => {});
 
@@ -134,6 +140,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
   const handleCancelReservation = async (resId) => {
     try {
+      // Cập nhật giao diện ngay lập tức
+      setMyReservations(prev => prev.filter(r => Number(r.id) !== Number(resId)));
       await api.cancelReservation(resId);
       showToast('Đã hủy yêu cầu đặt trước sách.');
       setSelectedBook(prev => prev ? { ...prev, isReserved: false } : null);
@@ -141,6 +149,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
     } catch (e) {
       showToast('Lỗi khi hủy đặt trước: ' + (e.message || ''));
+      loadBorrowsOnly(true);
     }
   };
 

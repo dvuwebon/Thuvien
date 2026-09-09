@@ -479,11 +479,101 @@ class MySQLDatabaseManager:
         finally:
             session.close()
 
+    def _save_to_local_sqlite(self, data: Dict[str, Any]):
+        """Đồng bộ dữ liệu sang smartlib_local.db khi MySQL chưa hoạt động hoặc làm bản sao lưu an toàn"""
+        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_local.db"))
+        if not os.path.exists(db_path):
+            return
+        try:
+            sqlite_engine = create_engine(f"sqlite:///{db_path}")
+            SqliteSession = sessionmaker(bind=sqlite_engine)
+            session = SqliteSession()
+
+            # 1. Sync Books
+            for b in data.get("books", []):
+                bid = b.get("id")
+                if not bid:
+                    continue
+                existing_b = session.query(BookModel).filter_by(id=bid).first()
+                qty = int(b.get("quantity", 1))
+                avail = int(b.get("available", qty))
+                if existing_b:
+                    existing_b.quantity = qty
+                    existing_b.available_copies = avail
+                    existing_b.status = b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách")
+
+            # 2. Sync Reservations
+            for res in data.get("reservations", []):
+                resid = res.get("id")
+                if not resid:
+                    continue
+                existing_res = session.query(ReservationModel).filter_by(id=resid).first()
+                if existing_res:
+                    existing_res.status = res.get("status", existing_res.status)
+                    existing_res.priority = int(res.get("priority", existing_res.priority))
+                else:
+                    exp_dt = datetime.fromisoformat(res.get("expiresAt")) if res.get("expiresAt") else datetime.utcnow()
+                    new_res = ReservationModel(
+                        id=resid,
+                        user_id=res.get("readerId") or res.get("userId") or 2,
+                        book_id=res.get("bookId") or 1,
+                        priority=int(res.get("priority", 1)),
+                        expires_at=exp_dt,
+                        status=res.get("status", "Waiting")
+                    )
+                    session.add(new_res)
+
+            # 3. Sync BorrowRecords
+            for br in data.get("borrowRecords", []):
+                brid = br.get("id")
+                if not brid:
+                    continue
+                existing_br = session.query(BorrowRecordModel).filter_by(id=brid).first()
+                if existing_br:
+                    existing_br.status = br.get("status", existing_br.status)
+
+            session.commit()
+            session.close()
+            logger.info("✓ Đã lưu và đồng bộ thay đổi vào smartlib_local.db")
+        except Exception as e:
+            logger.error(f"Lỗi khi lưu dữ liệu vào SQLite: {e}")
+
+    def cancel_reservation(self, res_id: int):
+        """Hủy đặt trước sách và cập nhật trạng thái đồng thời trên MySQL và SQLite"""
+        if self.SessionLocal:
+            try:
+                session = self.SessionLocal()
+                res = session.query(ReservationModel).filter_by(id=res_id).first()
+                if res:
+                    res.status = "Cancelled"
+                    session.commit()
+                session.close()
+            except Exception as e:
+                logger.error(f"Lỗi hủy đặt trước trên MySQL: {e}")
+
+        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_local.db"))
+        if os.path.exists(db_path):
+            try:
+                sqlite_engine = create_engine(f"sqlite:///{db_path}")
+                SqliteSession = sessionmaker(bind=sqlite_engine)
+                session = SqliteSession()
+                res = session.query(ReservationModel).filter_by(id=res_id).first()
+                if res:
+                    res.status = "Cancelled"
+                    session.commit()
+                session.close()
+                logger.info(f"✓ Đã cập nhật Cancelled cho đặt trước #{res_id} trong SQLite")
+            except Exception as e:
+                logger.error(f"Lỗi hủy đặt trước trên SQLite: {e}")
+
     def save_db(self, data: Dict[str, Any]):
         """
         Đồng bộ toàn bộ dữ liệu từ Dict vào các bảng MySQL quan hệ.
         """
         invalidate_books_cache()
+        # Luôn sao lưu và đồng bộ dữ liệu vào SQLite dự phòng
+        self._save_to_local_sqlite(data)
+
         if not self.SessionLocal:
             self._init_connection()
         if not self.SessionLocal:
@@ -638,6 +728,8 @@ class MySQLDatabaseManager:
             session.close()
 
     def mark_notification_read(self, notif_id: int):
+        if not self.SessionLocal:
+            return
         session = self.SessionLocal()
         try:
             notif = session.query(NotificationModel).filter_by(id=notif_id).first()
@@ -651,6 +743,8 @@ class MySQLDatabaseManager:
             session.close()
 
     def mark_all_notifications_read(self, role: Optional[str] = None, user_id: Optional[int] = None):
+        if not self.SessionLocal:
+            return
         session = self.SessionLocal()
         try:
             q = session.query(NotificationModel)
@@ -669,6 +763,8 @@ class MySQLDatabaseManager:
             session.close()
 
     def delete_notification(self, notif_id: int):
+        if not self.SessionLocal:
+            return
         session = self.SessionLocal()
         try:
             notif = session.query(NotificationModel).filter_by(id=notif_id).first()
@@ -682,6 +778,8 @@ class MySQLDatabaseManager:
             session.close()
 
     def clear_read_notifications(self, role: Optional[str] = None, user_id: Optional[int] = None):
+        if not self.SessionLocal:
+            return
         session = self.SessionLocal()
         try:
             q = session.query(NotificationModel).filter(NotificationModel.is_read == True)
@@ -708,6 +806,40 @@ class MySQLDatabaseManager:
         recipient_user_id: Optional[int] = None,
         meta: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
+        if not self.SessionLocal:
+            db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_local.db"))
+            if os.path.exists(db_path):
+                try:
+                    sqlite_engine = create_engine(f"sqlite:///{db_path}")
+                    SqliteSession = sessionmaker(bind=sqlite_engine)
+                    session = SqliteSession()
+                    notif = NotificationModel(
+                        recipient_role=recipient_role,
+                        recipient_user_id=recipient_user_id,
+                        title=title,
+                        message=message,
+                        type=notif_type,
+                        is_read=False,
+                        meta_json=meta or {},
+                        created_at=datetime.utcnow()
+                    )
+                    session.add(notif)
+                    session.commit()
+                    session.refresh(notif)
+                    res_dict = notif.to_dict()
+                    session.close()
+                    return res_dict
+                except Exception as e:
+                    logger.error(f"Lỗi khi add_notification vào SQLite: {e}")
+            return {
+                "id": 9999,
+                "recipientRole": recipient_role,
+                "title": title,
+                "message": message,
+                "type": notif_type,
+                "isRead": False,
+                "createdAt": datetime.utcnow().isoformat()
+            }
         session = self.SessionLocal()
         try:
             notif = NotificationModel(

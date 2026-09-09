@@ -778,6 +778,7 @@ def cancel_reservation(res_id: int):
     reservations[idx]["status"] = "Cancelled"
     db["reservations"] = reservations
     db_manager.save_db(db)
+    db_manager.cancel_reservation(res_id)
     return {"message": "Đã hủy đặt trước sách."}
 
 
