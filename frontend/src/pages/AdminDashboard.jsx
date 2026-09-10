@@ -633,14 +633,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
   const borrowTableRef = useRef(null);
   const booksTableRef = useRef(null);
 
+  const [pendingQueueModalOpen, setPendingQueueModalOpen] = useState(false);
+
   const handleFilterAndScrollBorrows = (status) => {
+    setActiveBorrowView('borrows');
     setBorrowStatusFilter(status);
+    setBorrowSearch('');
     setTimeout(() => {
       const target = borrowTableRef.current || document.getElementById('borrow-records-table');
       if (target) {
         target.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
-    }, 50);
+    }, 80);
   };
 
   // Modals state
@@ -1140,32 +1144,68 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
           {/* Banner thông báo khi có yêu cầu mượn chờ duyệt */}
           {borrowRecords.filter(r => r.status === 'Chờ duyệt').length > 0 && (
             <div
-              onClick={() => handleFilterAndScrollBorrows('Chờ duyệt')}
+              onClick={() => {
+                setPendingQueueModalOpen(true);
+                handleFilterAndScrollBorrows('Chờ duyệt');
+              }}
               style={{
                 background: '#fffbeb',
                 border: borrowStatusFilter === 'Chờ duyệt' ? '2px solid #f59e0b' : '1px solid #fde68a',
-                borderRadius: '12px',
-                padding: '12px 18px',
+                borderRadius: '14px',
+                padding: '14px 20px',
                 marginBottom: '18px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 cursor: 'pointer',
-                transition: 'all 0.15s ease'
+                transition: 'all 0.15s ease',
+                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.08)'
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = '#fef3c7'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = '#fffbeb'; }}
-              title="Nhấn để cuộn xuống xem danh sách yêu cầu chờ duyệt"
+              title="Nhấn để xem ngay danh sách và duyệt cho độc giả mượn sách"
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#b45309', fontSize: '13.5px', fontWeight: 600 }}>
-                <Clock size={18} color="#d97706" />
-                <span>
-                  Đang có <strong style={{ color: '#92400e', fontSize: '14px' }}>{borrowRecords.filter(r => r.status === 'Chờ duyệt').length} yêu cầu mượn sách</strong> chờ thủ thư phê duyệt!
-                </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#b45309', fontSize: '13.5px', fontWeight: 600 }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Clock size={20} color="#d97706" />
+                </div>
+                <div>
+                  <div style={{ fontSize: '14px' }}>
+                    Đang có <strong style={{ color: '#92400e', fontSize: '15px' }}>{borrowRecords.filter(r => r.status === 'Chờ duyệt').length} yêu cầu mượn sách</strong> chờ thủ thư phê duyệt!
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#b45309', fontWeight: 500, marginTop: '2px' }}>
+                    Nhấn vào đây để xem ngay danh sách và xử lý phê duyệt
+                  </div>
+                </div>
               </div>
-              <span style={{ background: '#f59e0b', color: '#ffffff', fontSize: '12px', fontWeight: 700, padding: '5px 12px', borderRadius: '6px' }}>
-                Xem danh sách chờ duyệt »
-              </span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPendingQueueModalOpen(true);
+                  handleFilterAndScrollBorrows('Chờ duyệt');
+                }}
+                style={{
+                  background: '#f59e0b',
+                  color: '#ffffff',
+                  fontSize: '12.5px',
+                  fontWeight: 700,
+                  padding: '7px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 2px 6px rgba(245, 158, 11, 0.35)',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#d97706'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#f59e0b'; }}
+              >
+                <span>Xem danh sách chờ duyệt</span>
+                <span>»</span>
+              </button>
             </div>
           )}
 
@@ -2357,6 +2397,216 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 }}
               >
                 {isReturning ? 'Đang xử lý...' : 'Xác nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL HIỂN THỊ HÀNG CHỜ DUYỆT MƯỢN SÁCH */}
+      {pendingQueueModalOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 9998,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+          onClick={() => setPendingQueueModalOpen(false)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '660px',
+              width: '100%',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '18px 24px',
+                borderBottom: '1px solid #f1f5f9',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: '#fffbeb'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Clock size={20} color="#d97706" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#92400e', margin: 0 }}>
+                    Hàng Chờ Duyệt Mượn Sách
+                  </h3>
+                  <div style={{ fontSize: '12px', color: '#b45309', marginTop: '2px' }}>
+                    Đang có <strong>{borrowRecords.filter(r => r.status === 'Chờ duyệt').length}</strong> yêu cầu cần thủ thư phê duyệt
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingQueueModalOpen(false)}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = '#0f172a'; e.currentTarget.style.background = '#f1f5f9'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body: Danh sách yêu cầu chờ duyệt */}
+            <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {borrowRecords.filter(r => r.status === 'Chờ duyệt').length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b', fontSize: '14px' }}>
+                  <CheckCircle size={36} color="#16a34a" style={{ margin: '0 auto 10px auto' }} />
+                  <div>Tất cả yêu cầu mượn sách đã được xử lý xong!</div>
+                </div>
+              ) : (
+                borrowRecords.filter(r => r.status === 'Chờ duyệt').map(record => (
+                  <div
+                    key={record.id}
+                    style={{
+                      border: '1px solid #fde68a',
+                      background: '#fffdfa',
+                      borderRadius: '12px',
+                      padding: '16px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '16px',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                        <span style={{ fontWeight: 700, color: '#64748b', fontSize: '12.5px' }}>#{record.id}</span>
+                        <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '14.5px' }}>{record.bookTitle}</span>
+                      </div>
+                      <div style={{ fontSize: '12.5px', color: '#475569', display: 'flex', flexWrap: 'wrap', gap: '14px' }}>
+                        <span>Độc giả: <strong style={{ color: '#0f172a' }}>{record.readerName}</strong> ({getReaderCode(record.readerId)})</span>
+                        <span>Hình thức: <strong style={{ color: '#2563eb' }}>{record.borrowType || 'Mượn về nhà'}</strong></span>
+                        <span>Ngày yêu cầu: <strong style={{ color: '#64748b' }}>{record.borrowDate ? record.borrowDate.substring(0, 10) : 'Hôm nay'}</strong></span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingQueueModalOpen(false);
+                          setBorrowActionModal({ type: 'approve', record });
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          background: '#16a34a',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '7px 14px',
+                          fontSize: '12.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 4px rgba(22,163,74,0.25)'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#15803d'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = '#16a34a'; }}
+                      >
+                        <Check size={14} /> Duyệt
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingQueueModalOpen(false);
+                          setBorrowActionModal({ type: 'reject', record });
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          background: '#fee2e2',
+                          color: '#dc2626',
+                          border: '1px solid #fecaca',
+                          borderRadius: '8px',
+                          padding: '7px 14px',
+                          fontSize: '12.5px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = '#fecaca'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = '#fee2e2'; }}
+                      >
+                        <X size={14} /> Từ chối
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '14px 24px',
+                borderTop: '1px solid #f1f5f9',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: '#f8fafc'
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setPendingQueueModalOpen(false);
+                  handleFilterAndScrollBorrows('Chờ duyệt');
+                }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  color: '#2563eb',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                Xem chi tiết trên bảng chính →
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setPendingQueueModalOpen(false)}
+                className="btn btn-outline"
+                style={{ padding: '7px 16px', fontSize: '13px', borderRadius: '8px' }}
+              >
+                Đóng
               </button>
             </div>
           </div>
