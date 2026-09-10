@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../services/api';
-import { exportApi } from '../services/exportApi';
 import { useAuth } from '../context/AuthContext';
 import BookCard from '../components/BookCard';
 import BookDetailModal from '../components/BookDetailModal';
 import BorrowModal from '../components/BorrowModal';
 import {
-  Search, BookOpen, Clock, CheckCircle, AlertTriangle,
-  BookMarked, Calendar, ArrowRight, Sparkles, Filter, ChevronLeft, ChevronRight,
+  Search, BookOpen, Clock, CheckCircle,
+  BookMarked, ArrowRight, ChevronLeft, ChevronRight,
   Lock, CreditCard
 } from 'lucide-react';
 
@@ -435,7 +434,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   };
 
   const activeBorrowsList = myBorrows.filter(r => r.status === 'Đang mượn' || r.status === 'Chờ duyệt' || r.status === 'Quá hạn');
-  const historyBorrowsList = myBorrows.filter(r => r.status === 'Đã trả' || r.status === 'Từ chối');
 
   return (
     <div style={{ padding: '32px 36px', flex: 1, background: '#ffffff', minHeight: '100vh', boxSizing: 'border-box' }}>
@@ -614,7 +612,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                     setSelectedBook({ ...book, isReserved: isResv });
                     setDetailModalOpen(true);
                   }}
-                  onBorrow={(book) => { setBorrowTargetBook(book); setBorrowModalOpen(true); }}
+                  onBorrow={handleOpenBorrowModal}
                   isAdmin={false}
                 />
               ))
@@ -709,7 +707,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       )}
 
       {/* TAB 2: SÁCH ĐANG MƯỢN */}
-      {activeTab === 'active-borrows' && (
+      {(activeTab === 'active-borrows' || activeTab === 'borrows') && (
         <div>
           <div style={{ marginBottom: '24px' }}>
             <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>Danh sách Sách Đang Mượn & Chờ Duyệt</h2>
@@ -733,21 +731,17 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
               {activeBorrowsList.map(r => {
-                const isLibraryBorrow = r.borrowType && (
-                  r.borrowType.toLowerCase().includes('thư viện') ||
-                  r.borrowType.toLowerCase().includes('tại chỗ')
-                );
                 const canReturn = r.status === 'Đang mượn' || r.status === 'Quá hạn';
                 const canCancel = r.status === 'Chờ duyệt';
                 const diffDays = r.returnDate ? Math.max(0, Math.floor((new Date() - new Date(r.returnDate)) / (1000 * 60 * 60 * 24))) : 0;
                 const isOverdue = r.status === 'Quá hạn' || diffDays > 0;
-                const itemFineAmount = Math.max(diffDays * 2000, 2000);
+                const itemFineAmount = calculateBorrowFine(r);
 
                 return (
-                  <div key={r.id} className="card" style={{ padding: '20px', margin: 0, borderLeft: `4px solid ${r.status === 'Đang mượn' ? '#16a34a' : (r.status === 'Quá hạn' || diffDays > 0) ? '#ef4444' : '#f59e0b'}` }}>
+                  <div key={r.id} className="card" style={{ padding: '20px', margin: 0, borderLeft: `4px solid ${r.status === 'Đang mượn' && !isOverdue ? '#16a34a' : isOverdue ? '#ef4444' : '#f59e0b'}` }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                      <span className={`badge ${r.status === 'Đang mượn' && diffDays === 0 ? 'badge-success' : (r.status === 'Quá hạn' || diffDays > 0) ? 'badge-danger' : 'badge-warning'}`}>
-                        {diffDays > 0 ? `Quá hạn ${diffDays} ngày` : r.status}
+                      <span className={`badge ${r.status === 'Đang mượn' && !isOverdue ? 'badge-success' : isOverdue ? 'badge-danger' : 'badge-warning'}`}>
+                        {diffDays > 0 ? `Quá hạn ${diffDays} ngày` : isOverdue ? 'Quá hạn' : r.status}
                       </span>
                       <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Phiếu #{r.id}</span>
                     </div>
@@ -781,10 +775,10 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
                     <div style={{ background: '#f8fafc', padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <div>Ngày mượn: <strong>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</strong></div>
-                      <div>Hạn trả sách: <strong style={{ color: (r.status === 'Quá hạn' || diffDays > 0) ? '#ef4444' : '#0f172a' }}>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</strong></div>
+                      <div>Hạn trả sách: <strong style={{ color: isOverdue ? '#ef4444' : '#0f172a' }}>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</strong></div>
                     </div>
 
-                    {diffDays > 0 && (
+                    {isOverdue && (
                       <div style={{
                         marginTop: '10px',
                         padding: '8px 12px',
@@ -799,7 +793,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                         alignItems: 'center'
                       }}>
                         <span>Tiền phạt: <strong style={{ color: '#dc2626' }}>{itemFineAmount.toLocaleString('vi-VN')} đ</strong> (2.000 đ/ngày)</span>
-                        {diffDays >= 3 && (
+                        {(diffDays >= 3 || r.status === 'Quá hạn') && (
                           <span style={{
                             background: '#dc2626',
                             color: '#fff',
@@ -860,7 +854,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                       </div>
 
                       {/* Nút Nộp phạt VNPay khi trễ hạn */}
-                      {diffDays > 0 && (
+                      {isOverdue && (
                         <button
                           type="button"
                           onClick={() => {
@@ -964,7 +958,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          {r.fine_amount > 0 ? (
+                          {Number(r.fine_amount || r.fineAmount || 0) > 0 ? (
                             <span style={{
                               display: 'inline-block',
                               background: '#fef2f2',
@@ -975,12 +969,12 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                               fontSize: '12px',
                               fontWeight: 700
                             }}
-                            title={`Trễ ${r.overdue_days || 0} ngày`}
+                            title={`Trễ ${r.overdue_days || r.overdueDays || r.daysOverdue || 0} ngày`}
                             >
-                              {Number(r.fine_amount).toLocaleString('vi-VN')} đ
+                              {Number(r.fine_amount || r.fineAmount).toLocaleString('vi-VN')} đ
                             </span>
                           ) : (
-                            <span style={{ color: '#86efac', fontSize: '12px', fontWeight: 600 }}>
+                            <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 600 }}>
                               {r.status === 'Đã trả' ? '✓ Đúng hạn' : '-'}
                             </span>
                           )}
@@ -1156,7 +1150,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         book={selectedBook}
         isOpen={detailModalOpen}
         onClose={() => { setDetailModalOpen(false); setSelectedBook(null); }}
-        onBorrow={(b) => { setBorrowTargetBook(b); setBorrowModalOpen(true); }}
+        onBorrow={handleOpenBorrowModal}
         onReserve={handleCreateReservation}
         onCancelReserve={(b) => handleCancelReservationForBook(b.id)}
         activeReservationCount={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' && Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))).length}
