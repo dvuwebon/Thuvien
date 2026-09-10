@@ -109,8 +109,7 @@ export default function App() {
           minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
-          background: '#ffffff',
-          overflowY: 'auto'
+          background: '#ffffff'
         }}
       >
         {activeTab === 'profile' ? (
