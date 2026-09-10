@@ -281,6 +281,37 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     await Promise.all([loadBooks(), loadBorrowsOnly(silent)]);
   };
 
+  // Xử lý VNPay return URL params (khi VNPay redirect về sau thanh toán)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const vnpResult = params.get('vnp_result');
+    const vnpTxnRef = params.get('vnp_txnRef');
+    const vnpAmount = params.get('vnp_amount');
+
+    if (vnpResult === 'success' && vnpTxnRef) {
+      // Thanh toán VNPay thành công — tự động trigger handleVNPaySuccess
+      const successData = {
+        success: true,
+        transactionRef: vnpTxnRef,
+        amount: Number(vnpAmount || 0),
+        message: `Thanh toán VNPay thành công! Mã GD: ${vnpTxnRef}. Tài khoản đã được tự động mở khóa.`,
+        unlocked: true
+      };
+      // Xóa params khỏi URL mà không reload trang
+      window.history.replaceState({}, document.title, window.location.pathname);
+      // Trigger success sau 500ms để đảm bảo component đã mount đủ
+      setTimeout(() => {
+        handleVNPaySuccess(successData);
+      }, 500);
+    } else if (vnpResult === 'failed') {
+      const vnpCode = params.get('vnp_code');
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setTimeout(() => {
+        showToast(`⚠️ Thanh toán VNPay thất bại (Mã lỗi: ${vnpCode || 'N/A'}). Vui lòng thử lại.`);
+      }, 500);
+    }
+  }, []); // Chỉ chạy 1 lần khi mount
+
   useEffect(() => {
     loadData();
 
@@ -308,6 +339,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       clearInterval(interval);
     };
   }, [user]);
+
 
   // Khi chuyển tab: chỉ cập nhật phiếu mượn/hàng chờ, không reload sách
   useEffect(() => {

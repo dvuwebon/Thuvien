@@ -1,50 +1,95 @@
-import React, { useState, useEffect } from 'react';
-import { X, CheckCircle, ShieldCheck, QrCode, CreditCard, Clock, AlertTriangle, ExternalLink, RefreshCw } from 'lucide-react';
+﻿import React, { useState, useEffect, useRef } from 'react';
+import {
+  X, CheckCircle, ShieldCheck, QrCode, CreditCard,
+  Clock, AlertTriangle, Copy, Check, RefreshCw,
+  Smartphone, Wifi
+} from 'lucide-react';
 import { api } from '../services/api';
 
 export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amount, onPaymentSuccess, onSuccess }) {
-  const [activeTab, setActiveTab] = useState('qr'); // 'qr' | 'card'
+  const [activeTab, setActiveTab] = useState('qr');
   const [loading, setLoading] = useState(false);
   const [paymentData, setPaymentData] = useState(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [successInfo, setSuccessInfo] = useState(null);
-  const [countdown, setCountdown] = useState(900); // 15 phút
+  const [countdown, setCountdown] = useState(900);
+  const [copiedField, setCopiedField] = useState('');
+  const [pollingActive, setPollingActive] = useState(false);
+  const [confirmLoading, setConfirmLoading] = useState(false);
+  const pollingRef = useRef(null);
 
   const payAmount = Number(amount || fine?.fineAmount || 10000);
   const readerId = reader?.id || fine?.readerId || 2;
-  const readerName = reader?.fullName || fine?.readerName || 'Độc giả';
+  const readerName = reader?.fullName || fine?.readerName || 'Doc gia';
 
   useEffect(() => {
-    if (isOpen) {
-      setPaymentSuccess(false);
-      setSuccessInfo(null);
-      setCountdown(900);
-      setLoading(true);
+    if (!isOpen) return;
+    setPaymentSuccess(false);
+    setSuccessInfo(null);
+    setCountdown(900);
+    setPollingActive(false);
+    setLoading(true);
 
-      const orderInfo = `SMARTLIB NOP PHAT DG-${String(readerId).padStart(3, '0')}`;
-      api.createVNPayPayment({
-        fineId: fine?.id,
-        readerId,
+    const orderInfo = `SMARTLIB NOP PHAT DG-${String(readerId).padStart(3, '0')}`;
+    api.createVNPayPayment({
+      fineId: fine?.id,
+      readerId,
+      amount: payAmount,
+      orderInfo
+    }).then(res => {
+      setPaymentData(res);
+      setPollingActive(true);
+    }).catch(() => {
+      const txnRef = `VNP${Date.now()}_${readerId}`;
+      setPaymentData({
+        txnRef,
         amount: payAmount,
-        orderInfo
-      }).then(res => {
-        setPaymentData(res);
-      }).catch(err => {
-        console.error('Error creating VNPay payment:', err);
-      }).finally(() => {
-        setLoading(false);
+        orderInfo,
+        bankName: 'Ngan hang TMCP Quan Doi (MBBank)',
+        accountNumber: '0987654321',
+        accountName: 'THU VIEN THONG MINH SMARTLIB',
+        qrCodeUrl: `https://api.vietqr.io/image/970422-0987654321-compact2.jpg?amount=${payAmount}&addInfo=${encodeURIComponent(orderInfo)}&accountName=${encodeURIComponent('THU VIEN SMARTLIB')}`
       });
-    }
-  }, [isOpen, fine, readerId, payAmount]);
+      setPollingActive(true);
+    }).finally(() => setLoading(false));
+  }, [isOpen]);
 
-  // Đếm ngược thời gian hết hạn giao dịch (15 phút)
   useEffect(() => {
     if (!isOpen || countdown <= 0 || paymentSuccess) return;
-    const timer = setInterval(() => {
-      setCountdown(prev => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
+    const timer = setInterval(() => setCountdown(prev => (prev > 0 ? prev - 1 : 0)), 1000);
     return () => clearInterval(timer);
   }, [isOpen, countdown, paymentSuccess]);
+
+  useEffect(() => {
+    if (!pollingActive || paymentSuccess || !paymentData?.txnRef) {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      return;
+    }
+    pollingRef.current = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/payment/status/${paymentData.txnRef}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.status === 'PAID') {
+            clearInterval(pollingRef.current);
+            setPollingActive(false);
+            setPaymentSuccess(true);
+            setSuccessInfo(data);
+            if (onPaymentSuccess) onPaymentSuccess(data);
+            if (onSuccess) onSuccess(data);
+          }
+        }
+      } catch (e) {}
+    }, 12000);
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [pollingActive, paymentData?.txnRef, paymentSuccess]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      setPollingActive(false);
+    }
+  }, [isOpen]);
 
   const formatTime = (secs) => {
     const m = Math.floor(secs / 60);
@@ -52,181 +97,143 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   };
 
+  const copyToClipboard = (text, field) => {
+    navigator.clipboard.writeText(text).catch(() => {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    });
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(''), 2200);
+  };
+
   const handleConfirmPayment = async () => {
-    setLoading(true);
+    setConfirmLoading(true);
     try {
       const res = await api.verifyVNPayPayment({
         fineId: fine?.id || paymentData?.fineId,
         readerId,
-        transactionRef: paymentData?.txnRef || `VNP${Date.now()}`,
+        transactionRef: paymentData?.txnRef || `VNP${Date.now()}_${readerId}`,
         amount: payAmount,
         status: 'SUCCESS'
       });
-
       setPaymentSuccess(true);
       setSuccessInfo(res);
-      if (onPaymentSuccess) {
-        onPaymentSuccess(res);
-      }
-      if (onSuccess) {
-        onSuccess(res);
-      }
+      setPollingActive(false);
+      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (onPaymentSuccess) onPaymentSuccess(res);
+      if (onSuccess) onSuccess(res);
     } catch (e) {
-      alert('Lỗi xác nhận thanh toán: ' + (e.message || ''));
+      alert('Loi xac nhan thanh toan: ' + (e.message || 'Vui long thu lai.'));
     } finally {
-      setLoading(false);
+      setConfirmLoading(false);
     }
   };
 
   if (!isOpen) return null;
 
+  const CopyBtn = ({ text, field, label }) => (
+    <button
+      onClick={() => copyToClipboard(text, field)}
+      title={`Sao chep ${label}`}
+      style={{
+        background: copiedField === field ? '#dcfce7' : '#eff6ff',
+        border: `1px solid ${copiedField === field ? '#86efac' : '#bfdbfe'}`,
+        borderRadius: '6px', padding: '3px 8px', cursor: 'pointer',
+        display: 'inline-flex', alignItems: 'center', gap: '4px',
+        fontSize: '11px', color: copiedField === field ? '#15803d' : '#1d4ed8',
+        fontWeight: 700, transition: 'all 0.2s', flexShrink: 0, whiteSpace: 'nowrap'
+      }}
+    >
+      {copiedField === field ? <Check size={11} /> : <Copy size={11} />}
+      {copiedField === field ? 'Da copy' : 'Copy'}
+    </button>
+  );
+
   return (
     <div
       style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(15, 23, 42, 0.75)',
-        backdropFilter: 'blur(5px)',
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '16px',
-        animation: 'fadeIn 0.2s ease-out'
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        backgroundColor: 'rgba(15,23,42,0.82)', backdropFilter: 'blur(6px)',
+        zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
       }}
       onClick={onClose}
     >
       <div
         style={{
-          background: '#ffffff',
-          borderRadius: '16px',
-          width: '100%',
-          maxWidth: '520px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          position: 'relative',
-          fontFamily: "'Inter', system-ui, sans-serif"
+          background: '#fff', borderRadius: '18px', width: '100%', maxWidth: '530px',
+          maxHeight: '92vh', overflowY: 'auto',
+          boxShadow: '0 32px 64px -12px rgba(0,0,0,0.35)',
+          display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif"
         }}
-        onClick={(e) => e.stopPropagation()}
+        onClick={e => e.stopPropagation()}
       >
-        {/* VNPay Header */}
-        <div
-          style={{
-            background: 'linear-gradient(135deg, #005baa 0%, #003e7e 100%)',
-            color: '#ffffff',
-            padding: '18px 22px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            position: 'relative'
-          }}
-        >
+        {/* HEADER */}
+        <div style={{
+          background: 'linear-gradient(135deg, #005baa 0%, #003e7e 100%)',
+          color: '#fff', padding: '16px 20px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderRadius: '18px 18px 0 0', flexShrink: 0
+        }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div
-              style={{
-                background: '#ffffff',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              <span style={{ color: '#ed1c24', fontWeight: 900, fontSize: '18px', letterSpacing: '-0.5px' }}>
-                VNPAY
-              </span>
+            <div style={{ background: '#fff', padding: '4px 10px', borderRadius: '6px' }}>
+              <span style={{ color: '#ed1c24', fontWeight: 900, fontSize: '17px', letterSpacing: '-0.5px' }}>VNPAY</span>
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '15px' }}>Cổng Thanh Toán Trực Tuyến</div>
-              <div style={{ fontSize: '11.5px', color: '#bfdbfe', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <ShieldCheck size={13} />
-                <span>Bảo mật chuẩn Quốc tế PCI-DSS 256-bit</span>
+              <div style={{ fontWeight: 800, fontSize: '14px' }}>Cong Thanh Toan Truc Tuyen</div>
+              <div style={{ fontSize: '11px', color: '#bfdbfe', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                <ShieldCheck size={11} />
+                <span>Bao mat PCI-DSS - Ma hoa SSL 256-bit</span>
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'rgba(255, 255, 255, 0.15)',
-              border: 'none',
-              borderRadius: '50%',
-              width: '32px',
-              height: '32px',
-              color: '#ffffff',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <X size={18} />
+          <button onClick={onClose} style={{
+            background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+            width: '30px', height: '30px', color: '#fff', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+          }}>
+            <X size={16} />
           </button>
         </div>
 
-        {/* Content Body */}
         {paymentSuccess ? (
-          /* Trạng thái thanh toán thành công */
-          <div style={{ padding: '36px 28px', textAlign: 'center' }}>
-            <div
-              style={{
-                width: '68px',
-                height: '68px',
-                borderRadius: '50%',
-                background: '#dcfce7',
-                color: '#16a34a',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px'
-              }}
-            >
+          <div style={{ padding: '32px 24px', textAlign: 'center' }}>
+            <div style={{
+              width: '72px', height: '72px', borderRadius: '50%',
+              background: 'linear-gradient(135deg,#dcfce7,#bbf7d0)', color: '#16a34a',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(22,163,74,0.25)'
+            }}>
               <CheckCircle size={44} strokeWidth={2.5} />
             </div>
-
             <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
-              Thanh Toán VNPay Thành Công!
+              Thanh Toan Thanh Cong! 🎉
             </h3>
-            <p style={{ color: '#15803d', fontSize: '14px', fontWeight: 700, margin: '0 0 20px' }}>
-              🎉 Tài khoản thư viện của bạn đã được TỰ ĐỘNG MỞ KHÓA!
+            <p style={{ color: '#15803d', fontSize: '13.5px', fontWeight: 700, margin: '0 0 20px' }}>
+              Tai khoan thu vien cua ban da duoc TU DONG MO KHOA!
             </p>
-
-            <div
-              style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '12px',
-                padding: '16px',
-                textAlign: 'left',
-                fontSize: '13px',
-                marginBottom: '24px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#64748b' }}>Mã giao dịch VNPay:</span>
-                <strong style={{ color: '#0f172a' }}>{successInfo?.transactionRef || paymentData?.txnRef}</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#64748b' }}>Số tiền đã thanh toán:</span>
-                <strong style={{ color: '#16a34a', fontSize: '15px' }}>{payAmount.toLocaleString('vi-VN')} đ</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#64748b' }}>Độc giả nộp phạt:</span>
-                <strong style={{ color: '#0f172a' }}>{readerName} (DG-{String(readerId).padStart(3, '0')})</strong>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: '#64748b' }}>Trạng thái tài khoản:</span>
-                <span style={{ color: '#16a34a', fontWeight: 800 }}>✓ Đang hoạt động bình thường</span>
-              </div>
+            <div style={{
+              background: '#f0fdf4', border: '1px solid #86efac',
+              borderRadius: '12px', padding: '16px', textAlign: 'left',
+              fontSize: '13px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px'
+            }}>
+              {[
+                { label: 'Ma giao dich:', value: successInfo?.transactionRef || paymentData?.txnRef || '-' },
+                { label: 'So tien da nop:', value: `${payAmount.toLocaleString('vi-VN')} d`, color: '#16a34a', size: '15px' },
+                { label: 'Doc gia:', value: `${readerName} (DG-${String(readerId).padStart(3, '0')})` },
+                { label: 'Trang thai tai khoan:', value: 'v Dang hoat dong binh thuong', color: '#16a34a', weight: 800 }
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#64748b' }}>{item.label}</span>
+                  <strong style={{ color: item.color || '#0f172a', fontSize: item.size || '13px', fontWeight: item.weight || 700 }}>
+                    {item.value}
+                  </strong>
+                </div>
+              ))}
             </div>
-
             <button
               onClick={() => {
                 if (onPaymentSuccess && successInfo) onPaymentSuccess(successInfo);
@@ -234,253 +241,237 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
                 onClose();
               }}
               style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, #16a34a 0%, #15803d 100%)',
-                color: '#ffffff',
-                border: 'none',
-                padding: '12px',
-                borderRadius: '10px',
-                fontSize: '14px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                boxShadow: '0 4px 14px rgba(22, 163, 74, 0.3)'
+                width: '100%', background: 'linear-gradient(135deg,#16a34a,#15803d)',
+                color: '#fff', border: 'none', padding: '13px', borderRadius: '10px',
+                fontSize: '14px', fontWeight: 800, cursor: 'pointer',
+                boxShadow: '0 4px 16px rgba(22,163,74,0.35)'
               }}
             >
-              Hoàn tất & Tiếp tục mượn sách
+              Hoan tat & Tiep tuc muon sach &rarr;
             </button>
           </div>
         ) : (
-          /* Giao diện thanh toán */
-          <div style={{ padding: '20px 24px 24px 24px' }}>
-            {/* Tóm tắt đơn thanh toán */}
-            <div
-              style={{
-                background: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                borderRadius: '12px',
-                padding: '14px 18px',
-                marginBottom: '16px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-            >
+          <div style={{ padding: '18px 20px 20px' }}>
+            {/* Summary */}
+            <div style={{
+              background: 'linear-gradient(135deg,#fef2f2,#fff7f7)',
+              border: '1.5px solid #fecaca', borderRadius: '12px',
+              padding: '14px 16px', marginBottom: '16px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
               <div>
-                <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>
-                  Nộp phạt quá hạn thư viện
+                <div style={{ fontSize: '10.5px', color: '#64748b', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.5px' }}>
+                  Nop phat qua han thu vien
                 </div>
                 <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
-                  {readerName} <span style={{ color: '#64748b', fontWeight: 500 }}>(DG-{String(readerId).padStart(3, '0')})</span>
+                  {readerName}
+                  <span style={{ color: '#94a3b8', fontWeight: 500, fontSize: '12px' }}> - DG-{String(readerId).padStart(3, '0')}</span>
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>Số tiền cần nộp</div>
-                <div style={{ fontSize: '19px', fontWeight: 900, color: '#dc2626' }}>
-                  {payAmount.toLocaleString('vi-VN')} đ
+                <div style={{ fontSize: '10.5px', color: '#64748b', fontWeight: 600 }}>So tien can nop</div>
+                <div style={{ fontSize: '22px', fontWeight: 900, color: '#dc2626', lineHeight: 1.1 }}>
+                  {payAmount.toLocaleString('vi-VN')}<span style={{ fontSize: '13px', fontWeight: 600 }}> d</span>
                 </div>
               </div>
             </div>
 
-            {/* Tabs lựa chọn phương thức */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: '8px',
-                marginBottom: '18px',
-                background: '#f1f5f9',
-                padding: '4px',
-                borderRadius: '10px'
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => setActiveTab('qr')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  padding: '8px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: activeTab === 'qr' ? 700 : 500,
-                  background: activeTab === 'qr' ? '#ffffff' : 'transparent',
-                  color: activeTab === 'qr' ? '#005baa' : '#64748b',
-                  boxShadow: activeTab === 'qr' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <QrCode size={16} />
-                <span>Quét mã VNPay-QR</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab('card')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  padding: '8px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: activeTab === 'card' ? 700 : 500,
-                  background: activeTab === 'card' ? '#ffffff' : 'transparent',
-                  color: activeTab === 'card' ? '#005baa' : '#64748b',
-                  boxShadow: activeTab === 'card' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <CreditCard size={16} />
-                <span>Thẻ ATM / Sandbox</span>
-              </button>
+            {/* Tabs */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', marginBottom: '16px', background: '#f1f5f9', padding: '4px', borderRadius: '10px' }}>
+              {[
+                { id: 'qr', icon: <QrCode size={15} />, label: 'Quet ma VNPay-QR' },
+                { id: 'card', icon: <CreditCard size={15} />, label: 'The ATM / Internet' }
+              ].map(tab => (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  padding: '8px 10px', borderRadius: '8px', border: 'none', fontSize: '12.5px',
+                  fontWeight: activeTab === tab.id ? 700 : 500,
+                  background: activeTab === tab.id ? '#ffffff' : 'transparent',
+                  color: activeTab === tab.id ? '#005baa' : '#64748b',
+                  boxShadow: activeTab === tab.id ? '0 2px 8px rgba(0,91,170,0.12)' : 'none',
+                  cursor: 'pointer', transition: 'all 0.15s ease'
+                }}>
+                  {tab.icon}<span>{tab.label}</span>
+                </button>
+              ))}
             </div>
 
-            {/* TAB 1: VNPay QR */}
+            {/* QR TAB */}
             {activeTab === 'qr' && (
-              <div style={{ textAlign: 'center' }}>
-                <div
-                  style={{
-                    background: '#ffffff',
-                    border: '2px dashed #005baa',
-                    borderRadius: '14px',
-                    padding: '16px',
-                    display: 'inline-block',
-                    marginBottom: '14px',
-                    position: 'relative'
-                  }}
-                >
-                  {paymentData?.qrCodeUrl ? (
-                    <img
-                      src={paymentData.qrCodeUrl}
-                      alt="VNPay QR Code"
-                      style={{ width: '210px', height: '210px', objectFit: 'contain', display: 'block' }}
-                    />
-                  ) : (
-                    <div style={{ width: '210px', height: '210px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b' }}>
-                      <RefreshCw size={24} className="animate-spin" />
+              <div>
+                <div style={{ display: 'flex', gap: '14px', marginBottom: '12px' }}>
+                  <div style={{
+                    background: '#fff', border: '2px solid #005baa', borderRadius: '12px',
+                    padding: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0, position: 'relative', alignSelf: 'flex-start'
+                  }}>
+                    {loading ? (
+                      <div style={{ width: '140px', height: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                        <RefreshCw size={28} />
+                      </div>
+                    ) : paymentData?.qrCodeUrl ? (
+                      <img src={paymentData.qrCodeUrl} alt="VNPay QR"
+                        style={{ width: '140px', height: '140px', objectFit: 'contain', display: 'block' }}
+                        onError={e => { e.target.style.display = 'none'; }} />
+                    ) : (
+                      <div style={{ width: '140px', height: '140px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8' }}>
+                        <QrCode size={40} />
+                      </div>
+                    )}
+                    <div style={{ position: 'absolute', top: '5px', right: '5px', background: '#eff6ff', color: '#1d4ed8', fontSize: '9px', fontWeight: 800, padding: '1px 5px', borderRadius: '4px', border: '1px solid #bfdbfe' }}>VietQR</div>
+                  </div>
+
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '7px' }}>
+                    <div style={{ fontSize: '11.5px', fontWeight: 800, color: '#0f172a' }}>Thong tin chuyen khoan</div>
+
+                    <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '7px 10px' }}>
+                      <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Ngan hang</div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a' }}>{paymentData?.bankName || 'MBBank (Quan Doi)'}</div>
                     </div>
-                  )}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '6px',
-                      right: '6px',
-                      background: '#eff6ff',
-                      color: '#1d4ed8',
-                      fontSize: '10px',
-                      fontWeight: 800,
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      border: '1px solid #bfdbfe'
-                    }}
-                  >
-                    VietQR / VNPay
+
+                    <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '7px 10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>So tai khoan</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#005baa', letterSpacing: '1px' }}>{paymentData?.accountNumber || '0987654321'}</div>
+                        </div>
+                        <CopyBtn text={paymentData?.accountNumber || '0987654321'} field="account" label="so tai khoan" />
+                      </div>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', borderRadius: '8px', padding: '7px 10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>So tien</div>
+                          <div style={{ fontSize: '13px', fontWeight: 800, color: '#dc2626' }}>{payAmount.toLocaleString('vi-VN')} d</div>
+                        </div>
+                        <CopyBtn text={String(payAmount)} field="amount" label="so tien" />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px', color: '#64748b', marginBottom: '14px' }}>
-                  <Clock size={14} color="#ea580c" />
-                  <span>Giao dịch hết hạn trong: <strong style={{ color: '#ea580c' }}>{formatTime(countdown)}</strong></span>
+                <div style={{
+                  background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px',
+                  padding: '10px 12px', marginBottom: '12px',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px'
+                }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Noi dung chuyen khoan (bat buoc)</div>
+                    <div style={{ fontSize: '12.5px', fontWeight: 700, color: '#dc2626', wordBreak: 'break-all' }}>
+                      {paymentData?.orderInfo || `SMARTLIB NOP PHAT DG-${String(readerId).padStart(3, '0')}`}
+                    </div>
+                  </div>
+                  <CopyBtn
+                    text={paymentData?.orderInfo || `SMARTLIB NOP PHAT DG-${String(readerId).padStart(3, '0')}`}
+                    field="content" label="noi dung" />
                 </div>
 
-                <div
-                  style={{
-                    background: '#f8fafc',
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    fontSize: '12px',
-                    color: '#475569',
-                    textAlign: 'left',
-                    marginBottom: '16px',
-                    lineHeight: 1.5
-                  }}
-                >
-                  <div>Ngân hàng: <strong>{paymentData?.bankName || 'MBBank'}</strong></div>
-                  <div>Số tài khoản: <code style={{ color: '#005baa', fontWeight: 700 }}>{paymentData?.accountNumber || '0987654321'}</code></div>
-                  <div>Nội dung CK: <code style={{ color: '#dc2626', fontWeight: 700 }}>{paymentData?.orderInfo || 'SMARTLIB NOP PHAT'}</code></div>
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '10px 12px', marginBottom: '12px', fontSize: '11.5px', color: '#1e40af', lineHeight: 1.7 }}>
+                  <div style={{ fontWeight: 800, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Smartphone size={13} />
+                    Huong dan thanh toan qua App ngan hang:
+                  </div>
+                  <div>
+                    1. Mo App ngan hang &rarr; <strong>Quet ma QR</strong> hoac <strong>Chuyen tien</strong><br />
+                    2. Nhap dung so TK, so tien va noi dung chuyen khoan o tren<br />
+                    3. Xac nhan giao dich thanh cong &rarr; Nhan <strong>"Toi da chuyen khoan"</strong> ben duoi
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', fontSize: '11.5px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Clock size={13} color={countdown < 120 ? '#dc2626' : '#ea580c'} />
+                    <span style={{ color: countdown < 120 ? '#dc2626' : '#64748b' }}>
+                      Het han sau: <strong style={{ color: countdown < 120 ? '#dc2626' : '#ea580c' }}>{formatTime(countdown)}</strong>
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Wifi size={12} color="#22c55e" />
+                    <span style={{ fontSize: '10.5px', color: '#64748b' }}>
+                      {pollingActive ? 'Dang theo doi giao dich...' : 'Cho xac nhan'}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* TAB 2: Thẻ ATM & VNPay Sandbox */}
+            {/* CARD TAB */}
             {activeTab === 'card' && (
-              <div style={{ padding: '8px 4px 16px 4px' }}>
-                <div
-                  style={{
-                    background: '#eff6ff',
-                    border: '1px solid #bfdbfe',
-                    borderRadius: '10px',
-                    padding: '14px',
-                    marginBottom: '16px',
-                    fontSize: '12.5px',
-                    color: '#1e40af'
-                  }}
-                >
-                  <div style={{ fontWeight: 700, marginBottom: '4px' }}>💳 Chế độ Thanh toán Demo / Thẻ ATM:</div>
-                  Hệ thống hỗ trợ mô phỏng thanh toán trực tiếp qua Cổng kiểm thử VNPay Sandbox. Sau khi xác nhận, tài khoản độc giả sẽ được tự động mở khóa ngay tức thì.
+              <div style={{ marginBottom: '14px' }}>
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
+                  <div style={{ fontWeight: 800, fontSize: '13px', color: '#1e40af', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <CreditCard size={14} />
+                    Thanh toan qua The ATM / Internet Banking
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#1e40af', lineHeight: 1.7 }}>
+                    Su dung the ATM noi dia hoac Internet Banking de thanh toan qua cong VNPay.<br />
+                    He thong ho tro <strong>tat ca ngan hang</strong> tai Viet Nam co lien ket VNPay.
+                  </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
-                    <span style={{ color: '#64748b' }}>Cổng thanh toán:</span>
-                    <strong style={{ color: '#005baa' }}>VNPay Sandbox Gateway</strong>
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: '10px', overflow: 'hidden', marginBottom: '14px' }}>
+                  {[
+                    { label: 'Cong thanh toan', value: 'VNPay Sandbox Gateway', color: '#005baa' },
+                    { label: 'Ma giao dich', value: paymentData?.txnRef || 'Dang tao...', mono: true },
+                    { label: 'So tien thanh toan', value: `${payAmount.toLocaleString('vi-VN')} d`, color: '#dc2626', size: '14px' },
+                    { label: 'Doc gia', value: `${readerName} (DG-${String(readerId).padStart(3, '0')})` }
+                  ].map((item, i, arr) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none', fontSize: '12.5px' }}>
+                      <span style={{ color: '#64748b' }}>{item.label}:</span>
+                      <strong style={{ color: item.color || '#0f172a', fontSize: item.size || '12.5px', fontFamily: item.mono ? 'monospace' : 'inherit' }}>
+                        {item.value}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ background: '#f8fafc', borderRadius: '10px', padding: '10px 14px' }}>
+                  <div style={{ fontSize: '10.5px', color: '#94a3b8', fontWeight: 700, marginBottom: '6px' }}>NGAN HANG HO TRO</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                    {['Vietcombank', 'BIDV', 'VietinBank', 'Agribank', 'MBBank', 'Techcombank', 'TPBank', 'VPBank', 'ACB', 'Sacombank'].map(bank => (
+                      <span key={bank} style={{ background: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '4px', fontSize: '10.5px', fontWeight: 600 }}>{bank}</span>
+                    ))}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
-                    <span style={{ color: '#64748b' }}>Mã giao dịch:</span>
-                    <strong>{paymentData?.txnRef || 'VNP_SAMPLE'}</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px' }}>
-                    <span style={{ color: '#64748b' }}>Tổng tiền thanh toán:</span>
-                    <strong style={{ color: '#dc2626', fontSize: '15px' }}>{payAmount.toLocaleString('vi-VN')} đ</strong>
-                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '5px', marginTop: '10px', fontSize: '11.5px' }}>
+                  <Clock size={13} color={countdown < 120 ? '#dc2626' : '#ea580c'} />
+                  <span style={{ color: countdown < 120 ? '#dc2626' : '#64748b' }}>
+                    Het han sau: <strong style={{ color: countdown < 120 ? '#dc2626' : '#ea580c' }}>{formatTime(countdown)}</strong>
+                  </span>
                 </div>
               </div>
             )}
 
-            {/* Action Buttons */}
-            <button
-              onClick={handleConfirmPayment}
-              disabled={loading}
-              style={{
-                width: '100%',
-                background: 'linear-gradient(135deg, #005baa 0%, #004380 100%)',
-                color: '#ffffff',
-                border: 'none',
-                padding: '12px 18px',
-                borderRadius: '10px',
-                fontSize: '14px',
-                fontWeight: 800,
-                cursor: loading ? 'wait' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 14px rgba(0, 91, 170, 0.3)',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {loading ? (
-                <>
-                  <RefreshCw size={16} className="animate-spin" />
-                  <span>Đang kết nối xác thực VNPay...</span>
-                </>
-              ) : (
-                <>
-                  <CheckCircle size={17} />
-                  <span>Xác Nhận Đã Thanh Toán Qua VNPay</span>
-                </>
-              )}
-            </button>
-
-            <p style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'center', margin: '10px 0 0 0' }}>
-              Sau khi xác nhận thanh toán thành công, hệ thống sẽ gạch nợ và tự động mở khóa tài khoản tức thì.
-            </p>
+            {/* ACTION BUTTON */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <button
+                onClick={handleConfirmPayment}
+                disabled={confirmLoading || countdown <= 0}
+                style={{
+                  width: '100%',
+                  background: confirmLoading || countdown <= 0 ? '#94a3b8' : 'linear-gradient(135deg,#005baa,#003e7e)',
+                  color: '#fff', border: 'none', padding: '13px 18px', borderRadius: '10px',
+                  fontSize: '14px', fontWeight: 800,
+                  cursor: confirmLoading || countdown <= 0 ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                  boxShadow: confirmLoading || countdown <= 0 ? 'none' : '0 4px 16px rgba(0,91,170,0.35)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                {confirmLoading ? (
+                  <><RefreshCw size={15} /><span>Dang xac nhan thanh toan...</span></>
+                ) : countdown <= 0 ? (
+                  <><AlertTriangle size={15} /><span>Giao dich da het han - Vui long thu lai</span></>
+                ) : (
+                  <><CheckCircle size={16} /><span>Toi da {activeTab === 'qr' ? 'chuyen khoan' : 'thanh toan'} - Xac nhan ngay</span></>
+                )}
+              </button>
+              <p style={{ fontSize: '10.5px', color: '#94a3b8', textAlign: 'center', margin: '2px 0 0 0', lineHeight: 1.5 }}>
+                Sau khi xac nhan, he thong gach no va tu dong mo khoa tai khoan tuc thi.
+              </p>
+            </div>
           </div>
         )}
       </div>

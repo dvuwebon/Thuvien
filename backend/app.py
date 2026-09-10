@@ -1120,6 +1120,90 @@ def verify_vnpay_payment(req: VNPayPaymentVerify):
     }
 
 
+@app.get("/api/payment/status/{txn_ref}")
+def get_payment_status(txn_ref: str):
+    """Kiểm tra trạng thái thanh toán theo mã giao dịch (dùng cho polling từ frontend)"""
+    db = db_manager.load_db()
+    fines = db.get("fines", [])
+    # Tìm theo transactionRef
+    paid_fine = next((f for f in fines if f.get("transactionRef") == txn_ref and f.get("status") == "Đã nộp"), None)
+    if paid_fine:
+        return {
+            "status": "PAID",
+            "txnRef": txn_ref,
+            "fineId": paid_fine.get("id"),
+            "amount": paid_fine.get("fineAmount"),
+            "paidAt": paid_fine.get("paidAt"),
+            "paymentMethod": paid_fine.get("paymentMethod", "VNPay")
+        }
+    return {"status": "PENDING", "txnRef": txn_ref}
+
+
+@app.get("/api/payment/vnpay/return")
+def vnpay_return(
+    vnp_ResponseCode: str = Query(None),
+    vnp_TxnRef: str = Query(None),
+    vnp_Amount: str = Query(None),
+    vnp_OrderInfo: str = Query(None),
+    vnp_TransactionNo: str = Query(None),
+    vnp_BankCode: str = Query(None),
+    vnp_PayDate: str = Query(None),
+    vnp_SecureHash: str = Query(None)
+):
+    """
+    Xử lý return URL từ VNPay Sandbox sau khi khách hàng hoàn tất thanh toán.
+    Redirect về trang chính kèm thông tin kết quả.
+    """
+    from fastapi.responses import RedirectResponse
+    success = vnp_ResponseCode == "00"
+    txn_ref = vnp_TxnRef or ""
+    amount_vnd = int(vnp_Amount or 0) // 100 if vnp_Amount else 0  # VNPay trả về đơn vị x100
+
+    if success and txn_ref:
+        # Tự động xác nhận thanh toán vào DB nếu chưa được ghi nhận
+        db = db_manager.load_db()
+        fines = db.get("fines", [])
+        already_paid = any(f.get("transactionRef") == txn_ref for f in fines)
+        if not already_paid and amount_vnd > 0:
+            # Tìm khoản phạt chưa nộp nào đó để cập nhật
+            txn_parts = txn_ref.split("_")
+            reader_id = int(txn_parts[-1]) if txn_parts and txn_parts[-1].isdigit() else 0
+            fine = next((f for f in fines if int(f.get("readerId", 0)) == reader_id and f.get("status") == "Chưa nộp"), None)
+            now_iso = datetime.now().isoformat()
+            if fine:
+                fine["status"] = "Đã nộp"
+                fine["paidAt"] = now_iso
+                fine["paymentMethod"] = "VNPay"
+                fine["transactionRef"] = txn_ref
+                fine["bankCode"] = vnp_BankCode or ""
+            else:
+                new_id = max([int(f.get("id", 0)) for f in fines], default=0) + 1
+                fines.append({
+                    "id": new_id,
+                    "readerId": reader_id,
+                    "bookTitle": "Phí phạt trễ hạn mượn sách",
+                    "fineAmount": amount_vnd,
+                    "status": "Đã nộp",
+                    "paidAt": now_iso,
+                    "paymentMethod": "VNPay",
+                    "transactionRef": txn_ref,
+                    "bankCode": vnp_BankCode or ""
+                })
+            db["fines"] = fines
+            # Mở khóa tài khoản
+            if reader_id:
+                users = db.get("users", [])
+                reader = next((u for u in users if int(u.get("id", 0)) == reader_id), None)
+                if reader:
+                    reader["isLocked"] = False
+                    reader["lockReason"] = ""
+                    db["users"] = users
+            db_manager.save_db(db)
+
+    redirect_url = f"/?vnp_result=success&vnp_txnRef={txn_ref}&vnp_amount={amount_vnd}" if success else f"/?vnp_result=failed&vnp_code={vnp_ResponseCode or 'ERR'}"
+    return RedirectResponse(url=redirect_url)
+
+
 # ================= RECOMMENDATIONS (Gợi ý sách cá nhân hóa) =================
 @app.get("/api/recommendations/{reader_id}")
 def get_recommendations(reader_id: int, limit: int = Query(6, ge=1, le=20)):
