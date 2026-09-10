@@ -6,9 +6,9 @@ import BookCard from '../components/BookCard';
 import BookDetailModal from '../components/BookDetailModal';
 import BorrowModal from '../components/BorrowModal';
 import {
-  Search, BookOpen, Clock, CheckCircle, AlertTriangle, Printer,
+  Search, BookOpen, Clock, CheckCircle, AlertTriangle,
   BookMarked, Calendar, ArrowRight, Sparkles, Filter, ChevronLeft, ChevronRight,
-  Lock, ShieldAlert, CreditCard
+  Lock, CreditCard
 } from 'lucide-react';
 
 import FeaturedCarousel from '../components/FeaturedCarousel';
