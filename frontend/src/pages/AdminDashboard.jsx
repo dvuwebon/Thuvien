@@ -2380,20 +2380,24 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
       {/* ================= TAB 4: CÀI ĐẶT HỆ THỐNG (SETTINGS) ================= */}
       {activeTab === 'settings' && (
         <div style={{ animation: 'fadeIn 0.2s ease-out' }}>
-          {/* Header Bar */}
+          {/* Sticky Header Nav Bar */}
           <div
             style={{
-              background: '#ffffff',
+              position: 'sticky',
+              top: 0,
+              zIndex: 50,
+              background: 'rgba(255, 255, 255, 0.96)',
+              backdropFilter: 'blur(12px)',
               borderRadius: '16px',
-              padding: '20px 24px',
-              border: '1px solid #eef2f6',
+              padding: '16px 24px',
+              border: '1px solid #e2e8f0',
               marginBottom: '20px',
               display: 'flex',
               flexWrap: 'wrap',
               justifyContent: 'space-between',
               alignItems: 'center',
               gap: '16px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+              boxShadow: '0 6px 20px -4px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.04)'
             }}
           >
             <div>
