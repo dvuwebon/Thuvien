@@ -7,6 +7,24 @@ import {
   MessageSquare, Check, X, Trash2
 } from 'lucide-react';
 
+// Hàm định dạng ngày giờ chuẩn xác, luôn có khoảng cách rõ ràng: HH:mm:ss DD/MM/YYYY
+const formatNotifTime = (dateStr) => {
+  if (!dateStr) return 'Vừa xong';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    const seconds = String(d.getSeconds()).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${hours}:${minutes}:${seconds} ${day}/${month}/${year}`;
+  } catch (e) {
+    return dateStr;
+  }
+};
+
 export default function NotificationDropdown({ isOpen, onClose, align = 'left' }) {
   const {
     notifications,
@@ -25,15 +43,13 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState('');
 
-  // Tải danh sách phiếu mượn để đối chiếu trạng thái hiện tại của từng yêu cầu
+  // Tải danh sách phiếu mượn để đối chiếu trạng thái hiện tại của từng yêu cầu (cho cả Admin, Thủ thư và Độc giả)
   const loadBorrows = async () => {
-    if (role === 'Admin' || role === 'Librarian') {
-      try {
-        const res = await api.getBorrowRecords();
-        setBorrowRecords(res || []);
-      } catch (e) {
-        // ignore
-      }
+    try {
+      const res = await api.getBorrowRecords();
+      setBorrowRecords(res || []);
+    } catch (e) {
+      // ignore
     }
   };
 
@@ -196,7 +212,12 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
             </div>
           ) : (
             notifications.map((notif) => {
-              const isBorrowReq = notif.type === 'borrow_request' || notif.title?.includes('Yêu cầu mượn sách');
+              // Phân loại chính xác từng loại thông báo
+              const isBorrowReq = notif.type === 'borrow_request' || 
+                (notif.title?.includes('Yêu cầu mượn') && !notif.title?.includes('đã được duyệt') && !notif.title?.includes('bị từ chối'));
+              const isBorrowApproved = notif.type === 'borrow_approved' || notif.title?.includes('được duyệt');
+              const isBorrowRejected = notif.type === 'borrow_rejected' || notif.title?.includes('từ chối');
+              const isBookReturned = notif.type === 'book_returned' || notif.title?.includes('trả sách');
 
               // Tìm phiếu mượn tương ứng bằng ID chuẩn xác
               const targetRecordId = notif.recordId || notif.meta?.recordId || (typeof notif.meta === 'object' ? notif.meta?.recordId : null);
@@ -204,22 +225,17 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
               if (targetRecordId) {
                 rec = borrowRecords.find(r => Number(r.id) === Number(targetRecordId));
               }
-              // Nếu chưa có hoặc chưa tìm thấy theo ID, tìm theo tên sách được nhắc tới
+              // Nếu chưa có hoặc chưa tìm thấy theo ID, tìm theo tên sách đang chờ duyệt
               if (!rec && isBorrowReq) {
-                // 1. Ưu tiên tìm phiếu đang Chờ duyệt của cuốn sách này
                 rec = borrowRecords.find(r => r.status === 'Chờ duyệt' && (notif.message?.includes(r.bookTitle) || notif.bookTitle === r.bookTitle));
-                // 2. Nếu không có phiếu nào Chờ duyệt, tìm phiếu mượn gần nhất của cuốn sách này
-                if (!rec) {
-                  rec = borrowRecords.find(r => notif.message?.includes(r.bookTitle) || notif.bookTitle === r.bookTitle);
-                }
               }
 
-              // CHỈ hiển thị 2 nút Duyệt / Không duyệt khi:
-              // 1. Đúng vai trò Quản trị viên hoặc Thủ thư
-              // 2. TÌM THẤY phiếu mượn VÀ trạng thái của phiếu ĐANG LÀ 'Chờ duyệt'
-              const isPending = isBorrowReq && 
-                (role === 'Admin' || role === 'Librarian') && 
-                Boolean(rec && rec.status === 'Chờ duyệt');
+              // Kiểm tra xem yêu cầu này có đang ở trạng thái Chờ duyệt hay không
+              const isPending = isBorrowReq && ((rec && rec.status === 'Chờ duyệt') || (!rec && !notif.isRead));
+              // Kiểm tra xem yêu cầu này đã từng được duyệt chưa (đang mượn, quá hạn hoặc đã trả)
+              const isApproved = (rec && ['Đang mượn', 'Quá hạn', 'Đã trả'].includes(rec.status)) || isBorrowApproved;
+              // Kiểm tra xem yêu cầu này bị từ chối không
+              const isRejected = (rec && ['Từ chối', 'Đã hủy'].includes(rec.status)) || isBorrowRejected;
 
               return (
                 <div
@@ -245,11 +261,11 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
 
                     <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <Clock size={11} />
-                      <span>{notif.createdAt ? new Date(notif.createdAt).toLocaleString('vi-VN') : 'Vừa xong'}</span>
+                      <span>{formatNotifTime(notif.createdAt)}</span>
                     </div>
 
-                    {/* Nút Duyệt / Không duyệt ngay trong thông báo */}
-                    {isPending && (
+                    {/* Nút Duyệt / Không duyệt ngay trong thông báo (Chỉ hiển thị cho Admin / Thủ thư khi đang Chờ duyệt) */}
+                    {isPending && (role === 'Admin' || role === 'Librarian') && (
                       <div
                         style={{ display: 'flex', gap: '8px', marginTop: '10px' }}
                         onClick={(e) => e.stopPropagation()}
@@ -319,25 +335,31 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                       </div>
                     )}
 
-                    {/* Trạng thái đã xử lý */}
-                    {isBorrowReq && rec && rec.status === 'Đang mượn' && (
+                    {/* Huy hiệu chờ thư viện duyệt (Hiển thị cho Độc giả) */}
+                    {isPending && role === 'Reader' && (
+                      <div style={{ marginTop: '8px', fontSize: '11.5px', fontWeight: 600, color: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Clock size={13} /> Đang chờ thư viện duyệt
+                      </div>
+                    )}
+
+                    {/* Trạng thái đã duyệt cho mượn */}
+                    {isApproved && !isPending && (
                       <div style={{ marginTop: '8px', fontSize: '11.5px', fontWeight: 600, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <CheckCircle size={13} /> Đã duyệt cho mượn
+                        <CheckCircle size={13} /> {role === 'Reader' ? 'Đã được phê duyệt' : 'Đã duyệt cho mượn'}
                       </div>
                     )}
-                    {isBorrowReq && rec && rec.status === 'Từ chối' && (
+
+                    {/* Trạng thái từ chối */}
+                    {isRejected && !isPending && (
                       <div style={{ marginTop: '8px', fontSize: '11.5px', fontWeight: 600, color: '#dc2626', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <XCircle size={13} /> Đã từ chối yêu cầu
+                        <XCircle size={13} /> {role === 'Reader' ? 'Yêu cầu bị từ chối' : 'Đã từ chối yêu cầu'}
                       </div>
                     )}
-                    {isBorrowReq && rec && rec.status === 'Đã trả' && (
+
+                    {/* Trạng thái đã trả sách hoàn tất (Chỉ hiển thị cho đúng thông báo trả sách) */}
+                    {isBookReturned && (
                       <div style={{ marginTop: '8px', fontSize: '11.5px', fontWeight: 600, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <CheckCheck size={13} /> Đã hoàn tất trả sách
-                      </div>
-                    )}
-                    {isBorrowReq && (!rec || !['Chờ duyệt', 'Đang mượn', 'Từ chối', 'Đã trả'].includes(rec?.status)) && (
-                      <div style={{ marginTop: '8px', fontSize: '11.5px', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <CheckCheck size={13} /> Đã xử lý
                       </div>
                     )}
                   </div>

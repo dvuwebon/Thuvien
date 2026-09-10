@@ -486,6 +486,15 @@ def create_borrow_record(req: BorrowRequestCreate):
         meta={"recordId": new_id, "bookId": req.bookId, "bookTitle": book_title, "readerName": target_user["fullName"]}
     )
 
+    db_manager.add_notification(
+        recipient_role="Reader",
+        recipient_user_id=target_user["id"],
+        title="Yêu cầu mượn sách đang chờ duyệt",
+        message=f"Yêu cầu mượn cuốn sách \"{book_title}\" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.",
+        notif_type="borrow_request",
+        meta={"recordId": new_id, "bookId": req.bookId, "bookTitle": book_title}
+    )
+
     return {"message": "Đã gửi yêu cầu mượn sách thành công!", "record": new_record}
 
 
