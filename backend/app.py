@@ -13,6 +13,9 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 import io
+import threading
+
+borrow_concurrency_lock = threading.Lock()
 
 from database import db_manager
 from models import (
@@ -414,127 +417,170 @@ def get_borrow_records():
 
 @app.post("/api/borrow-records", status_code=201)
 def create_borrow_record(req: BorrowRequestCreate):
-    db = db_manager.load_db()
-    books = db.get("books", [])
-    users = db.get("users", [])
-    records = db.get("borrowRecords", [])
+    with borrow_concurrency_lock:
+        db = db_manager.load_db()
+        books = db.get("books", [])
+        users = db.get("users", [])
+        records = db.get("borrowRecords", [])
 
-    book = next((b for b in books if b.get("id") is not None and int(b.get("id")) == int(req.bookId)), None)
-    book_title = book["title"] if book else (req.bookTitle or "Sách thư viện")
+        book = next((b for b in books if b.get("id") is not None and int(b.get("id")) == int(req.bookId)), None)
+        if not book:
+            raise HTTPException(status_code=404, detail="Không tìm thấy cuốn sách yêu cầu.")
 
-    b_type = "Mượn tại thư viện" if req.borrowType == "Mượn tại thư viện" else "Mượn về nhà"
-    init_status = req.status or "Chờ duyệt"
+        book_title = book.get("title", req.bookTitle or "Sách thư viện")
 
-    now = datetime.now()
-    if b_type == "Mượn tại thư viện":
-        due_date = now.replace(hour=23, minute=59, second=59)
-    else:
-        due_date = now + timedelta(days=14)
+        b_type = "Mượn tại thư viện" if req.borrowType == "Mượn tại thư viện" else "Mượn về nhà"
+        init_status = req.status or "Chờ duyệt"
 
-    target_user_id = req.readerId or req.userId
-    target_user = None
-    if target_user_id:
-        target_user = next((u for u in users if u.get("id") is not None and int(u.get("id")) == int(target_user_id)), None)
-    if not target_user and req.readerName:
-        target_user = next((u for u in users if u.get("fullName", "").lower() == req.readerName.strip().lower()), None)
-    if not target_user:
-        target_user = next((u for u in users if u.get("role") == "Reader"), {"id": 2, "fullName": req.readerName or "Độc giả"})
+        now = datetime.now()
+        if b_type == "Mượn tại thư viện":
+            due_date = now.replace(hour=23, minute=59, second=59)
+        else:
+            due_date = now + timedelta(days=14)
 
-    # 🔒 Chặn mượn sách nếu tài khoản độc giả đang bị khóa do quá hạn / nợ phạt
-    if target_user.get("isLocked"):
-        reason = target_user.get("lockReason") or "mượn sách quá hạn từ 3 ngày trở lên"
-        raise HTTPException(
-            status_code=403,
-            detail=f"Tài khoản của bạn đang bị khóa do {reason}. Vui lòng nộp phạt qua cổng VNPay để mở khóa tài khoản trước khi đăng ký mượn sách mới!"
+        target_user_id = req.readerId or req.userId
+        target_user = None
+        if target_user_id:
+            target_user = next((u for u in users if u.get("id") is not None and int(u.get("id")) == int(target_user_id)), None)
+        if not target_user and req.readerName:
+            target_user = next((u for u in users if u.get("fullName", "").lower() == req.readerName.strip().lower()), None)
+        if not target_user:
+            target_user = next((u for u in users if u.get("role") == "Reader"), {"id": 2, "fullName": req.readerName or "Độc giả"})
+
+        # 🔒 Chặn mượn sách nếu tài khoản độc giả đang bị khóa do quá hạn / nợ phạt
+        if target_user.get("isLocked"):
+            reason = target_user.get("lockReason") or "mượn sách quá hạn từ 3 ngày trở lên"
+            raise HTTPException(
+                status_code=403,
+                detail=f"Tài khoản của bạn đang bị khóa do {reason}. Vui lòng nộp phạt qua cổng VNPay để mở khóa tài khoản trước khi đăng ký mượn sách mới!"
+            )
+
+        # ✅ Kiểm tra giới hạn tối đa 5 cuốn sách đang mượn cùng lúc (UC-09, F18)
+        reader_active_borrows = sum(
+            1 for r in records
+            if int(r.get("readerId", 0)) == int(target_user.get("id", 0))
+            and r.get("status") in ["Chờ duyệt", "Đang mượn", "Quá hạn"]
+        )
+        if reader_active_borrows >= 5:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Độc giả {target_user.get('fullName')} đã có {reader_active_borrows} cuốn sách đang mượn hoặc chờ duyệt. Hệ thống chỉ cho phép tối đa 5 cuốn/lúc."
+            )
+
+        # 🛡️ KIỂM SOÁT ĐỒNG THỜI & CHỐNG RACE CONDITION (Concurrency Control):
+        # Thực hiện giao dịch nguyên tử (Atomic ACID Transaction) qua atomic_borrow_book.
+        try:
+            new_record = db_manager.atomic_borrow_book(
+                user_id=int(target_user["id"]),
+                book_id=int(req.bookId),
+                borrow_type=b_type,
+                due_date=due_date,
+                init_status=init_status
+            )
+        except ValueError as val_err:
+            if str(val_err) == "BOOK_OUT_OF_STOCK":
+                raise HTTPException(
+                    status_code=409,
+                    detail="Rất tiếc! Cuốn sách này vừa được một độc giả khác đăng ký mượn trước đó chỉ trong tích tắc. Số lượng hiện tại trong kho đã hết. Bạn có thể sử dụng tính năng Đặt trước để xếp hàng chờ sách!"
+                )
+            elif str(val_err) == "BOOK_NOT_FOUND":
+                raise HTTPException(status_code=404, detail="Không tìm thấy cuốn sách yêu cầu.")
+            else:
+                raise HTTPException(status_code=400, detail=str(val_err))
+        except Exception as e:
+            # Fallback nếu DB manager không dùng ORM session trực tiếp
+            active_count = sum(
+                1 for r in records
+                if int(r.get("bookId", 0)) == int(req.bookId)
+                and r.get("status") in ["Chờ duyệt", "Đang mượn", "Quá hạn"]
+            )
+            if active_count >= int(book.get("quantity", 1)) or int(book.get("available", 1)) <= 0:
+                raise HTTPException(
+                    status_code=409,
+                    detail="Rất tiếc! Cuốn sách này vừa được một độc giả khác đăng ký mượn trước đó chỉ trong tích tắc. Số lượng hiện tại trong kho đã hết. Bạn có thể sử dụng tính năng Đặt trước để xếp hàng chờ sách!"
+                )
+            new_id = max([int(r.get("id", 0)) for r in records], default=0) + 1
+            new_record = {
+                "id": new_id,
+                "bookId": req.bookId,
+                "bookTitle": book_title,
+                "readerId": target_user["id"],
+                "readerName": target_user["fullName"],
+                "borrowDate": now.isoformat(),
+                "returnDate": due_date.isoformat(),
+                "status": init_status,
+                "borrowType": b_type,
+                "fine_amount": 0,
+                "overdue_days": 0
+            }
+            records.insert(0, new_record)
+            book["available"] = max(0, int(book.get("available", 1)) - 1)
+            book["borrowed"] = int(book.get("borrowed", 0)) + 1
+            if book["available"] == 0:
+                book["status"] = "Hết sách"
+            db["borrowRecords"] = records
+            db_manager.save_db(db)
+
+        # Tạo thông báo cho Thủ thư và Độc giả
+        new_id = new_record.get("id")
+        db_manager.add_notification(
+            recipient_role="Admin",
+            title="Yêu cầu mượn sách mới",
+            message=f"Độc giả {target_user['fullName']} vừa gửi yêu cầu mượn cuốn sách \"{book_title}\" ({b_type}).",
+            notif_type="borrow_request",
+            meta={"recordId": new_id, "bookId": req.bookId, "bookTitle": book_title, "readerName": target_user["fullName"]}
         )
 
-    # ✅ Kiểm tra giới hạn tối đa 5 cuốn sách đang mượn cùng lúc (UC-09, F18)
-    reader_active_borrows = sum(
-        1 for r in records
-        if int(r.get("readerId", 0)) == int(target_user.get("id", 0))
-        and r.get("status") in ["Chờ duyệt", "Đang mượn", "Quá hạn"]
-    )
-    if reader_active_borrows >= 5:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Độc giả {target_user.get('fullName')} đã có {reader_active_borrows} cuốn sách đang mượn hoặc chờ duyệt. Hệ thống chỉ cho phép tối đa 5 cuốn/lúc."
+        db_manager.add_notification(
+            recipient_role="Reader",
+            recipient_user_id=target_user["id"],
+            title="Yêu cầu mượn sách đang chờ duyệt",
+            message=f"Yêu cầu mượn cuốn sách \"{book_title}\" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.",
+            notif_type="borrow_request",
+            meta={"recordId": new_id, "bookId": req.bookId, "bookTitle": book_title}
         )
 
-    new_id = max([int(r.get("id", 0)) for r in records], default=0) + 1
-    new_record = {
-        "id": new_id,
-        "bookId": req.bookId,
-        "bookTitle": book_title,
-        "readerId": target_user["id"],
-        "readerName": target_user["fullName"],
-        "borrowDate": now.isoformat(),
-        "returnDate": due_date.isoformat(),
-        "status": init_status,
-        "borrowType": b_type,
-        "fine_amount": 0,
-        "overdue_days": 0
-    }
-    records.insert(0, new_record)
-    db["borrowRecords"] = records
-    db_manager.save_db(db)
-
-    db_manager.add_notification(
-        recipient_role="Admin",
-        title="Yêu cầu mượn sách mới",
-        message=f"Độc giả {target_user['fullName']} vừa gửi yêu cầu mượn cuốn sách \"{book_title}\" ({b_type}).",
-        notif_type="borrow_request",
-        meta={"recordId": new_id, "bookId": req.bookId, "bookTitle": book_title, "readerName": target_user["fullName"]}
-    )
-
-    db_manager.add_notification(
-        recipient_role="Reader",
-        recipient_user_id=target_user["id"],
-        title="Yêu cầu mượn sách đang chờ duyệt",
-        message=f"Yêu cầu mượn cuốn sách \"{book_title}\" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.",
-        notif_type="borrow_request",
-        meta={"recordId": new_id, "bookId": req.bookId, "bookTitle": book_title}
-    )
-
-    return {"message": "Đã gửi yêu cầu mượn sách thành công!", "record": new_record}
+        return {"message": "Đã gửi yêu cầu mượn sách thành công!", "record": new_record}
 
 
 
 @app.put("/api/borrow-records/{record_id}/approve")
 def approve_borrow(record_id: int):
-    db = db_manager.load_db()
-    records = db.get("borrowRecords", [])
-    books = db.get("books", [])
+    with borrow_concurrency_lock:
+        db = db_manager.load_db()
+        records = db.get("borrowRecords", [])
+        books = db.get("books", [])
 
-    record = next((r for r in records if int(r.get("id", 0)) == record_id), None)
-    if not record:
-        raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
+        record = next((r for r in records if int(r.get("id", 0)) == record_id), None)
+        if not record:
+            raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
 
-    book = next((b for b in books if int(b.get("id", 0)) == int(record.get("bookId", 0))), None)
-    if book:
-        active_borrowed = sum(
-            1 for r in records
-            if int(r.get("bookId", 0)) == int(book.get("id", 0)) and r.get("status") in ["Đang mượn", "Quá hạn"]
+        book = next((b for b in books if int(b.get("id", 0)) == int(record.get("bookId", 0))), None)
+        if book:
+            active_borrowed = sum(
+                1 for r in records
+                if int(r.get("bookId", 0)) == int(book.get("id", 0)) and r.get("status") in ["Đang mượn", "Quá hạn"]
+            )
+            if active_borrowed >= int(book.get("quantity", 1)):
+                raise HTTPException(status_code=409, detail="Sách này hiện đã hết số lượng sẵn có trong kho, không thể duyệt!")
+
+        record["status"] = "Đang mượn"
+        record["borrowDate"] = datetime.now().isoformat()
+        for n in db.get("notifications", []):
+            if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") == "borrow_request"):
+                n["isRead"] = True
+        db_manager.save_db(db)
+
+        db_manager.add_notification(
+            recipient_role="Reader",
+            recipient_user_id=record.get("readerId"),
+            title="Yêu cầu mượn sách đã được duyệt",
+            message=f"Yêu cầu mượn cuốn sách \"{record.get('bookTitle')}\" của bạn đã được duyệt thành công!",
+            notif_type="borrow_approved",
+            meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle")}
         )
-        if active_borrowed >= int(book.get("quantity", 1)):
-            raise HTTPException(status_code=400, detail="Sách này đã hết số lượng sẵn có trong kho, không thể duyệt!")
 
-    record["status"] = "Đang mượn"
-    record["borrowDate"] = datetime.now().isoformat()
-    for n in db.get("notifications", []):
-        if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") == "borrow_request"):
-            n["isRead"] = True
-    db_manager.save_db(db)
-
-    db_manager.add_notification(
-        recipient_role="Reader",
-        recipient_user_id=record.get("readerId"),
-        title="Yêu cầu mượn sách đã được duyệt",
-        message=f"Yêu cầu mượn cuốn sách \"{record.get('bookTitle')}\" của bạn đã được duyệt thành công!",
-        notif_type="borrow_approved",
-        meta={"recordId": record_id, "bookId": record.get("bookId"), "bookTitle": record.get("bookTitle")}
-    )
-
-    return {"message": "Đã duyệt yêu cầu mượn sách thành công!"}
+        return {"message": "Đã duyệt yêu cầu mượn sách thành công!"}
 
 
 @app.put("/api/borrow-records/{record_id}/reject")

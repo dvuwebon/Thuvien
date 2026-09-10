@@ -659,8 +659,38 @@ export const api = {
           saveLocalDb(db);
           notifyDataUpdated('borrow');
           return result;
+        } else {
+          // Khi server báo lỗi (ví dụ 409 Conflict hoặc 400 Hết sách do tranh chấp đồng thời)
+          const errData = await res.json().catch(() => ({}));
+          const errMsg = errData.detail || 'Không thể gửi yêu cầu mượn sách lúc này.';
+          const errorObj = new Error(errMsg);
+          errorObj.status = res.status;
+          errorObj.isOutOfStock = res.status === 409 || errMsg.includes('hết');
+          throw errorObj;
         }
-      } catch (e) {}
+      } catch (e) {
+        if (e.status || e.isOutOfStock || (e.message && e.message.includes('hết'))) {
+          throw e;
+        }
+      }
+    }
+
+    // Kiểm tra số lượng sách sẵn có trong DB cục bộ
+    const targetBookLocal = (db.books || []).find(b => Number(b.id) === Number(enrichedData.bookId));
+    if (targetBookLocal) {
+      const activeCount = (db.borrowRecords || []).filter(
+        r => Number(r.bookId) === Number(enrichedData.bookId) && ['Chờ duyệt', 'Đang mượn', 'Quá hạn'].includes(r.status)
+      ).length;
+      const avail = Number(targetBookLocal.available != null ? targetBookLocal.available : targetBookLocal.quantity);
+      if (avail <= 0 || activeCount >= Number(targetBookLocal.quantity || 1)) {
+        const err = new Error("Rất tiếc! Cuốn sách này vừa được một độc giả khác đăng ký mượn trước đó chỉ trong tích tắc. Số lượng hiện tại trong kho đã hết.");
+        err.status = 409;
+        err.isOutOfStock = true;
+        throw err;
+      }
+      targetBookLocal.available = Math.max(0, avail - 1);
+      targetBookLocal.borrowed = Math.max(0, Number(targetBookLocal.borrowed || 0) + 1);
+      if (targetBookLocal.available === 0) targetBookLocal.status = "Hết sách";
     }
 
     const newId = Math.max(0, ...(db.borrowRecords || []).map(r => Number(r.id) || 0)) + 1;

@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+from datetime import datetime
 from typing import Dict, Any, List, Optional
 
 logger = logging.getLogger("smartlib.database")
@@ -62,6 +63,23 @@ class DatabaseManager:
     def save_db(self, data: Dict[str, Any]):
         """Lưu và đồng bộ trực tiếp các bản ghi vào MySQL và SQLite"""
         self.mysql_mgr.save_db(data)
+
+    def atomic_borrow_book(
+        self,
+        user_id: int,
+        book_id: int,
+        borrow_type: str = "Mượn về nhà",
+        due_date: Optional[datetime] = None,
+        init_status: str = "Chờ duyệt"
+    ) -> Dict[str, Any]:
+        """Thực hiện mượn sách với khóa giao dịch Pessimistic Lock chống Race Condition"""
+        return self.mysql_mgr.atomic_borrow_book(
+            user_id=user_id,
+            book_id=book_id,
+            borrow_type=borrow_type,
+            due_date=due_date,
+            init_status=init_status
+        )
 
     def add_notification(
         self,

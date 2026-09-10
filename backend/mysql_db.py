@@ -3,7 +3,7 @@ import time
 import socket
 import json
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Dict, Any, List, Optional
 from urllib.parse import quote_plus
 
@@ -599,9 +599,25 @@ class MySQLDatabaseManager:
                 qty = int(b.get("quantity", 1))
                 avail = int(b.get("available", qty))
                 if existing_b:
+                    existing_b.title = b.get("title", existing_b.title)
+                    existing_b.author = b.get("author", existing_b.author)
+                    existing_b.category = b.get("category", existing_b.category)
                     existing_b.quantity = qty
                     existing_b.available_copies = avail
                     existing_b.status = b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách")
+                else:
+                    new_b = BookModel(
+                        id=bid,
+                        title=b.get("title", "Sách"),
+                        author=b.get("author", "Chưa rõ"),
+                        category=b.get("category", "Chung"),
+                        quantity=qty,
+                        available_copies=avail,
+                        description=b.get("desc") or b.get("description", ""),
+                        image_url=b.get("imageUrl"),
+                        status=b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách")
+                    )
+                    session.add(new_b)
 
             # 2. Sync Reservations
             for res in data.get("reservations", []):
@@ -685,6 +701,32 @@ class MySQLDatabaseManager:
                     )
                     session.add(new_f)
 
+            # 5. Sync Users
+            for u in data.get("users", []):
+                uid = u.get("id")
+                if not uid:
+                    continue
+                existing_u = session.query(UserModel).filter_by(id=uid).first()
+                if existing_u:
+                    existing_u.full_name = u.get("fullName", existing_u.full_name)
+                    existing_u.email = u.get("email", existing_u.email)
+                    existing_u.phone = u.get("phone", existing_u.phone)
+                    existing_u.address = u.get("address", existing_u.address)
+                    existing_u.role = u.get("role", existing_u.role)
+                else:
+                    new_u = UserModel(
+                        id=uid,
+                        username=u.get("username", f"user_{uid}"),
+                        password_hash="123",
+                        full_name=u.get("fullName", "Độc giả"),
+                        role=u.get("role", "Reader"),
+                        email=u.get("email", ""),
+                        phone=u.get("phone", ""),
+                        address=u.get("address", ""),
+                        is_active=True
+                    )
+                    session.add(new_u)
+
             session.commit()
             session.close()
             logger.info("✓ Đã lưu và đồng bộ thay đổi vào smartlib_local.db")
@@ -748,6 +790,114 @@ class MySQLDatabaseManager:
                 logger.info(f"✓ Đã cập nhật trạng thái khóa={is_locked} cho độc giả #{reader_id} trong SQLite")
             except Exception as e:
                 logger.error(f"Lỗi toggle_reader_lock trên SQLite: {e}")
+
+    def atomic_borrow_book(
+        self,
+        user_id: int,
+        book_id: int,
+        borrow_type: str = "Mượn về nhà",
+        due_date: Optional[datetime] = None,
+        init_status: str = "Chờ duyệt"
+    ) -> Dict[str, Any]:
+        """
+        Giao dịch nguyên tử (Atomic ACID Transaction) giải quyết triệt để Race Condition:
+        Sử dụng Pessimistic Lock (SELECT ... FOR UPDATE) trên hàng của cuốn sách trong CSDL.
+        Nếu nhiều độc giả cùng mượn cuốn sách cuối cùng (available_copies = 1) ở cùng 1 mili-giây,
+        chỉ duy nhất 1 giao dịch mượn thành công. Các giao dịch còn lại lập tức bị từ chối với BOOK_OUT_OF_STOCK.
+        """
+        invalidate_books_cache()
+
+        now = datetime.now()
+        if not due_date:
+            if borrow_type == "Mượn tại thư viện":
+                due_date = now.replace(hour=23, minute=59, second=59)
+            else:
+                due_date = now + timedelta(days=14)
+
+        # Chọn session factory phù hợp (MySQL nếu có, nếu không thì SQLite)
+        use_mysql = bool(self._is_connected and self.SessionLocal)
+        session_factory = self.SessionLocal if use_mysql else self.SqliteSession
+        if not session_factory:
+            raise RuntimeError("Không có kết nối cơ sở dữ liệu khả dụng")
+
+        session = session_factory()
+        try:
+            # 1. Khóa bi quan hàng cuốn sách (Pessimistic Lock)
+            # Với MySQL InnoDB: with_for_update() đặt khóa độc quyền Exclusive Lock (X-Lock)
+            if use_mysql:
+                book = session.query(BookModel).filter(BookModel.id == book_id).with_for_update().first()
+            else:
+                book = session.query(BookModel).filter(BookModel.id == book_id).first()
+
+            if not book:
+                raise ValueError("BOOK_NOT_FOUND")
+
+            # 2. Kiểm tra số lượng sách thực tế sẵn có
+            # Đếm số lượng phiếu đang mượn, quá hạn hoặc chờ duyệt của cuốn sách này
+            active_or_pending = session.query(BorrowRecordModel).filter(
+                BorrowRecordModel.book_id == book_id,
+                BorrowRecordModel.status.in_(["Chờ duyệt", "Đang mượn", "Quá hạn"])
+            ).count()
+
+            # Nếu số lượng đã đạt trần hoặc available_copies <= 0
+            if active_or_pending >= book.quantity or book.available_copies <= 0:
+                raise ValueError("BOOK_OUT_OF_STOCK")
+
+            # 3. Trừ số lượng sách nguyên tử
+            book.available_copies = max(0, book.available_copies - 1)
+            if book.available_copies == 0:
+                book.status = "Hết sách"
+
+            # 4. Tạo phiếu mượn mới
+            new_record = BorrowRecordModel(
+                user_id=user_id,
+                book_id=book_id,
+                borrow_date=now,
+                due_date=due_date,
+                borrow_type=borrow_type,
+                status=init_status,
+                fine_amount=0.0,
+                overdue_days=0
+            )
+            session.add(new_record)
+            session.commit()
+
+            res_dict = new_record.to_dict()
+            res_dict["bookTitle"] = book.title
+            user_obj = session.query(UserModel).filter_by(id=user_id).first()
+            res_dict["readerName"] = user_obj.full_name if user_obj else "Độc giả"
+
+            # 5. Nếu đang chạy trên MySQL, đồng bộ tức thì sang SQLite bản sao lưu
+            if use_mysql and self.SqliteSession:
+                try:
+                    sq_session = self.SqliteSession()
+                    sq_b = sq_session.query(BookModel).filter_by(id=book_id).first()
+                    if sq_b:
+                        sq_b.available_copies = book.available_copies
+                        sq_b.status = book.status
+                    sq_rec = BorrowRecordModel(
+                        id=new_record.id,
+                        user_id=user_id,
+                        book_id=book_id,
+                        borrow_date=now,
+                        due_date=due_date,
+                        borrow_type=borrow_type,
+                        status=init_status,
+                        fine_amount=0.0,
+                        overdue_days=0
+                    )
+                    sq_session.add(sq_rec)
+                    sq_session.commit()
+                    sq_session.close()
+                except Exception as sq_err:
+                    logger.warning(f"Đồng bộ SQLite backup: {sq_err}")
+
+            return res_dict
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
 
     def save_db(self, data: Dict[str, Any]):
         """

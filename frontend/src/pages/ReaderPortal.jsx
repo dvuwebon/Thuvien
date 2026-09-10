@@ -359,6 +359,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       console.error('Lỗi gửi yêu cầu mượn:', err);
       showToast(err.message || 'Lỗi khi gửi yêu cầu mượn sách');
       await loadData(true);
+      throw err;
     }
   };
 
@@ -1163,6 +1164,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         isOpen={borrowModalOpen}
         onClose={() => { setBorrowModalOpen(false); setBorrowTargetBook(null); }}
         onConfirm={handleBorrowRequest}
+        onReserve={handleCreateReservation}
         isAdmin={false}
       />
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, BookOpen, User, Phone, MapPin, Calendar, Clock, CheckCircle } from 'lucide-react';
+import { X, BookOpen, User, Phone, MapPin, Calendar, Clock, CheckCircle, AlertCircle, Bookmark } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export const formatReaderCode = (id) => {
@@ -8,7 +8,7 @@ export const formatReaderCode = (id) => {
   return `DG-${String(Math.max(1, num)).padStart(3, '0')}`;
 };
 
-export default function BorrowModal({ isOpen, onClose, onConfirm, book, readers, isAdmin }) {
+export default function BorrowModal({ isOpen, onClose, onConfirm, onReserve, book, readers, isAdmin }) {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     bookId: null,
@@ -157,8 +157,51 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, book, readers,
           <form onSubmit={handleSubmit}>
           <div className="modal-body">
             {error && (
-              <div style={{ padding: '10px 14px', background: '#fee2e2', color: '#b91c1c', borderRadius: '6px', marginBottom: '16px', fontSize: '13px', fontWeight: 600 }}>
-                {error}
+              <div style={{
+                padding: '14px 16px',
+                background: '#fff1f2',
+                border: '1px solid #fecdd3',
+                borderRadius: '10px',
+                marginBottom: '16px',
+                color: '#9f1239'
+              }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <AlertCircle size={18} color="#e11d48" style={{ marginTop: '2px', flexShrink: 0 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, marginBottom: '4px' }}>
+                      {error.includes('hết') ? 'Sách vừa hết bản in sẵn có!' : 'Không thể mượn sách'}
+                    </div>
+                    <div style={{ fontSize: '12.5px', lineHeight: 1.5, color: '#be123c' }}>
+                      {error}
+                    </div>
+                    {onReserve && error.includes('hết') && (
+                      <div style={{ marginTop: '10px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleClose();
+                            onReserve(book);
+                          }}
+                          style={{
+                            background: '#4f46e5',
+                            color: '#ffffff',
+                            border: 'none',
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <Bookmark size={13} /> Đặt trước sách ngay (Xếp hàng chờ)
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
             )}
 
