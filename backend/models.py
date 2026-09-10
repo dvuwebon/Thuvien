@@ -105,3 +105,25 @@ class VNPayPaymentVerify(BaseModel):
     transactionRef: str
     amount: float
     status: Optional[str] = "SUCCESS"
+
+class SystemSettings(BaseModel):
+    borrowHomeDays: Optional[int] = 14
+    borrowLibraryDays: Optional[int] = 7
+    maxBorrowBooks: Optional[int] = 3
+    maxReservations: Optional[int] = 3
+    finePerDay: Optional[int] = 2000
+    gracePeriodDays: Optional[int] = 0
+    autoLockAfterDays: Optional[int] = 3
+    lostBookFine: Optional[int] = 200000
+    vnpayTmnCode: Optional[str] = ""
+    vnpayHashSecret: Optional[str] = ""
+    vnpayAccountNumber: Optional[str] = "0987654321"
+    vnpayBankName: Optional[str] = "Ngân hàng TMCP Quân Đội (MBBank)"
+    vnpayBankBin: Optional[str] = "970422"
+    vnpayAccountName: Optional[str] = "THU VIEN SMARTLIB"
+    vnpayTimeoutMinutes: Optional[int] = 15
+    libraryName: Optional[str] = "SmartLib - Thư viện Thông minh"
+    libraryAddress: Optional[str] = "Hà Nội, Việt Nam"
+    libraryPhone: Optional[str] = "0987 654 321"
+    libraryEmail: Optional[str] = "support@smartlib.edu.vn"
+    libraryHours: Optional[str] = "07:30 - 17:30 (Thứ 2 - Thứ 7)"

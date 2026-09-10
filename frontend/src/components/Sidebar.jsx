@@ -4,8 +4,10 @@ import { useNotifications } from '../context/NotificationContext';
 import NotificationDropdown from './NotificationDropdown';
 import {
   BookOpen, BookmarkCheck, History, Settings, LogOut,
-  LayoutDashboard, Users, FileSpreadsheet, MessageSquare, Clock
+  LayoutDashboard, Users, FileSpreadsheet, MessageSquare, Clock,
+  SlidersHorizontal
 } from 'lucide-react';
+
 
 function NavItem({ active, onClick, icon, label }) {
   return (
@@ -312,6 +314,15 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
                   label="Quản lý Độc giả"
                 />
               )}
+              {isAdmin && (
+                <NavItem
+                  active={activeTab === 'settings'}
+                  onClick={() => onTabChange('settings')}
+                  icon={<SlidersHorizontal size={17} strokeWidth={2} />}
+                  label="Cài đặt hệ thống"
+                />
+              )}
+
 
               <div
                 onClick={onOpenExport}

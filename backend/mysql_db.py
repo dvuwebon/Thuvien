@@ -43,6 +43,16 @@ MYSQL_DATABASE = os.getenv("MYSQL_DATABASE", "smartlib_db")
 
 FINE_PER_DAY = 2000
 
+def get_dynamic_settings():
+    try:
+        sp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "settings.json")
+        if os.path.exists(sp):
+            with open(sp, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
 # Cache bộ nhớ đệm RAM cho kho sách (giảm tải đọc base64 ảnh mỗi request)
 _BOOKS_CACHE = {"data": None, "cached_at": 0}
 BOOKS_CACHE_TTL = 15  # Cache 15 giây
@@ -50,6 +60,7 @@ BOOKS_CACHE_TTL = 15  # Cache 15 giây
 def invalidate_books_cache():
     _BOOKS_CACHE["data"] = None
     _BOOKS_CACHE["cached_at"] = 0
+
 
 Base = declarative_base()
 
@@ -525,7 +536,9 @@ class MySQLDatabaseManager:
             u["unpaidFines"] = total_unpaid
 
             # Quy tắc tự động khóa
-            if overdue_days_max >= 3:
+            dyn_s = get_dynamic_settings()
+            lock_threshold = int(dyn_s.get("autoLockAfterDays", 3))
+            if overdue_days_max >= lock_threshold:
                 u["isLocked"] = True
                 u["lockReason"] = f"Mượn sách quá hạn {overdue_days_max} ngày (Cần nộp phạt để mở khóa)"
             elif total_unpaid > 0:
@@ -1233,14 +1246,19 @@ class MySQLDatabaseManager:
             actual_str = record.get("actualReturnDate")
             if not due_str or not actual_str:
                 return 0.0
-            due = datetime.fromisoformat(due_str)
-            actual = datetime.fromisoformat(actual_str)
+            due = datetime.fromisoformat(due_str.replace("Z", ""))
+            actual = datetime.fromisoformat(actual_str.replace("Z", ""))
             overdue_days = (actual.date() - due.date()).days
             if overdue_days > 0:
-                return float(overdue_days * FINE_PER_DAY)
+                dyn = get_dynamic_settings()
+                rate = float(dyn.get("finePerDay", FINE_PER_DAY))
+                grace = int(dyn.get("gracePeriodDays", 0))
+                chargeable = max(0, overdue_days - grace)
+                return float(chargeable * rate)
         except Exception:
             pass
         return 0.0
+
 
     def save_fine_record(self, borrow_record: Dict[str, Any], fine_amount: float) -> Optional[Dict[str, Any]]:
         if fine_amount <= 0:

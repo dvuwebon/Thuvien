@@ -10,8 +10,10 @@ import ExportReportModal from '../components/ExportReportModal';
 import {
   BookOpen, Users, Clock, AlertTriangle, CheckCircle, Search, Plus,
   FileSpreadsheet, Filter, Grid, List, Check, X, Printer, Edit2, Trash2, BookMarked, Eye,
-  TrendingUp, BookmarkCheck, XCircle, QrCode, Lock, Unlock, ShieldAlert
+  TrendingUp, BookmarkCheck, XCircle, QrCode, Lock, Unlock, ShieldAlert,
+  SlidersHorizontal, DollarSign, Calendar, Building2, CreditCard, Save, RotateCcw, HelpCircle, ShieldCheck
 } from 'lucide-react';
+
 
 const getReaderCode = (id) => {
   if (!id) return 'DG-001';
@@ -661,6 +663,33 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
   const [isReturning, setIsReturning] = useState(false);
   const [bookToDelete, setBookToDelete] = useState(null);
   const [deleteBookError, setDeleteBookError] = useState('');
+
+  // System Settings state
+  const [systemSettings, setSystemSettings] = useState({
+    borrowHomeDays: 14,
+    borrowLibraryDays: 7,
+    maxBorrowBooks: 3,
+    maxReservations: 3,
+    finePerDay: 2000,
+    gracePeriodDays: 0,
+    autoLockAfterDays: 3,
+    lostBookFine: 200000,
+    vnpayTmnCode: '',
+    vnpayHashSecret: '',
+    vnpayAccountNumber: '0987654321',
+    vnpayBankName: 'Ngân hàng TMCP Quân Đội (MBBank)',
+    vnpayBankBin: '970422',
+    vnpayAccountName: 'THU VIEN SMARTLIB',
+    vnpayTimeoutMinutes: 15,
+    libraryName: 'SmartLib - Thư viện Thông minh',
+    libraryAddress: 'Hà Nội, Việt Nam',
+    libraryPhone: '0987 654 321',
+    libraryEmail: 'support@smartlib.edu.vn',
+    libraryHours: '07:30 - 17:30 (Thứ 2 - Thứ 7)'
+  });
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
   const [isDeletingBook, setIsDeletingBook] = useState(false);
   const [readerToDelete, setReaderToDelete] = useState(null);
   const [deleteReaderError, setDeleteReaderError] = useState('');
@@ -793,10 +822,72 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
   // Khi chuyển tab, chỉ cập nhật dữ liệu động
   useEffect(() => {
     loadDynamicData();
+    if (activeTab === 'settings') {
+      loadSettings();
+    }
   }, [activeTab]);
+
+  const loadSettings = async () => {
+    try {
+      setSettingsLoading(true);
+      const data = await api.getSettings();
+      if (data) {
+        setSystemSettings(prev => ({ ...prev, ...data }));
+      }
+    } catch (e) {
+      console.error('Error loading settings:', e);
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async (e) => {
+    if (e) e.preventDefault();
+    try {
+      setSettingsSaving(true);
+      await api.updateSettings(systemSettings);
+      showToast('✓ Cập nhật cấu hình hệ thống thành công!');
+    } catch (e) {
+      showToast('❌ Lỗi lưu cài đặt: ' + (e.message || 'Vui lòng thử lại'));
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleResetSettingsDefault = () => {
+    if (window.confirm('Bạn có chắc chắn muốn đặt lại toàn bộ thông số về giá trị mặc định của hệ thống không?')) {
+      const defaults = {
+        borrowHomeDays: 14,
+        borrowLibraryDays: 7,
+        maxBorrowBooks: 3,
+        maxReservations: 3,
+        finePerDay: 2000,
+        gracePeriodDays: 0,
+        autoLockAfterDays: 3,
+        lostBookFine: 200000,
+        vnpayTmnCode: '',
+        vnpayHashSecret: '',
+        vnpayAccountNumber: '0987654321',
+        vnpayBankName: 'Ngân hàng TMCP Quân Đội (MBBank)',
+        vnpayBankBin: '970422',
+        vnpayAccountName: 'THU VIEN SMARTLIB',
+        vnpayTimeoutMinutes: 15,
+        libraryName: 'SmartLib - Thư viện Thông minh',
+        libraryAddress: 'Hà Nội, Việt Nam',
+        libraryPhone: '0987 654 321',
+        libraryEmail: 'support@smartlib.edu.vn',
+        libraryHours: '07:30 - 17:30 (Thứ 2 - Thứ 7)'
+      };
+      setSystemSettings(defaults);
+      api.updateSettings(defaults).then(() => {
+        showToast('✓ Đã khôi phục cài đặt mặc định ban đầu thành công!');
+      });
+    }
+  };
 
   // Book Handlers (Thêm / Sửa / Xóa lưu trực tiếp vào database)
   const handleSaveBook = async (bookData) => {
+
     try {
       if (editingBook) {
         await api.updateBook(editingBook.id, bookData);
@@ -2284,6 +2375,786 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
           </div>
         </div>
       )}
+
+
+      {/* ================= TAB 4: CÀI ĐẶT HỆ THỐNG (SETTINGS) ================= */}
+      {activeTab === 'settings' && (
+        <div style={{ animation: 'fadeIn 0.2s ease-out' }}>
+          {/* Header Bar */}
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '20px 24px',
+              border: '1px solid #eef2f6',
+              marginBottom: '20px',
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '16px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div
+                  style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 10px rgba(37,99,235,0.25)'
+                  }}
+                >
+                  <SlidersHorizontal size={20} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                    Cài đặt & Cấu hình Hệ thống
+                  </h2>
+                  <p style={{ fontSize: '12.5px', color: '#64748b', margin: '2px 0 0 0' }}>
+                    Tùy chỉnh thông số mượn trả, mức phí phạt, cổng thanh toán VNPay và thông tin thư viện
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={handleResetSettingsDefault}
+                className="btn btn-outline"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '9px 15px',
+                  borderRadius: '10px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: '#64748b'
+                }}
+              >
+                <RotateCcw size={15} />
+                <span>Khôi phục mặc định</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                disabled={settingsSaving}
+                className="btn btn-primary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '9px 20px',
+                  borderRadius: '10px',
+                  fontSize: '13.5px',
+                  fontWeight: 700,
+                  background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                  boxShadow: '0 4px 14px rgba(37,99,235,0.3)',
+                  cursor: settingsSaving ? 'wait' : 'pointer'
+                }}
+              >
+                <Save size={16} />
+                <span>{settingsSaving ? 'Đang lưu...' : 'Lưu tất cả thay đổi'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Form Content: 2 Columns Grid */}
+          <form onSubmit={handleSaveSettings}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(460px, 1fr))',
+                gap: '20px',
+                marginBottom: '24px'
+              }}
+            >
+              {/* 1. QUY ĐỊNH MƯỢN SÁCH */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #eef2f6',
+                  padding: '22px 24px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ background: '#eff6ff', color: '#2563eb', padding: '6px', borderRadius: '8px' }}>
+                    <BookOpen size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                      Quy định Mượn sách
+                    </h3>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                      Thời hạn và số lượng sách tối đa được mượn
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      Thời gian mượn về nhà (ngày)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="90"
+                      value={systemSettings.borrowHomeDays || 14}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, borrowHomeDays: parseInt(e.target.value) || 14 })}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13.5px',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
+                      Mặc định: 14 ngày. Hạn trả sách sẽ tự động cộng thêm số ngày này khi mượn về nhà.
+                    </span>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      Thời gian mượn tại thư viện (ngày)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="30"
+                      value={systemSettings.borrowLibraryDays || 7}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, borrowLibraryDays: parseInt(e.target.value) || 7 })}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13.5px',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
+                      Mặc định: 7 ngày hoặc trả trong ngày (nếu đặt 1 ngày).
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Số sách tối đa / lượt mượn
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={systemSettings.maxBorrowBooks || 3}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, maxBorrowBooks: parseInt(e.target.value) || 3 })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13.5px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
+                        Giới hạn sách đang mượn
+                      </span>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Số sách đặt trước tối đa
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={systemSettings.maxReservations || 3}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, maxReservations: parseInt(e.target.value) || 3 })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13.5px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
+                        Tối đa trong hàng chờ FIFO
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. QUY ĐỊNH TIỀN PHẠT & KHÓA TÀI KHOẢN */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #eef2f6',
+                  padding: '22px 24px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ background: '#fef2f2', color: '#dc2626', padding: '6px', borderRadius: '8px' }}>
+                    <DollarSign size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                      Quy định Phạt & Khóa Tài khoản
+                    </h3>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                      Bảng giá phạt trễ hạn và điều kiện tự động khóa
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      Tiền phạt mỗi ngày quá hạn (VNĐ / ngày)
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="500"
+                        value={systemSettings.finePerDay || 2000}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, finePerDay: parseInt(e.target.value) || 0 })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13.5px',
+                          fontWeight: 700,
+                          color: '#dc2626',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>
+                        đ / ngày
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
+                      Mặc định: 2.000 đ/ngày. Tiền phạt = (Số ngày quá hạn - Ân hạn) × Mức phạt.
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Ngày ân hạn (Grace period)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="7"
+                        value={systemSettings.gracePeriodDays || 0}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, gracePeriodDays: parseInt(e.target.value) || 0 })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13.5px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
+                        Số ngày trễ chưa bị tính tiền
+                      </span>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Khóa tài khoản sau (ngày)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="30"
+                        value={systemSettings.autoLockAfterDays || 3}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, autoLockAfterDays: parseInt(e.target.value) || 3 })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13.5px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
+                        Mặc định: 3 ngày quá hạn
+                      </span>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      Tiền phạt làm mất hoặc hỏng sách (VNĐ)
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="10000"
+                        value={systemSettings.lostBookFine || 200000}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, lostBookFine: parseInt(e.target.value) || 0 })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13.5px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: '#94a3b8', fontWeight: 600 }}>
+                        VNĐ
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '11px', color: '#94a3b8', marginTop: '3px', display: 'block' }}>
+                      Khoản thu cố định áp dụng khi độc giả làm mất tài liệu
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. CỔNG THANH TOÁN VNPAY & VIETQR */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #eef2f6',
+                  padding: '22px 24px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ background: '#f0fdf4', color: '#16a34a', padding: '6px', borderRadius: '8px' }}>
+                    <CreditCard size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                      Cổng Thanh toán VNPay & VietQR
+                    </h3>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                      Cấu hình tài khoản ngân hàng thụ hưởng và mã QR
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Số tài khoản nhận tiền
+                      </label>
+                      <input
+                        type="text"
+                        value={systemSettings.vnpayAccountNumber || ''}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, vnpayAccountNumber: e.target.value })}
+                        placeholder="0987654321"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13.5px',
+                          fontWeight: 700,
+                          color: '#005baa',
+                          letterSpacing: '0.5px',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Mã BIN ngân hàng (VietQR)
+                      </label>
+                      <input
+                        type="text"
+                        value={systemSettings.vnpayBankBin || ''}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, vnpayBankBin: e.target.value })}
+                        placeholder="970422 (MBBank)"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13.5px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      Tên ngân hàng thụ hưởng
+                    </label>
+                    <input
+                      type="text"
+                      value={systemSettings.vnpayBankName || ''}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, vnpayBankName: e.target.value })}
+                      placeholder="Ngân hàng TMCP Quân Đội (MBBank)"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: '#0f172a',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Tên chủ tài khoản (in hoa)
+                      </label>
+                      <input
+                        type="text"
+                        value={systemSettings.vnpayAccountName || ''}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, vnpayAccountName: e.target.value.toUpperCase() })}
+                        placeholder="THU VIEN SMARTLIB"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Thời gian hết hạn phiên (phút)
+                      </label>
+                      <input
+                        type="number"
+                        min="5"
+                        max="60"
+                        value={systemSettings.vnpayTimeoutMinutes || 15}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, vnpayTimeoutMinutes: parseInt(e.target.value) || 15 })}
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13.5px',
+                          fontWeight: 600,
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Mã TMN Code VNPay Sandbox
+                      </label>
+                      <input
+                        type="text"
+                        value={systemSettings.vnpayTmnCode || ''}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, vnpayTmnCode: e.target.value })}
+                        placeholder="VD: DEMOSMARTLIB"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontFamily: 'monospace',
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Hash Secret Key VNPay
+                      </label>
+                      <input
+                        type="password"
+                        value={systemSettings.vnpayHashSecret || ''}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, vnpayHashSecret: e.target.value })}
+                        placeholder="Khóa bí mật checksum"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          fontFamily: 'monospace',
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      background: '#f8fafc',
+                      border: '1px dashed #cbd5e1',
+                      borderRadius: '8px',
+                      padding: '10px 12px',
+                      fontSize: '11.5px',
+                      color: '#475569',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    <ShieldCheck size={16} color="#16a34a" style={{ flexShrink: 0 }} />
+                    <span>
+                      Khi độc giả thanh toán qua VietQR/VNPay, số tài khoản và ngân hàng ở đây sẽ tự động hiển thị trong Modal thanh toán.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. THÔNG TIN THƯ VIỆN */}
+              <div
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '16px',
+                  border: '1px solid #eef2f6',
+                  padding: '22px 24px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ background: '#faf5ff', color: '#9333ea', padding: '6px', borderRadius: '8px' }}>
+                    <Building2 size={18} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                      Thông tin Đơn vị Thư viện
+                    </h3>
+                    <span style={{ fontSize: '11.5px', color: '#64748b' }}>
+                      Địa chỉ, liên hệ và thời gian phục vụ bạn đọc
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      Tên thư viện
+                    </label>
+                    <input
+                      type="text"
+                      value={systemSettings.libraryName || ''}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, libraryName: e.target.value })}
+                      placeholder="SmartLib - Thư viện Thông minh"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13.5px',
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      Địa chỉ thư viện
+                    </label>
+                    <input
+                      type="text"
+                      value={systemSettings.libraryAddress || ''}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, libraryAddress: e.target.value })}
+                      placeholder="Hà Nội, Việt Nam"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13px',
+                        color: '#0f172a',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Số điện thoại hỗ trợ
+                      </label>
+                      <input
+                        type="text"
+                        value={systemSettings.libraryPhone || ''}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, libraryPhone: e.target.value })}
+                        placeholder="0987 654 321"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                        Email liên hệ
+                      </label>
+                      <input
+                        type="email"
+                        value={systemSettings.libraryEmail || ''}
+                        onChange={(e) => setSystemSettings({ ...systemSettings, libraryEmail: e.target.value })}
+                        placeholder="support@smartlib.edu.vn"
+                        style={{
+                          width: '100%',
+                          padding: '9px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          color: '#0f172a',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 700, color: '#334155', marginBottom: '5px' }}>
+                      Khung giờ mở cửa phục vụ
+                    </label>
+                    <input
+                      type="text"
+                      value={systemSettings.libraryHours || ''}
+                      onChange={(e) => setSystemSettings({ ...systemSettings, libraryHours: e.target.value })}
+                      placeholder="07:30 - 17:30 (Thứ 2 - Thứ 7)"
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        borderRadius: '8px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '13px',
+                        color: '#0f172a',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Floating/Sticky Save Button Bar */}
+            <div
+              style={{
+                background: '#ffffff',
+                borderRadius: '14px',
+                padding: '16px 20px',
+                border: '1px solid #eef2f6',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
+              }}
+            >
+              <div style={{ fontSize: '12.5px', color: '#64748b' }}>
+                💡 Các thay đổi cấu hình sẽ có hiệu lực ngay lập tức trên toàn hệ thống sau khi lưu.
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={handleResetSettingsDefault}
+                  className="btn btn-outline"
+                  style={{
+                    padding: '9px 16px',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    fontWeight: 600
+                  }}
+                >
+                  Khôi phục mặc định
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={settingsSaving}
+                  className="btn btn-primary"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '9px 24px',
+                    borderRadius: '8px',
+                    fontSize: '13.5px',
+                    fontWeight: 700,
+                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                    boxShadow: '0 4px 12px rgba(37,99,235,0.25)'
+                  }}
+                >
+                  <Save size={16} />
+                  <span>{settingsSaving ? 'Đang lưu cấu hình...' : 'Lưu tất cả cài đặt'}</span>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      )}
+
 
       {/* Modals */}
       <BookDetailModal

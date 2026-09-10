@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X, CheckCircle, ShieldCheck, QrCode, CreditCard,
   Clock, AlertTriangle, Copy, Check, RefreshCw,
@@ -38,21 +38,35 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
       orderInfo
     }).then(res => {
       setPaymentData(res);
+      if (res?.timeoutMinutes) {
+        setCountdown(res.timeoutMinutes * 60);
+      }
       setPollingActive(true);
-    }).catch(() => {
+    }).catch(async () => {
+      let sett = {};
+      try {
+        if (api.getSettings) sett = await api.getSettings();
+      } catch (e) {}
       const txnRef = `VNP${Date.now()}_${readerId}`;
+      const accNum = sett.vnpayAccountNumber || '0987654321';
+      const accName = sett.vnpayAccountName || 'THU VIEN SMARTLIB';
+      const bBin = sett.vnpayBankBin || '970422';
+      const bName = sett.vnpayBankName || 'Ngân hàng TMCP Quân Đội (MBBank)';
+      const tMins = sett.vnpayTimeoutMinutes || 15;
+      setCountdown(tMins * 60);
       setPaymentData({
         txnRef,
         amount: payAmount,
         orderInfo,
-        bankName: 'Ngan hang TMCP Quan Doi (MBBank)',
-        accountNumber: '0987654321',
-        accountName: 'THU VIEN THONG MINH SMARTLIB',
-        qrCodeUrl: `https://api.vietqr.io/image/970422-0987654321-compact2.jpg?amount=${payAmount}&addInfo=${encodeURIComponent(orderInfo)}&accountName=${encodeURIComponent('THU VIEN SMARTLIB')}`
+        bankName: bName,
+        accountNumber: accNum,
+        accountName: accName,
+        qrCodeUrl: `https://api.vietqr.io/image/${bBin}-${accNum}-compact2.jpg?amount=${payAmount}&addInfo=${encodeURIComponent(orderInfo)}&accountName=${encodeURIComponent(accName)}`
       });
       setPollingActive(true);
     }).finally(() => setLoading(false));
   }, [isOpen]);
+
 
   useEffect(() => {
     if (!isOpen || countdown <= 0 || paymentSuccess) return;

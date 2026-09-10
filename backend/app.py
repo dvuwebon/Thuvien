@@ -23,8 +23,57 @@ from models import (
     BookCreate, BookUpdate, ReaderCreate, ReaderUpdate,
     BorrowRequestCreate, BorrowStatusUpdate, NotificationReadRequest,
     ReservationCreate, FineStatusUpdate, ReaderLockUpdate,
-    VNPayPaymentCreate, VNPayPaymentVerify
+    VNPayPaymentCreate, VNPayPaymentVerify, SystemSettings
 )
+
+SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "settings.json")
+
+DEFAULT_SETTINGS = {
+    "borrowHomeDays": 14,
+    "borrowLibraryDays": 7,
+    "maxBorrowBooks": 3,
+    "maxReservations": 3,
+    "finePerDay": 2000,
+    "gracePeriodDays": 0,
+    "autoLockAfterDays": 3,
+    "lostBookFine": 200000,
+    "vnpayTmnCode": "",
+    "vnpayHashSecret": "",
+    "vnpayAccountNumber": "0987654321",
+    "vnpayBankName": "Ngân hàng TMCP Quân Đội (MBBank)",
+    "vnpayBankBin": "970422",
+    "vnpayAccountName": "THU VIEN SMARTLIB",
+    "vnpayTimeoutMinutes": 15,
+    "libraryName": "SmartLib - Thư viện Thông minh",
+    "libraryAddress": "Hà Nội, Việt Nam",
+    "libraryPhone": "0987 654 321",
+    "libraryEmail": "support@smartlib.edu.vn",
+    "libraryHours": "07:30 - 17:30 (Thứ 2 - Thứ 7)"
+}
+
+def get_system_settings() -> dict:
+    try:
+        if os.path.exists(SETTINGS_FILE):
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                saved = json.load(f)
+                merged = dict(DEFAULT_SETTINGS)
+                merged.update(saved)
+                return merged
+    except Exception as e:
+        print(f"Error loading settings: {e}")
+    return dict(DEFAULT_SETTINGS)
+
+def save_system_settings(settings_dict: dict) -> dict:
+    merged = get_system_settings()
+    merged.update(settings_dict)
+    try:
+        os.makedirs(os.path.dirname(SETTINGS_FILE), exist_ok=True)
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(merged, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f"Error saving settings: {e}")
+    return merged
+
 from export_service import (
     generate_books_excel, generate_borrows_excel, generate_readers_csv,
     generate_borrow_receipt_pdf, generate_qr_code
@@ -432,11 +481,14 @@ def create_borrow_record(req: BorrowRequestCreate):
         b_type = "Mượn tại thư viện" if req.borrowType == "Mượn tại thư viện" else "Mượn về nhà"
         init_status = req.status or "Chờ duyệt"
 
+        sys_settings = get_system_settings()
         now = datetime.now()
         if b_type == "Mượn tại thư viện":
-            due_date = now.replace(hour=23, minute=59, second=59)
+            lib_days = int(sys_settings.get("borrowLibraryDays", 7))
+            due_date = (now + timedelta(days=lib_days)).replace(hour=23, minute=59, second=59) if lib_days > 1 else now.replace(hour=23, minute=59, second=59)
         else:
-            due_date = now + timedelta(days=14)
+            home_days = int(sys_settings.get("borrowHomeDays", 14))
+            due_date = now + timedelta(days=home_days)
 
         target_user_id = req.readerId or req.userId
         target_user = None
@@ -455,17 +507,19 @@ def create_borrow_record(req: BorrowRequestCreate):
                 detail=f"Tài khoản của bạn đang bị khóa do {reason}. Vui lòng nộp phạt qua cổng VNPay để mở khóa tài khoản trước khi đăng ký mượn sách mới!"
             )
 
-        # ✅ Kiểm tra giới hạn tối đa 5 cuốn sách đang mượn cùng lúc (UC-09, F18)
+        # ✅ Kiểm tra giới hạn số sách tối đa đang mượn cùng lúc theo cài đặt
+        max_borrows = int(sys_settings.get("maxBorrowBooks", 3))
         reader_active_borrows = sum(
             1 for r in records
             if int(r.get("readerId", 0)) == int(target_user.get("id", 0))
             and r.get("status") in ["Chờ duyệt", "Đang mượn", "Quá hạn"]
         )
-        if reader_active_borrows >= 5:
+        if reader_active_borrows >= max_borrows:
             raise HTTPException(
                 status_code=400,
-                detail=f"Độc giả {target_user.get('fullName')} đã có {reader_active_borrows} cuốn sách đang mượn hoặc chờ duyệt. Hệ thống chỉ cho phép tối đa 5 cuốn/lúc."
+                detail=f"Độc giả {target_user.get('fullName')} đã có {reader_active_borrows} cuốn sách đang mượn hoặc chờ duyệt. Quy định hiện tại cho phép tối đa {max_borrows} cuốn/lúc."
             )
+
 
         # 🛡️ KIỂM SOÁT ĐỒNG THỜI & CHỐNG RACE CONDITION (Concurrency Control):
         # Thực hiện giao dịch nguyên tử (Atomic ACID Transaction) qua atomic_borrow_book.
@@ -660,18 +714,24 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
         now = datetime.now()
         record["overdue_marked_at"] = now.isoformat()
         
-        # Tính số ngày quá hạn (tối thiểu 3 ngày khi quản trị viên đánh dấu hoặc tính theo ngày hạn trả)
-        overdue_days = 3
+        # Tính số ngày quá hạn theo cài đặt hệ thống
+        sys_settings = get_system_settings()
+        fine_rate = float(sys_settings.get("finePerDay", 2000))
+        grace_days = int(sys_settings.get("gracePeriodDays", 0))
+        lock_threshold = int(sys_settings.get("autoLockAfterDays", 3))
+
+        overdue_days = max(1, lock_threshold)
         try:
             due_str = record.get("returnDate") or record.get("dueDate")
             if due_str:
                 due = datetime.fromisoformat(due_str.replace("Z", ""))
                 diff = (now.date() - due.date()).days
-                overdue_days = max(3, diff)
+                overdue_days = max(lock_threshold, diff)
         except Exception:
-            overdue_days = 3
+            overdue_days = lock_threshold
         
-        fine_amount = float(overdue_days * 2000)
+        chargeable_days = max(0, overdue_days - grace_days)
+        fine_amount = float(chargeable_days * fine_rate)
         record["fine_amount"] = fine_amount
         record["overdue_days"] = overdue_days
 
@@ -699,24 +759,26 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
             existing_fine["fineAmount"] = fine_amount
             existing_fine["status"] = "Chưa nộp"
 
-        # Tự động khóa tài khoản độc giả do quá hạn >= 3 ngày
+        # Tự động khóa tài khoản độc giả nếu số ngày quá hạn >= ngưỡng cài đặt
         target_reader_id = int(record.get("readerId", 0))
-        lock_msg = f"Mượn cuốn sách \"{record.get('bookTitle')}\" quá hạn {overdue_days} ngày chưa trả và chưa nộp phạt sau 3 ngày. Bắt buộc phải nộp phạt để mở khóa tài khoản."
-        for u in db.get("users", []):
-            if int(u.get("id", 0)) == target_reader_id:
-                u["isLocked"] = True
-                u["lockReason"] = lock_msg
-        db_manager.toggle_reader_lock(target_reader_id, True, lock_msg)
+        if overdue_days >= lock_threshold:
+            lock_msg = f"Mượn cuốn sách \"{record.get('bookTitle')}\" quá hạn {overdue_days} ngày chưa trả. Bắt buộc phải nộp phạt để mở khóa tài khoản."
+            for u in db.get("users", []):
+                if int(u.get("id", 0)) == target_reader_id:
+                    u["isLocked"] = True
+                    u["lockReason"] = lock_msg
+            db_manager.toggle_reader_lock(target_reader_id, True, lock_msg)
 
         # Gửi thông báo đến độc giả
         db_manager.add_notification(
             recipient_role="Reader",
             recipient_user_id=target_reader_id,
             title="Cảnh báo: Sách mượn bị chuyển Quá hạn",
-            message=f"Cuốn sách \"{record.get('bookTitle')}\" của bạn đã bị chuyển sang trạng thái Quá hạn (Tiền phạt: {int(fine_amount):,} đ). Tài khoản đã bị khóa đăng nhập sau 3 ngày chưa nộp phạt, vui lòng nộp phạt qua cổng VNPay để mở lại tài khoản!",
+            message=f"Cuốn sách \"{record.get('bookTitle')}\" của bạn đã bị chuyển sang trạng thái Quá hạn (Tiền phạt: {int(fine_amount):,} đ). Vui lòng nộp phạt qua cổng VNPay để mở lại tài khoản!",
             notif_type="overdue_alert",
             meta={"recordId": record_id, "fineAmount": fine_amount, "overdueDays": overdue_days}
         )
+
 
     # Lưu thay đổi trạng thái mượn và số lượng sách vào CSDL
     db_manager.save_db(db)
@@ -906,7 +968,9 @@ def create_reservation(req: ReservationCreate):
     if existing:
         raise HTTPException(status_code=400, detail="Bạn đã đặt trước cuốn sách này rồi.")
 
-    # Kiểm tra giới hạn: Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách
+    # Kiểm tra giới hạn số sách đặt trước tối đa theo cài đặt
+    sys_settings = get_system_settings()
+    max_res = int(sys_settings.get("maxReservations", 3))
     active_reservations = [
         r for r in reservations
         if int(r.get("readerId", 0)) == int(req.readerId)
@@ -914,11 +978,12 @@ def create_reservation(req: ReservationCreate):
         and int(r.get("bookId", 0)) != 3
         and "tru tiên" not in str(r.get("bookTitle", "")).lower()
     ]
-    if len(active_reservations) >= 3:
+    if len(active_reservations) >= max_res:
         raise HTTPException(
             status_code=400,
-            detail="Bạn đã hết lượt đặt trước sách. Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách, nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp."
+            detail=f"Bạn đã hết lượt đặt trước sách. Mỗi độc giả chỉ được đặt trước tối đa {max_res} cuốn sách, nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp."
         )
+
 
     # Xác định thứ tự ưu tiên (FIFO)
     same_book_waiting = [r for r in reservations if int(r.get("bookId", 0)) == int(req.bookId) and r.get("status") == "Waiting"]
@@ -1034,25 +1099,31 @@ def create_vnpay_payment(req: VNPayPaymentCreate):
     amount = int(req.amount)
     order_desc = req.orderInfo or f"SMARTLIB NOP PHAT DG-{str(req.readerId).zfill(3)}"
 
-    account_number = "0987654321"
-    account_name = "THU VIEN SMARTLIB"
-    bank_bin = "970422"  # MBBank
+    sys_settings = get_system_settings()
+    account_number = sys_settings.get("vnpayAccountNumber") or "0987654321"
+    account_name = sys_settings.get("vnpayAccountName") or "THU VIEN SMARTLIB"
+    bank_bin = sys_settings.get("vnpayBankBin") or "970422"
+    bank_name = sys_settings.get("vnpayBankName") or "Ngân hàng TMCP Quân Đội (MBBank)"
+    timeout_mins = int(sys_settings.get("vnpayTimeoutMinutes", 15))
+
     qr_url = f"https://api.vietqr.io/image/{bank_bin}-{account_number}-compact2.jpg?amount={amount}&addInfo={urllib.parse.quote(order_desc)}&accountName={urllib.parse.quote(account_name)}"
 
     return {
         "txnRef": txn_ref,
         "amount": amount,
         "orderInfo": order_desc,
-        "bankName": "Ngân hàng TMCP Quân Đội (MBBank)",
+        "bankName": bank_name,
         "bankBin": bank_bin,
         "accountNumber": account_number,
         "accountName": account_name,
         "qrCodeUrl": qr_url,
         "fineId": req.fineId,
         "readerId": req.readerId,
+        "timeoutMinutes": timeout_mins,
         "createdAt": now.isoformat(),
-        "expiresAt": (now + timedelta(minutes=15)).isoformat()
+        "expiresAt": (now + timedelta(minutes=timeout_mins)).isoformat()
     }
+
 
 
 @app.post("/api/payment/vnpay/verify")
@@ -1312,6 +1383,21 @@ def get_stats():
         "returnedBooks": returned_count,
         "totalReservations": len(reservations),
         "totalFines": int(total_fines)
+    }
+
+
+# ================= SYSTEM SETTINGS =================
+@app.get("/api/settings")
+def get_settings_endpoint():
+    return get_system_settings()
+
+@app.put("/api/settings")
+def update_settings_endpoint(req: SystemSettings):
+    updated = save_system_settings(req.dict(exclude_unset=True))
+    return {
+        "success": True,
+        "message": "Cập nhật cấu hình hệ thống thành công!",
+        "settings": updated
     }
 
 

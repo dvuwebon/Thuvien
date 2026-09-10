@@ -42,8 +42,16 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const [myFines, setMyFines] = useState([]);
   const [vnpayModalOpen, setVnpayModalOpen] = useState(false);
   const [selectedFineForPayment, setSelectedFineForPayment] = useState(null);
+  const [systemSettings, setSystemSettings] = useState(null);
+
+  useEffect(() => {
+    if (api.getSettings) {
+      api.getSettings().then(s => setSystemSettings(s)).catch(() => {});
+    }
+  }, []);
 
   const showToast = (msg) => {
+
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 3500);
   };
@@ -135,7 +143,11 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     }
   };
 
-  // Kiểm tra tài khoản có bị khóa hoặc có sách trễ hạn >= 3 ngày không
+  const fineRate = Number(systemSettings?.finePerDay || 2000);
+  const lockDays = Number(systemSettings?.autoLockAfterDays || 3);
+  const graceDays = Number(systemSettings?.gracePeriodDays || 0);
+
+  // Kiểm tra tài khoản có bị khóa hoặc có sách trễ hạn >= lockDays ngày không
   const overdueBorrows = myBorrows.filter(r => {
     if (r.status === 'Đã trả' || r.status === 'Từ chối' || r.status === 'Chờ duyệt') return false;
     if (r.status === 'Quá hạn') return true;
@@ -144,19 +156,20 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     const due = new Date(dueStr);
     const now = new Date();
     const diffDays = Math.floor((now - due) / (1000 * 60 * 60 * 24));
-    return diffDays >= 3 || (r.daysOverdue && r.daysOverdue >= 3) || (r.overdueDays && r.overdueDays >= 3);
+    return diffDays >= lockDays || (r.daysOverdue && r.daysOverdue >= lockDays) || (r.overdueDays && r.overdueDays >= lockDays);
   });
 
   const calculateBorrowFine = (r) => {
     if (Number(r.fineAmount) > 0) return Number(r.fineAmount);
     if (Number(r.fine_amount) > 0) return Number(r.fine_amount);
     const dueStr = r.returnDate || r.dueDate;
-    if (!dueStr) return 6000;
+    if (!dueStr) return lockDays * fineRate;
     const due = new Date(dueStr);
     const now = new Date();
     const diffDays = Math.floor((now - due) / (1000 * 60 * 60 * 24));
-    const days = Math.max(3, diffDays, Number(r.daysOverdue || 0), Number(r.overdueDays || 0));
-    return days * 2000;
+    const days = Math.max(lockDays, diffDays, Number(r.daysOverdue || 0), Number(r.overdueDays || 0));
+    const chargeable = Math.max(0, days - graceDays);
+    return chargeable * fineRate;
   };
 
   const unpaidFinesList = (myFines || []).filter(f => f.status === 'Chưa nộp');
@@ -170,7 +183,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   let readerLockReason = user?.lockReason || '';
   if (!readerLockReason) {
     if (overdueBorrows.length > 0) {
-      readerLockReason = `Bạn đang mượn ${overdueBorrows.length} cuốn sách quá hạn từ 3 ngày trở lên (${overdueBorrows.map(b => b.bookTitle).join(', ')}). Hệ thống tự động khóa tài khoản theo quy chế thư viện.`;
+      readerLockReason = `Bạn đang mượn ${overdueBorrows.length} cuốn sách quá hạn từ ${lockDays} ngày trở lên (${overdueBorrows.map(b => b.bookTitle).join(', ')}). Hệ thống tự động khóa tài khoản theo quy chế thư viện.`;
     } else if (unpaidFinesList.length > 0) {
       readerLockReason = `Tài khoản còn khoản phạt trễ hạn (${totalUnpaidFineAmount.toLocaleString('vi-VN')} đ) chưa thanh toán. Vui lòng nộp phạt qua VNPay để tự động mở khóa tài khoản.`;
     } else {
@@ -199,7 +212,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
   const handleOpenBorrowModal = (book) => {
     if (isReaderLocked) {
-      showToast('Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ 3 ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản.');
+      showToast(`Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ ${lockDays} ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản.`);
       setSelectedFineForPayment(unpaidFinesList[0] || null);
       setVnpayModalOpen(true);
       return;
@@ -215,21 +228,23 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     }
 
     if (isReaderLocked) {
-      showToast('Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ 3 ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản.');
+      showToast(`Tài khoản của bạn đang bị khóa do mượn sách quá hạn từ ${lockDays} ngày trở lên. Vui lòng nộp phạt qua VNPay để mở lại tài khoản.`);
       setSelectedFineForPayment(unpaidFinesList[0] || null);
       setVnpayModalOpen(true);
       return;
     }
 
-    // Kiểm tra giới hạn: Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách
+    // Kiểm tra giới hạn số sách đặt trước tối đa theo cài đặt
+    const maxRes = Number(systemSettings?.maxReservations || 3);
     const activeResvs = myReservations.filter(
       r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' &&
            Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))
     );
-    if (activeResvs.length >= 3) {
-      showToast('Bạn đã hết lượt đặt trước sách! Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách. Nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.');
+    if (activeResvs.length >= maxRes) {
+      showToast(`Bạn đã hết lượt đặt trước sách! Mỗi độc giả chỉ được đặt trước tối đa ${maxRes} cuốn sách. Nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.`);
       return;
     }
+
 
     try {
       const uId = user.id ? Number(user.id) : 2;

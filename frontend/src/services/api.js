@@ -1432,5 +1432,60 @@ export const api = {
       favoriteCategory: favCat,
       books: recs.slice(0, limit)
     };
+  },
+
+  // System Settings (Cài đặt hệ thống)
+  getSettings: async () => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetchWithTimeout(`${API_BASE}/settings`, {}, 2500);
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    return db.settings || {
+      borrowHomeDays: 14,
+      borrowLibraryDays: 7,
+      maxBorrowBooks: 3,
+      maxReservations: 3,
+      finePerDay: 2000,
+      gracePeriodDays: 0,
+      autoLockAfterDays: 3,
+      lostBookFine: 200000,
+      vnpayTmnCode: '',
+      vnpayHashSecret: '',
+      vnpayAccountNumber: '0987654321',
+      vnpayBankName: 'Ngân hàng TMCP Quân Đội (MBBank)',
+      vnpayBankBin: '970422',
+      vnpayAccountName: 'THU VIEN SMARTLIB',
+      vnpayTimeoutMinutes: 15,
+      libraryName: 'SmartLib - Thư viện Thông minh',
+      libraryAddress: 'Hà Nội, Việt Nam',
+      libraryPhone: '0987 654 321',
+      libraryEmail: 'support@smartlib.edu.vn',
+      libraryHours: '07:30 - 17:30 (Thứ 2 - Thứ 7)'
+    };
+  },
+
+  updateSettings: async (settingsData) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/settings`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(settingsData)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('settings');
+          return result;
+        }
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    db.settings = { ...(db.settings || {}), ...settingsData };
+    saveLocalDb(db);
+    notifyDataUpdated('settings');
+    return { success: true, message: 'Cập nhật cài đặt thành công!', settings: db.settings };
   }
 };
