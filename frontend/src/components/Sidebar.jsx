@@ -5,8 +5,9 @@ import NotificationDropdown from './NotificationDropdown';
 import {
   BookOpen, BookmarkCheck, History, Settings, LogOut,
   LayoutDashboard, Users, FileSpreadsheet, MessageSquare, Clock,
-  SlidersHorizontal
+  SlidersHorizontal, User
 } from 'lucide-react';
+
 
 
 function NavItem({ active, onClick, icon, label }) {
@@ -357,9 +358,10 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
         <NavItem
           active={activeTab === 'profile'}
           onClick={() => onTabChange('profile')}
-          icon={<Settings size={17} strokeWidth={2} />}
-          label="Cài đặt & Hồ sơ"
+          icon={<User size={17} strokeWidth={2} />}
+          label="Hồ sơ"
         />
+
 
         <div
           onClick={logout}
