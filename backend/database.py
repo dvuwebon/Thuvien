@@ -56,15 +56,11 @@ class DatabaseManager:
         return self.mysql_mgr.is_connected()
 
     def load_db(self) -> Dict[str, Any]:
-        """Đọc trực tiếp dữ liệu từ các bảng MySQL"""
-        if not self.mysql_mgr.is_connected():
-            self.mysql_mgr._init_connection()
+        """Đọc trực tiếp dữ liệu từ các bảng MySQL hoặc SQLite qua RAM cache siêu tốc"""
         return self.mysql_mgr.load_db()
 
     def save_db(self, data: Dict[str, Any]):
-        """Lưu và đồng bộ trực tiếp các bản ghi vào MySQL"""
-        if not self.mysql_mgr.is_connected():
-            self.mysql_mgr._init_connection()
+        """Lưu và đồng bộ trực tiếp các bản ghi vào MySQL và SQLite"""
         self.mysql_mgr.save_db(data)
 
     def add_notification(

@@ -207,6 +207,23 @@ export const notifyDataUpdated = (type = 'all', meta = {}) => {
   }
 };
 
+// Helper fetch with timeout to prevent network blocking
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 2500) => {
+  if (typeof AbortController === 'undefined') {
+    return fetch(url, options);
+  }
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (err) {
+    clearTimeout(id);
+    throw err;
+  }
+};
+
 export const api = {
   // Auth
   login: async (username, password) => {
@@ -416,14 +433,34 @@ export const api = {
   },
 
   // Books
+  getCachedBooks: () => {
+    try {
+      const db = getLocalDb();
+      if (db && Array.isArray(db.books) && db.books.length > 0) {
+        return db.books;
+      }
+    } catch (e) {}
+    return (initialDb && initialDb.books) || [];
+  },
+
   getBooks: async () => {
     if (!isStaticHost) {
       try {
-        const res = await fetch(`${API_BASE}/books`);
-        if (res.ok) return await res.json();
+        const res = await fetchWithTimeout(`${API_BASE}/books`, {}, 2500);
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            try {
+              const db = getLocalDb();
+              db.books = data;
+              saveLocalDb(db);
+            } catch (e) {}
+            return data;
+          }
+        }
       } catch (e) {}
     }
-    return getLocalDb().books || [];
+    return api.getCachedBooks();
   },
 
   createBook: async (bookData) => {
@@ -497,7 +534,7 @@ export const api = {
   getReaders: async () => {
     if (!isStaticHost) {
       try {
-        const res = await fetch(`${API_BASE}/readers`);
+        const res = await fetchWithTimeout(`${API_BASE}/readers`, {}, 2500);
         if (res.ok) return await res.json();
       } catch (e) {}
     }
@@ -576,7 +613,7 @@ export const api = {
   getBorrowRecords: async () => {
     if (!isStaticHost) {
       try {
-        const res = await fetch(`${API_BASE}/borrow-records`);
+        const res = await fetchWithTimeout(`${API_BASE}/borrow-records`, {}, 2500);
         if (res.ok) return await res.json();
       } catch (e) {}
     }
@@ -947,7 +984,7 @@ export const api = {
         const params = new URLSearchParams();
         if (role) params.append('role', role);
         if (userId) params.append('userId', userId);
-        const res = await fetch(`${API_BASE}/notifications?${params.toString()}`);
+        const res = await fetchWithTimeout(`${API_BASE}/notifications?${params.toString()}`, {}, 2500);
         if (res.ok) return await res.json();
       } catch (e) {}
     }
@@ -1036,7 +1073,7 @@ export const api = {
   getStats: async () => {
     if (!isStaticHost) {
       try {
-        const res = await fetch(`${API_BASE}/stats`);
+        const res = await fetchWithTimeout(`${API_BASE}/stats`, {}, 2500);
         if (res.ok) return await res.json();
       } catch (e) {}
     }
@@ -1068,7 +1105,7 @@ export const api = {
     if (!isStaticHost) {
       try {
         const url = userId ? `${API_BASE}/reservations?userId=${userId}` : `${API_BASE}/reservations`;
-        const res = await fetch(url);
+        const res = await fetchWithTimeout(url, {}, 2500);
         if (res.ok) {
           list = await res.json();
           // Lọc sạch dữ liệu rác không thuộc diện sách sắp có / đặt trước
@@ -1162,7 +1199,7 @@ export const api = {
     if (!isStaticHost) {
       try {
         const url = readerId ? `${API_BASE}/fines?readerId=${readerId}` : `${API_BASE}/fines`;
-        const res = await fetch(url);
+        const res = await fetchWithTimeout(url, {}, 2500);
         if (res.ok) return await res.json();
       } catch (e) {}
     }
@@ -1316,7 +1353,7 @@ export const api = {
   getRecommendations: async (readerId, limit = 6) => {
     if (!isStaticHost) {
       try {
-        const res = await fetch(`${API_BASE}/recommendations/${readerId}?limit=${limit}`);
+        const res = await fetchWithTimeout(`${API_BASE}/recommendations/${readerId}?limit=${limit}`, {}, 2500);
         if (res.ok) {
           const data = await res.json();
           if (data && Array.isArray(data.books)) {

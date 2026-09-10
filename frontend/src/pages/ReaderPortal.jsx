@@ -16,7 +16,7 @@ import VNPayPaymentModal from '../components/VNPayPaymentModal';
 
 export default function ReaderPortal({ activeTab, onTabChange }) {
   const { user, updateUser } = useAuth();
-  const [books, setBooks] = useState([]);
+  const [books, setBooks] = useState(() => (api.getCachedBooks ? api.getCachedBooks() : []));
   const [myBorrows, setMyBorrows] = useState([]);
   const [myReservations, setMyReservations] = useState([]);
   const [recommendations, setRecommendations] = useState(null);

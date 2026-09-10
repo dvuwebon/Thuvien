@@ -1,5 +1,6 @@
 import os
 import time
+import socket
 import json
 import logging
 from datetime import datetime, date
@@ -288,6 +289,21 @@ class MySQLDatabaseManager:
         self.SessionLocal = None
         self._is_connected = False
         self._last_connect_attempt = 0
+        self._logged_offline = False
+
+        # Khởi tạo persistent SQLite engine để nạp dữ liệu siêu tốc < 5ms khi MySQL chưa bật
+        self.db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_local.db"))
+        try:
+            self.sqlite_engine = create_engine(
+                f"sqlite:///{self.db_path}",
+                echo=False,
+                connect_args={"check_same_thread": False}
+            )
+            self.SqliteSession = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=self.sqlite_engine))
+        except Exception:
+            self.sqlite_engine = None
+            self.SqliteSession = None
+
         self._init_connection()
 
     def _get_connection_url(self, with_db: bool = True) -> str:
@@ -297,12 +313,33 @@ class MySQLDatabaseManager:
 
     def _init_connection(self):
         now = time.time()
-        if now - getattr(self, "_last_connect_attempt", 0) < 15:
+        if now - getattr(self, "_last_connect_attempt", 0) < 60:
             return
         self._last_connect_attempt = now
+
+        # ⚡ Kiểm tra nhanh socket (timeout 0.15s) để không bao giờ làm treo hệ thống khi MySQL chưa bật
+        sock_ok = False
         try:
-            # 1. Kết nối tới MySQL server (không chỉ định DB để tạo DB nếu chưa có)
-            root_engine = create_engine(self._get_connection_url(with_db=False), echo=False, pool_pre_ping=True)
+            with socket.create_connection((self.host, self.port), timeout=0.15):
+                sock_ok = True
+        except Exception:
+            sock_ok = False
+
+        if not sock_ok:
+            self._is_connected = False
+            if not getattr(self, "_logged_offline", False):
+                logger.info(f"ℹ️ MySQL Server ({self.host}:{self.port}) chưa bật. Hệ thống tự động kích hoạt CSDL SQLite cục bộ siêu tốc.")
+                self._logged_offline = True
+            return
+
+        try:
+            # 1. Kết nối tới MySQL server với timeout ngắn (2s)
+            root_engine = create_engine(
+                self._get_connection_url(with_db=False),
+                echo=False,
+                pool_pre_ping=True,
+                connect_args={"connect_timeout": 2}
+            )
             with root_engine.connect() as conn:
                 conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{self.database}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"))
                 conn.commit()
@@ -313,7 +350,8 @@ class MySQLDatabaseManager:
                 echo=False,
                 pool_size=10,
                 max_overflow=20,
-                pool_pre_ping=True
+                pool_pre_ping=True,
+                connect_args={"connect_timeout": 2}
             )
             self.SessionLocal = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=self.engine))
 
@@ -403,8 +441,7 @@ class MySQLDatabaseManager:
 
     def _load_from_local_sqlite(self) -> Dict[str, Any]:
         """Dự phòng an toàn: đọc dữ liệu từ CSDL cục bộ khi MySQL tạm thời ngắt kết nối"""
-        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_local.db"))
-        if not os.path.exists(db_path):
+        if not os.path.exists(self.db_path) or not self.SqliteSession:
             return {
                 "users": [],
                 "books": [],
@@ -413,20 +450,24 @@ class MySQLDatabaseManager:
                 "fines": [],
                 "notifications": []
             }
+        session = self.SqliteSession()
         try:
-            sqlite_engine = create_engine(f"sqlite:///{db_path}")
-            SqliteSession = sessionmaker(bind=sqlite_engine)
-            session = SqliteSession()
+            # Lấy sách từ RAM cache nếu còn hạn (giảm tải đọc base64 ảnh mỗi request)
+            now = time.time()
+            if _BOOKS_CACHE["data"] is not None and (now - _BOOKS_CACHE["cached_at"]) < BOOKS_CACHE_TTL:
+                books = _BOOKS_CACHE["data"]
+            else:
+                books = [b.to_dict() for b in session.query(BookModel).all()]
+                _BOOKS_CACHE["data"] = books
+                _BOOKS_CACHE["cached_at"] = now
+
             users = [u.to_dict() for u in session.query(UserModel).all()]
-            books = [b.to_dict() for b in session.query(BookModel).all()]
             borrows = [br.to_dict() for br in session.query(BorrowRecordModel).all()]
             reservations = [res.to_dict() for res in session.query(ReservationModel).all()]
             fines = [f.to_dict() for f in session.query(FineModel).all()]
             notifications = [n.to_dict() for n in session.query(NotificationModel).order_by(NotificationModel.id.desc()).all()]
-            session.close()
 
             users = self._apply_auto_lock_rules(users, borrows, fines)
-            logger.info(f"✓ Đã nạp dữ liệu dự phòng từ smartlib_local.db ({len(books)} sách, {len(users)} người dùng)")
             return {
                 "users": users,
                 "books": books,
@@ -445,6 +486,8 @@ class MySQLDatabaseManager:
                 "fines": [],
                 "notifications": []
             }
+        finally:
+            session.close()
 
     def _apply_auto_lock_rules(self, users: List[Dict[str, Any]], borrows: List[Dict[str, Any]], fines: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -503,9 +546,7 @@ class MySQLDatabaseManager:
         Tự động dùng RAM cache cho danh sách sách để đạt phản hồi siêu nhanh < 3ms.
         Có cơ chế Dual-Engine Fallback tự động sang SQLite nếu máy tính chưa kịp khởi động MySQL.
         """
-        if not self.SessionLocal:
-            self._init_connection()
-        if not self.SessionLocal:
+        if not self._is_connected or not self.SessionLocal:
             return self._load_from_local_sqlite()
 
         session = self.SessionLocal()
@@ -544,13 +585,10 @@ class MySQLDatabaseManager:
 
     def _save_to_local_sqlite(self, data: Dict[str, Any]):
         """Đồng bộ dữ liệu sang smartlib_local.db khi MySQL chưa hoạt động hoặc làm bản sao lưu an toàn"""
-        db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_local.db"))
-        if not os.path.exists(db_path):
+        if not os.path.exists(self.db_path) or not self.SqliteSession:
             return
         try:
-            sqlite_engine = create_engine(f"sqlite:///{db_path}")
-            SqliteSession = sessionmaker(bind=sqlite_engine)
-            session = SqliteSession()
+            session = self.SqliteSession()
 
             # 1. Sync Books
             for b in data.get("books", []):

@@ -613,7 +613,7 @@ function CategoryBorrowBarChart() {
 
 export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = false }) {
   const [stats, setStats] = useState(null);
-  const [books, setBooks] = useState([]);
+  const [books, setBooks] = useState(() => (api.getCachedBooks ? api.getCachedBooks() : []));
   const [readers, setReaders] = useState([]);
   const [borrowRecords, setBorrowRecords] = useState([]);
   const [reservations, setReservations] = useState([]);

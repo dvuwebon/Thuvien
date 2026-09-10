@@ -20,8 +20,8 @@ export default function App() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
 
-  // Global books state for search & modals
-  const [books, setBooks] = useState([]);
+  // Global books state for search & modals (Instant 0ms initial render from cache)
+  const [books, setBooks] = useState(() => (api.getCachedBooks ? api.getCachedBooks() : []));
   const [selectedBook, setSelectedBook] = useState(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [borrowModalOpen, setBorrowModalOpen] = useState(false);
