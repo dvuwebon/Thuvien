@@ -54,7 +54,7 @@ export const NotificationProvider = ({ children }) => {
   const seenNotifIdsRef = useRef(new Set());
   const isInitializedRef = useRef(false);
 
-  // Khi thay đổi vai trò hoặc tài khoản (Admin <-> Reader), reset lại bộ nhớ thông báo
+  // Khi thay đổi vai trò hoặc tài khoản (Admin <-> Reader), reset lại bộ nhớ thông báo một cách an toàn
   useEffect(() => {
     isInitializedRef.current = false;
     seenNotifIdsRef.current = new Set();
@@ -62,27 +62,34 @@ export const NotificationProvider = ({ children }) => {
   }, [user?.id, role]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!user) return;
+    if (!user || !user.id) return;
     try {
       const res = await api.getNotifications(role, user.id);
       if (res && res.notifications) {
-        // 1. Lần đầu tải ứng dụng: Ghi nhận tất cả thông báo hiện có để không báo lại các thông báo cũ
+        const rawNotifs = res.notifications || [];
+        const normalizedCount = Number(res.unreadCount || 0);
+
+        // 1. Lần đầu tải ứng dụng: Ghi nhận tất cả ID thông báo hiện có để không báo lại các thông báo cũ
         if (!isInitializedRef.current) {
-          res.notifications.forEach(n => seenNotifIdsRef.current.add(n.id));
+          rawNotifs.forEach(n => {
+            if (n && n.id != null) {
+              seenNotifIdsRef.current.add(Number(n.id));
+            }
+          });
           isInitializedRef.current = true;
-          setNotifications(res.notifications);
-          setUnreadCount(res.unreadCount || 0);
+          setNotifications(rawNotifs);
+          setUnreadCount(normalizedCount);
           return;
         }
 
         // 2. Các lần cập nhật sau: Tìm chính xác thông báo MỚI CHƯA TỪNG THẤY và chưa đọc
-        const brandNewNotifs = res.notifications.filter(
-          n => !seenNotifIdsRef.current.has(n.id) && !n.isRead
+        const brandNewNotifs = rawNotifs.filter(
+          n => n && n.id != null && !seenNotifIdsRef.current.has(Number(n.id)) && !n.isRead
         );
 
         // Thu thập các mã phiếu mượn đã hoàn tất trả sách
         const returnedRecordIds = new Set(
-          res.notifications
+          rawNotifs
             .filter(n => n.type === 'book_returned')
             .map(n => Number(n.recordId || n.meta?.recordId))
             .filter(Boolean)
@@ -107,32 +114,63 @@ export const NotificationProvider = ({ children }) => {
         }
 
         // Đánh dấu tất cả thông báo hiện có vào Set đã thấy
-        res.notifications.forEach(n => seenNotifIdsRef.current.add(n.id));
-        setNotifications(res.notifications);
-        setUnreadCount(res.unreadCount || 0);
+        rawNotifs.forEach(n => {
+          if (n && n.id != null) {
+            seenNotifIdsRef.current.add(Number(n.id));
+          }
+        });
+
+        // Chỉ cập nhật state khi thực sự có thay đổi (shallow comparison) để ngăn chặn giật / nhấp nháy UI
+        setNotifications(prev => {
+          if (
+            prev.length === rawNotifs.length &&
+            prev.every((p, idx) => Number(p.id) === Number(rawNotifs[idx]?.id) && p.isRead === rawNotifs[idx]?.isRead && p.title === rawNotifs[idx]?.title)
+          ) {
+            return prev; // Giữ nguyên reference, không kích hoạt re-render!
+          }
+          return rawNotifs;
+        });
+
+        setUnreadCount(prev => prev === normalizedCount ? prev : normalizedCount);
       }
     } catch (e) {
       console.error('Lỗi khi tải thông báo:', e);
     }
-  }, [user, role]);
+  }, [user?.id, role]);
 
   // Lắng nghe sự kiện đồng bộ tức thì qua custom event, storage event và BroadcastChannel
   useEffect(() => {
     fetchNotifications();
 
-    const handleUpdate = () => {
-      fetchNotifications();
+    let debounceTimer = null;
+    const debouncedFetch = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        fetchNotifications();
+      }, 150);
     };
 
-    window.addEventListener('smartlib:data-updated', handleUpdate);
-    window.addEventListener('storage', handleUpdate);
+    const handleCustomEvent = () => {
+      debouncedFetch();
+    };
+
+    const handleStorageUpdate = (e) => {
+      // Chỉ kích hoạt tải thông báo khi đúng sự kiện dữ liệu thư viện hoặc thông báo, bỏ qua currentUser giữa 2 tab
+      if (e.key === 'smartlib_last_update' || e.key === 'smartlib_db' || e.key === 'smartlib_notif_update') {
+        debouncedFetch();
+      }
+    };
+
+    window.addEventListener('smartlib:data-updated', handleCustomEvent);
+    window.addEventListener('storage', handleStorageUpdate);
     
-    // Polling ngầm định kỳ 5s kết hợp cùng event listener tức thì
+    // Polling ngầm định kỳ 5s
     const interval = setInterval(fetchNotifications, 5000);
 
     return () => {
-      window.removeEventListener('smartlib:data-updated', handleUpdate);
-      window.removeEventListener('storage', handleUpdate);
+      clearTimeout(debounceTimer);
+      window.removeEventListener('smartlib:data-updated', handleCustomEvent);
+      window.removeEventListener('storage', handleStorageUpdate);
       clearInterval(interval);
     };
   }, [fetchNotifications]);
@@ -164,7 +202,6 @@ export const NotificationProvider = ({ children }) => {
     setUnreadCount(0);
     try {
       await api.readAllNotifications(role, user ? user.id : null);
-      window.dispatchEvent(new CustomEvent('smartlib:data-updated', { detail: { type: 'notification' } }));
     } catch (e) {
       console.error('Lỗi markAllAsRead:', e);
     }

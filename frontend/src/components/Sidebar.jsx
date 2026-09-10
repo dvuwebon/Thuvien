@@ -178,7 +178,8 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
                     height: '8px',
                     borderRadius: '50%',
                     background: '#f59e0b',
-                    border: '2px solid #ffffff'
+                    border: '2px solid #ffffff',
+                    pointerEvents: 'none'
                   }}
                 />
               )}
