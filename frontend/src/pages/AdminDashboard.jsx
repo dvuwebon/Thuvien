@@ -3098,59 +3098,6 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
               </div>
             </div>
 
-            {/* Bottom Floating/Sticky Save Button Bar */}
-            <div
-              style={{
-                background: '#ffffff',
-                borderRadius: '14px',
-                padding: '16px 20px',
-                border: '1px solid #eef2f6',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.03)'
-              }}
-            >
-              <div style={{ fontSize: '12.5px', color: '#64748b' }}>
-                💡 Các thay đổi cấu hình sẽ có hiệu lực ngay lập tức trên toàn hệ thống sau khi lưu.
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  onClick={handleResetSettingsDefault}
-                  className="btn btn-outline"
-                  style={{
-                    padding: '9px 16px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    fontWeight: 600
-                  }}
-                >
-                  Khôi phục mặc định
-                </button>
-
-                <button
-                  type="submit"
-                  disabled={settingsSaving}
-                  className="btn btn-primary"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '9px 24px',
-                    borderRadius: '8px',
-                    fontSize: '13.5px',
-                    fontWeight: 700,
-                    background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
-                    boxShadow: '0 4px 12px rgba(37,99,235,0.25)'
-                  }}
-                >
-                  <Save size={16} />
-                  <span>{settingsSaving ? 'Đang lưu cấu hình...' : 'Lưu tất cả cài đặt'}</span>
-                </button>
-              </div>
-            </div>
           </form>
         </div>
       )}
