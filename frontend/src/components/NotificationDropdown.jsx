@@ -32,8 +32,7 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
     markAsRead,
     markAllAsRead,
     fetchNotifications,
-    deleteNotification,
-    clearReadNotifications
+    deleteNotification
   } = useNotifications();
   const { role } = useAuth();
   const dropdownRef = useRef(null);
@@ -81,7 +80,10 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
   if (!isOpen) return null;
 
   const handleConfirmAction = async () => {
-    if (!confirmModal) return;
+    if (!confirmModal || !confirmModal.recordId) {
+      setActionError('Không tìm thấy thông tin lượt mượn để xử lý.');
+      return;
+    }
     setIsProcessing(true);
     setActionError('');
     try {
@@ -105,7 +107,16 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
       await loadBorrows();
       setConfirmModal(null);
     } catch (err) {
-      setActionError(err.message || 'Có lỗi xảy ra khi xử lý yêu cầu.');
+      const msg = err.message || 'Có lỗi xảy ra khi xử lý yêu cầu.';
+      setActionError(msg);
+      // Nếu phiếu mượn đã bị xóa hoặc không còn tồn tại trên server, tự động đánh dấu đã đọc
+      if (confirmModal.notifId && (msg.includes('Không tìm thấy') || msg.includes('404'))) {
+        try {
+          await markAsRead(confirmModal.notifId);
+          await fetchNotifications();
+          await loadBorrows();
+        } catch (e) {}
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -176,31 +187,6 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                 Đọc tất cả
               </button>
             )}
-            {notifications.some(n => n.isRead) && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  clearReadNotifications();
-                }}
-                style={{
-                  border: 'none',
-                  background: '#f8fafc',
-                  color: '#64748b',
-                  padding: '4px 9px',
-                  borderRadius: '6px',
-                  fontSize: '11.5px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#dc2626'; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = '#f8fafc'; e.currentTarget.style.color = '#64748b'; }}
-                title="Dọn dẹp các thông báo đã đọc"
-              >
-                Dọn dẹp
-              </button>
-            )}
           </div>
         </div>
 
@@ -230,12 +216,14 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                 rec = borrowRecords.find(r => r.status === 'Chờ duyệt' && (notif.message?.includes(r.bookTitle) || notif.bookTitle === r.bookTitle));
               }
 
-              // Kiểm tra xem yêu cầu này có đang ở trạng thái Chờ duyệt hay không
-              const isPending = isBorrowReq && ((rec && rec.status === 'Chờ duyệt') || (!rec && !notif.isRead));
+              // Kiểm tra xem yêu cầu này có đang ở trạng thái Chờ duyệt hay không (Chỉ true khi phiếu mượn thực sự tồn tại trong DB và status là Chờ duyệt)
+              const isPending = isBorrowReq && Boolean(rec && rec.status === 'Chờ duyệt');
               // Kiểm tra xem yêu cầu này đã từng được duyệt chưa (đang mượn, quá hạn hoặc đã trả)
               const isApproved = (rec && ['Đang mượn', 'Quá hạn', 'Đã trả'].includes(rec.status)) || isBorrowApproved;
               // Kiểm tra xem yêu cầu này bị từ chối không
               const isRejected = (rec && ['Từ chối', 'Đã hủy'].includes(rec.status)) || isBorrowRejected;
+              // Thông báo mượn của phiếu không còn tồn tại hoặc đã lưu trữ
+              const isOrphaned = isBorrowReq && !rec && !isApproved && !isRejected;
 
               return (
                 <div
@@ -273,7 +261,8 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                         <button
                           type="button"
                           onClick={() => {
-                            const targetId = rec?.id || targetRecordId || notif.recordId || notif.meta?.recordId;
+                            const targetId = rec?.id || targetRecordId;
+                            if (!targetId) return;
                             setConfirmModal({
                               type: 'approve',
                               recordId: targetId,
@@ -305,7 +294,8 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                         <button
                           type="button"
                           onClick={() => {
-                            const targetId = rec?.id || targetRecordId || notif.recordId || notif.meta?.recordId;
+                            const targetId = rec?.id || targetRecordId;
+                            if (!targetId) return;
                             setConfirmModal({
                               type: 'reject',
                               recordId: targetId,
@@ -339,6 +329,13 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                     {isPending && role === 'Reader' && (
                       <div style={{ marginTop: '8px', fontSize: '11.5px', fontWeight: 600, color: '#d97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Clock size={13} /> Đang chờ thư viện duyệt
+                      </div>
+                    )}
+
+                    {/* Thông báo yêu cầu mượn cũ đã lưu trữ hoặc không còn tồn tại */}
+                    {isOrphaned && (
+                      <div style={{ marginTop: '8px', fontSize: '11.5px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Clock size={12} /> Yêu cầu đã được xử lý hoặc lưu trữ
                       </div>
                     )}
 

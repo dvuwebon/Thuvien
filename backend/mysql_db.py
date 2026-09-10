@@ -727,6 +727,28 @@ class MySQLDatabaseManager:
                     )
                     session.add(new_u)
 
+            # 6. Sync Notifications
+            for n in data.get("notifications", []):
+                nid = n.get("id")
+                if not nid:
+                    continue
+                existing_n = session.query(NotificationModel).filter_by(id=nid).first()
+                if existing_n:
+                    existing_n.is_read = bool(n.get("isRead", False))
+                else:
+                    new_n = NotificationModel(
+                        id=nid,
+                        recipient_role=n.get("recipientRole", "Admin"),
+                        recipient_user_id=n.get("recipientUserId"),
+                        title=n.get("title", ""),
+                        message=n.get("message", ""),
+                        type=n.get("type", "general"),
+                        is_read=bool(n.get("isRead", False)),
+                        meta_json=n.get("meta") or {},
+                        created_at=datetime.fromisoformat(n["createdAt"].replace("Z", "")) if n.get("createdAt") else datetime.utcnow()
+                    )
+                    session.add(new_n)
+
             session.commit()
             session.close()
             logger.info("✓ Đã lưu và đồng bộ thay đổi vào smartlib_local.db")
@@ -1060,27 +1082,47 @@ class MySQLDatabaseManager:
         finally:
             session.close()
 
+    def _execute_on_db(self, action_func):
+        """
+        Thực thi thao tác cập nhật trên MySQL (nếu đang kết nối) VÀ đồng thời trên SQLite cục bộ
+        để đảm bảo dữ liệu luôn nhất quán 100% dù hệ thống đang chạy ở chế độ nào.
+        """
+        # 1. Thực thi trên MySQL nếu máy chủ MySQL khả dụng
+        if self._is_connected and self.SessionLocal:
+            session = self.SessionLocal()
+            try:
+                action_func(session)
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Lỗi thao tác MySQL: {e}")
+            finally:
+                session.close()
+
+        # 2. Luôn thực thi trên SQLite cục bộ
+        if self.SqliteSession:
+            sq_session = self.SqliteSession()
+            try:
+                action_func(sq_session)
+                sq_session.commit()
+            except Exception as e:
+                sq_session.rollback()
+                logger.error(f"Lỗi thao tác SQLite: {e}")
+            finally:
+                sq_session.close()
+
     def mark_notification_read(self, notif_id: int):
-        if not self.SessionLocal:
-            return
-        session = self.SessionLocal()
-        try:
-            notif = session.query(NotificationModel).filter_by(id=notif_id).first()
+        """Đánh dấu 1 thông báo là đã đọc trên cả MySQL và SQLite"""
+        def action(s):
+            notif = s.query(NotificationModel).filter_by(id=notif_id).first()
             if notif:
                 notif.is_read = True
-                session.commit()
-        except Exception as e:
-            session.rollback()
-            logger.error(f"Lỗi khi mark_notification_read: {e}")
-        finally:
-            session.close()
+        self._execute_on_db(action)
 
     def mark_all_notifications_read(self, role: Optional[str] = None, user_id: Optional[int] = None):
-        if not self.SessionLocal:
-            return
-        session = self.SessionLocal()
-        try:
-            q = session.query(NotificationModel)
+        """Đánh dấu tất cả thông báo là đã đọc trên cả MySQL và SQLite"""
+        def action(s):
+            q = s.query(NotificationModel)
             if role in ("Admin", "Librarian"):
                 q = q.filter(NotificationModel.recipient_role.in_(["Admin", "Librarian"]))
             elif role == "Reader":
@@ -1088,34 +1130,20 @@ class MySQLDatabaseManager:
                 if user_id:
                     q = q.filter((NotificationModel.recipient_user_id == user_id) | (NotificationModel.recipient_user_id.is_(None)))
             q.update({NotificationModel.is_read: True}, synchronize_session=False)
-            session.commit()
-        except Exception as e:
-            session.rollback()
-            logger.error(f"Lỗi khi mark_all_notifications_read: {e}")
-        finally:
-            session.close()
+        self._execute_on_db(action)
 
     def delete_notification(self, notif_id: int):
-        if not self.SessionLocal:
-            return
-        session = self.SessionLocal()
-        try:
-            notif = session.query(NotificationModel).filter_by(id=notif_id).first()
+        """Xóa 1 thông báo trên cả MySQL và SQLite"""
+        def action(s):
+            notif = s.query(NotificationModel).filter_by(id=notif_id).first()
             if notif:
-                session.delete(notif)
-                session.commit()
-        except Exception as e:
-            session.rollback()
-            logger.error(f"Lỗi khi delete_notification: {e}")
-        finally:
-            session.close()
+                s.delete(notif)
+        self._execute_on_db(action)
 
     def clear_read_notifications(self, role: Optional[str] = None, user_id: Optional[int] = None):
-        if not self.SessionLocal:
-            return
-        session = self.SessionLocal()
-        try:
-            q = session.query(NotificationModel).filter(NotificationModel.is_read == True)
+        """Dọn dẹp thông báo đã đọc trên cả MySQL và SQLite"""
+        def action(s):
+            q = s.query(NotificationModel).filter(NotificationModel.is_read == True)
             if role in ("Admin", "Librarian"):
                 q = q.filter(NotificationModel.recipient_role.in_(["Admin", "Librarian"]))
             elif role == "Reader":
@@ -1123,12 +1151,7 @@ class MySQLDatabaseManager:
                 if user_id:
                     q = q.filter((NotificationModel.recipient_user_id == user_id) | (NotificationModel.recipient_user_id.is_(None)))
             q.delete(synchronize_session=False)
-            session.commit()
-        except Exception as e:
-            session.rollback()
-            logger.error(f"Lỗi khi clear_read_notifications: {e}")
-        finally:
-            session.close()
+        self._execute_on_db(action)
 
     def add_notification(
         self,
@@ -1222,7 +1245,10 @@ class MySQLDatabaseManager:
     def save_fine_record(self, borrow_record: Dict[str, Any], fine_amount: float) -> Optional[Dict[str, Any]]:
         if fine_amount <= 0:
             return None
-        session = self.SessionLocal()
+        session_factory = self.SessionLocal if (self._is_connected and self.SessionLocal) else self.SqliteSession
+        if not session_factory:
+            return None
+        session = session_factory()
         try:
             brid = borrow_record.get("id")
             existing = session.query(FineModel).filter_by(record_id=brid).first()

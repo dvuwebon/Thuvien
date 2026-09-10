@@ -164,6 +164,7 @@ export const NotificationProvider = ({ children }) => {
     setUnreadCount(0);
     try {
       await api.readAllNotifications(role, user ? user.id : null);
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated', { detail: { type: 'notification' } }));
     } catch (e) {
       console.error('Lỗi markAllAsRead:', e);
     }
