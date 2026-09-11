@@ -1416,7 +1416,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   gap: '6px'
                 }}
               >
-                <span>Quản Lý Thu Tiền Phạt</span>
+                <span>Quá hạn</span>
                 {fines.filter(f => f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt').length > 0 && (
                   <span className="badge" style={{ fontSize: '11px', padding: '1px 6px', background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', fontWeight: 800 }}>
                     {fines.filter(f => f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt').length} Chờ duyệt
