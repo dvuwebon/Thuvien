@@ -1477,15 +1477,15 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ whiteSpace: 'nowrap' }}>Mã</th>
-                        <th style={{ minWidth: '180px' }}>Tên Sách</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Độc Giả</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Hình Thức</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Ngày Mượn</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Hạn Trả</th>
-                        <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>Tiền Phạt</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Trạng Thái</th>
-                        <th style={{ textAlign: 'right', minWidth: '208px', whiteSpace: 'nowrap' }}>Thao Tác</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '55px' }}>Mã</th>
+                        <th>Tên Sách</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '120px' }}>Độc Giả</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '100px' }}>Hình Thức</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '90px' }}>Ngày Mượn</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '90px' }}>Hạn Trả</th>
+                        <th style={{ whiteSpace: 'nowrap', textAlign: 'center', width: '90px' }}>Tiền Phạt</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '95px' }}>Trạng Thái</th>
+                        <th style={{ textAlign: 'center', whiteSpace: 'nowrap', width: '210px' }}>Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1500,7 +1500,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                           <tr key={r.id}>
                             <td style={{ fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>#{r.id}</td>
                             <td
-                              style={{ fontWeight: 600, color: '#2563eb', cursor: 'pointer', transition: 'all 0.15s ease', minWidth: '180px' }}
+                              style={{ fontWeight: 600, color: '#2563eb', cursor: 'pointer', transition: 'all 0.15s ease' }}
                               onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
                               onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
                               onClick={() => handleOpenBookByTitleOrId(r.bookTitle, r.bookId)}
@@ -1552,8 +1552,8 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 {r.status}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '208px' }}>
-                              <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap' }}>
+                            <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'center', alignItems: 'center', flexWrap: 'nowrap' }}>
                                 {r.status === 'Chờ duyệt' && (
                                   <>
                                     <button
@@ -1725,16 +1725,16 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   <table>
                     <thead>
                       <tr>
-                        <th style={{ whiteSpace: 'nowrap' }}>Mã</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Mã Phiếu</th>
-                        <th style={{ minWidth: '140px' }}>Tên Sách</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Độc Giả</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Hạn Trả</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Ngày Trả</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Tiền Phạt</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Phương Thức</th>
-                        <th style={{ whiteSpace: 'nowrap' }}>Trạng Thái</th>
-                        <th style={{ textAlign: 'right', minWidth: '180px', whiteSpace: 'nowrap' }}>Thao Tác</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '65px' }}>Mã Phạt</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '85px' }}>Phiếu Mượn</th>
+                        <th>Tên Sách</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '120px' }}>Độc Giả</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '90px' }}>Hạn Trả</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '90px' }}>Ngày Trả</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '90px', textAlign: 'center' }}>Tiền Phạt</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '100px' }}>Phương Thức</th>
+                        <th style={{ whiteSpace: 'nowrap', width: '90px' }}>Trạng Thái</th>
+                        <th style={{ textAlign: 'center', whiteSpace: 'nowrap', width: '190px' }}>Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1749,14 +1749,14 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                           <tr key={f.id}>
                             <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>#{f.id}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>#{f.borrowRecordId || '-'}</td>
-                            <td style={{ fontWeight: 600, color: '#2563eb', minWidth: '150px' }}>{f.bookTitle}</td>
+                            <td style={{ fontWeight: 600, color: '#2563eb' }}>{f.bookTitle}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>
                               <strong style={{ display: 'block' }}>{f.readerName}</strong>
                               <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Mã: DG-{String(f.readerId || 1).padStart(3, '0')}</span>
                             </td>
                             <td style={{ whiteSpace: 'nowrap' }}>{f.dueDate ? f.dueDate.substring(0, 10) : '-'}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>{f.actualReturnDate ? f.actualReturnDate.substring(0, 10) : '-'}</td>
-                            <td style={{ whiteSpace: 'nowrap' }}>
+                            <td style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>
                               <span style={{
                                 background: '#fef2f2',
                                 color: '#dc2626',
@@ -1807,9 +1807,9 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 {f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? '⏳ Chờ duyệt' : (f.status || 'Chưa nộp')}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '204px' }}>
+                            <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                               {f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? (
-                                <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap' }}>
+                                <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'center', alignItems: 'center', flexWrap: 'nowrap' }}>
                                   <button
                                     type="button"
                                     onClick={() => setFineActionModal({ type: 'approve', fine: f })}
@@ -1837,7 +1837,9 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                   Thu phạt
                                 </button>
                               ) : (
-                                <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '98px', height: '32px' }}>✓ Đã thu</span>
+                                <span style={{ color: '#16a34a', fontSize: '12.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '4px', height: '32px' }}>
+                                  ✓ Đã thu
+                                </span>
                               )}
                             </td>
                           </tr>
