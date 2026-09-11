@@ -1485,7 +1485,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                         <th>Hạn Trả</th>
                         <th>Tiền Phạt</th>
                         <th>Trạng Thái</th>
-                        <th style={{ textAlign: 'right' }}>Thao Tác</th>
+                        <th style={{ textAlign: 'right', minWidth: '220px' }}>Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1550,22 +1550,22 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 {r.status}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right' }}>
-                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                              <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap' }}>
                                 {r.status === 'Chờ duyệt' && (
                                   <>
                                     <button
+                                      type="button"
                                       onClick={() => setBorrowActionModal({ type: 'approve', record: r })}
-                                      className="btn btn-approve"
-                                      style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', whiteSpace: 'nowrap' }}
+                                      className="btn btn-approve btn-table-action"
                                       title="Duyệt cho mượn"
                                     >
                                       <Check size={14} /> Duyệt
                                     </button>
                                     <button
+                                      type="button"
                                       onClick={() => setBorrowActionModal({ type: 'reject', record: r })}
-                                      className="btn btn-reject"
-                                      style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', whiteSpace: 'nowrap' }}
+                                      className="btn btn-reject btn-table-action"
                                       title="Từ chối"
                                     >
                                       <X size={14} /> Từ chối
@@ -1576,23 +1576,17 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 {r.status === 'Đang mượn' && (
                                   <>
                                     <button
+                                      type="button"
                                       onClick={() => setAdminReturnRecord(r)}
-                                      className="btn btn-return"
-                                      style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', whiteSpace: 'nowrap' }}
+                                      className="btn btn-return btn-table-action"
                                       title="Xác nhận trả sách"
                                     >
                                       <CheckCircle size={14} /> Trả sách
                                     </button>
                                     <button
+                                      type="button"
                                       onClick={() => handleMarkOverdue(r)}
-                                      className="btn btn-overdue"
-                                      style={{
-                                        padding: '6px 14px',
-                                        fontSize: '12px',
-                                        fontWeight: 700,
-                                        borderRadius: '6px',
-                                        whiteSpace: 'nowrap'
-                                      }}
+                                      className="btn btn-overdue btn-table-action"
                                       title="Xác nhận độc giả chưa trả sách và chuyển sang mục Quá hạn"
                                     >
                                       <AlertTriangle size={13} /> Quá hạn
@@ -1602,9 +1596,9 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
                                 {r.status === 'Quá hạn' && (
                                   <button
+                                    type="button"
                                     onClick={() => setAdminReturnRecord(r)}
-                                    className="btn btn-return"
-                                    style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 700, borderRadius: '6px', whiteSpace: 'nowrap' }}
+                                    className="btn btn-return btn-table-action"
                                     title="Xác nhận trả sách"
                                   >
                                     <CheckCircle size={14} /> Trả sách
@@ -1612,7 +1606,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 )}
 
                                 {r.status === 'Đã trả' && (
-                                  <span style={{ fontSize: '12px', color: '#94a3b8', padding: '4px 8px' }}>-</span>
+                                  <span style={{ fontSize: '12px', color: '#94a3b8', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '98px', height: '32px' }}>—</span>
                                 )}
                               </div>
                             </td>
@@ -1736,7 +1730,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                         <th>Tiền Phạt (VND)</th>
                         <th>Phương Thức</th>
                         <th>Trạng Thái</th>
-                        <th style={{ textAlign: 'right', minWidth: '180px' }}>Thao Tác</th>
+                        <th style={{ textAlign: 'right', minWidth: '220px' }}>Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1812,18 +1806,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                   <button
                                     type="button"
                                     onClick={() => setFineActionModal({ type: 'approve', fine: f })}
-                                    className="btn btn-approve"
-                                    style={{
-                                      padding: '6px 14px',
-                                      fontSize: '12px',
-                                      fontWeight: 700,
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '5px',
-                                      whiteSpace: 'nowrap',
-                                      borderRadius: '6px',
-                                      cursor: 'pointer'
-                                    }}
+                                    className="btn btn-approve btn-table-action"
                                     title="Duyệt giao dịch nộp phạt và mở khóa tài khoản độc giả"
                                   >
                                     <Check size={14} /> Duyệt
@@ -1831,18 +1814,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                   <button
                                     type="button"
                                     onClick={() => setFineActionModal({ type: 'reject', fine: f, reason: 'Chưa nhận được giao dịch chuyển khoản hoặc thông tin sai lệch' })}
-                                    className="btn btn-reject"
-                                    style={{
-                                      padding: '6px 14px',
-                                      fontSize: '12px',
-                                      fontWeight: 700,
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      gap: '5px',
-                                      whiteSpace: 'nowrap',
-                                      borderRadius: '6px',
-                                      cursor: 'pointer'
-                                    }}
+                                    className="btn btn-reject btn-table-action"
                                     title="Từ chối giao dịch nộp phạt"
                                   >
                                     <X size={14} /> Từ chối
@@ -1852,14 +1824,13 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 <button
                                   type="button"
                                   onClick={() => handlePayFine(f.id)}
-                                  className="btn btn-success"
-                                  style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap', borderRadius: '6px' }}
+                                  className="btn btn-success btn-table-action"
                                   title="Xác nhận độc giả đã nộp đủ tiền phạt"
                                 >
                                   Thu phạt
                                 </button>
                               ) : (
-                                <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>✓ Đã thu</span>
+                                <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '98px', height: '32px' }}>✓ Đã thu</span>
                               )}
                             </td>
                           </tr>
@@ -3261,8 +3232,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 type="button"
                 onClick={() => setAdminReturnRecord(null)}
                 disabled={isReturning}
-                className="btn btn-outline"
-                style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}
+                className="btn btn-outline btn-modal-action"
               >
                 Hủy
               </button>
@@ -3270,15 +3240,9 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 type="button"
                 onClick={handleConfirmReturn}
                 disabled={isReturning}
-                className="btn btn-return"
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: 600
-                }}
+                className="btn btn-return btn-modal-action"
               >
-                {isReturning ? 'Đang xử lý...' : 'Xác nhận'}
+                {isReturning ? 'Đang xử lý...' : 'Xác nhận trả sách'}
               </button>
             </div>
           </div>
@@ -3402,15 +3366,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                           setPendingQueueModalOpen(false);
                           setBorrowActionModal({ type: 'approve', record });
                         }}
-                        className="btn btn-approve"
-                        style={{
-                          padding: '7px 14px',
-                          fontSize: '12.5px',
-                          fontWeight: 700,
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
+                        className="btn btn-approve btn-table-action"
                       >
                         <Check size={14} /> Duyệt
                       </button>
@@ -3421,15 +3377,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                           setPendingQueueModalOpen(false);
                           setBorrowActionModal({ type: 'reject', record });
                         }}
-                        className="btn btn-reject"
-                        style={{
-                          padding: '7px 14px',
-                          fontSize: '12.5px',
-                          fontWeight: 700,
-                          borderRadius: '8px',
-                          cursor: 'pointer',
-                          whiteSpace: 'nowrap'
-                        }}
+                        className="btn btn-reject btn-table-action"
                       >
                         <X size={14} /> Từ chối
                       </button>
@@ -3767,8 +3715,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 type="button"
                 onClick={() => { setBorrowActionModal(null); setBorrowActionError(''); }}
                 disabled={isProcessingBorrowAction}
-                className="btn btn-outline"
-                style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}
+                className="btn btn-outline btn-modal-action"
               >
                 Hủy bỏ
               </button>
@@ -3777,13 +3724,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 type="button"
                 onClick={handleConfirmBorrowAction}
                 disabled={isProcessingBorrowAction}
-                className={`btn ${borrowActionModal.type === 'approve' ? 'btn-approve' : 'btn-reject'}`}
-                style={{
-                  padding: '8px 22px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: 700
-                }}
+                className={`btn ${borrowActionModal.type === 'approve' ? 'btn-approve' : 'btn-reject'} btn-modal-action`}
               >
                 {isProcessingBorrowAction ? 'Đang xử lý...' : (borrowActionModal.type === 'approve' ? 'Xác nhận duyệt' : 'Xác nhận từ chối')}
               </button>
@@ -3899,8 +3840,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 type="button"
                 disabled={isProcessingFineAction}
                 onClick={() => setFineActionModal(null)}
-                className="btn btn-outline"
-                style={{ padding: '9px 18px', fontSize: '13.5px', fontWeight: 600 }}
+                className="btn btn-outline btn-modal-action"
               >
                 Hủy
               </button>
@@ -3923,8 +3863,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                     setIsProcessingFineAction(false);
                   }
                 }}
-                className={`btn ${fineActionModal.type === 'approve' ? 'btn-approve' : 'btn-reject'}`}
-                style={{ padding: '9px 18px', fontSize: '13.5px', fontWeight: 700 }}
+                className={`btn ${fineActionModal.type === 'approve' ? 'btn-approve' : 'btn-reject'} btn-modal-action`}
               >
                 {isProcessingFineAction ? 'Đang xử lý...' : (fineActionModal.type === 'approve' ? 'Xác nhận duyệt' : 'Xác nhận từ chối')}
               </button>

@@ -271,15 +271,7 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                               readerName: rec?.readerName || notif.readerName || notif.meta?.readerName || 'Độc giả'
                             });
                           }}
-                          className="btn btn-approve"
-                          style={{
-                            padding: '5px 12px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            borderRadius: '6px',
-                            whiteSpace: 'nowrap'
-                          }}
+                          className="btn btn-approve btn-table-action"
                         >
                           <Check size={13} /> Duyệt
                         </button>
@@ -297,15 +289,7 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                               readerName: rec?.readerName || notif.readerName || notif.meta?.readerName || 'Độc giả'
                             });
                           }}
-                          className="btn btn-reject"
-                          style={{
-                            padding: '5px 12px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            borderRadius: '6px',
-                            whiteSpace: 'nowrap'
-                          }}
+                          className="btn btn-reject btn-table-action"
                         >
                           <X size={13} /> Không duyệt
                         </button>
@@ -471,8 +455,7 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                 type="button"
                 onClick={() => { setConfirmModal(null); setActionError(''); }}
                 disabled={isProcessing}
-                className="btn btn-outline"
-                style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}
+                className="btn btn-outline btn-modal-action"
               >
                 Hủy bỏ
               </button>
@@ -481,13 +464,7 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                 type="button"
                 onClick={handleConfirmAction}
                 disabled={isProcessing}
-                className={`btn ${confirmModal.type === 'approve' ? 'btn-approve' : 'btn-reject'}`}
-                style={{
-                  padding: '8px 22px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: 700
-                }}
+                className={`btn ${confirmModal.type === 'approve' ? 'btn-approve' : 'btn-reject'} btn-modal-action`}
               >
                 {isProcessing ? 'Đang xử lý...' : (confirmModal.type === 'approve' ? 'Xác nhận duyệt' : 'Xác nhận từ chối')}
               </button>

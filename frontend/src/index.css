@@ -229,6 +229,43 @@ header {
   stroke: #ffffff !important;
 }
 
+/* Kích thước đồng bộ chuẩn xác cho tất cả các nút Thao tác bảng (Duyệt, Từ chối, Trả sách, Quá hạn, Thu phạt) */
+.btn-table-action {
+  width: 98px !important;
+  min-width: 98px !important;
+  max-width: 98px !important;
+  height: 32px !important;
+  padding: 0 4px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  border-radius: 6px !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
+  cursor: pointer !important;
+}
+
+/* Kích thước đồng bộ chuẩn xác cho các nút trong Modal (Hủy & Xác nhận) */
+.btn-modal-action {
+  min-width: 130px !important;
+  height: 38px !important;
+  padding: 0 16px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  border-radius: 8px !important;
+  white-space: nowrap !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+}
+
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;

@@ -883,18 +883,9 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                         {/* Nút Trả sách cho tất cả các sách đang mượn */}
                         {canReturn ? (
                           <button
+                            type="button"
                             onClick={() => setReturnConfirmRecord(r)}
-                            className="btn btn-return"
-                            style={{
-                              padding: '6px 14px',
-                              fontSize: '12.5px',
-                              cursor: 'pointer',
-                              fontWeight: 700,
-                              borderRadius: '6px',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '5px'
-                            }}
+                            className="btn btn-return btn-table-action"
                             title="Trả sách về thư viện"
                           >
                             <CheckCircle size={14} /> Trả sách
@@ -1304,8 +1295,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 type="button"
                 onClick={() => setReturnConfirmRecord(null)}
                 disabled={isReturning}
-                className="btn btn-outline"
-                style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}
+                className="btn btn-outline btn-modal-action"
               >
                 Hủy
               </button>
@@ -1313,13 +1303,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 type="button"
                 onClick={handleConfirmReturn}
                 disabled={isReturning}
-                className="btn btn-return"
-                style={{
-                  padding: '8px 20px',
-                  borderRadius: '8px',
-                  fontSize: '13px',
-                  fontWeight: 600
-                }}
+                className="btn btn-return btn-modal-action"
               >
                 {isReturning ? 'Đang xử lý...' : 'Xác nhận trả sách'}
               </button>
