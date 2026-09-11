@@ -1477,15 +1477,15 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   <table>
                     <thead>
                       <tr>
-                        <th>Mã</th>
-                        <th>Tên Sách</th>
-                        <th>Độc Giả</th>
-                        <th>Hình Thức</th>
-                        <th>Ngày Mượn</th>
-                        <th>Hạn Trả</th>
-                        <th>Tiền Phạt</th>
-                        <th>Trạng Thái</th>
-                        <th style={{ textAlign: 'right', minWidth: '220px' }}>Thao Tác</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Mã</th>
+                        <th style={{ minWidth: '180px' }}>Tên Sách</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Độc Giả</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Hình Thức</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Ngày Mượn</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Hạn Trả</th>
+                        <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>Tiền Phạt</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Trạng Thái</th>
+                        <th style={{ textAlign: 'right', minWidth: '208px', whiteSpace: 'nowrap' }}>Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1498,9 +1498,9 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                       ) : (
                         filteredBorrows.map(r => (
                           <tr key={r.id}>
-                            <td style={{ fontWeight: 700, color: '#64748b' }}>#{r.id}</td>
+                            <td style={{ fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap' }}>#{r.id}</td>
                             <td
-                              style={{ fontWeight: 600, color: '#2563eb', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                              style={{ fontWeight: 600, color: '#2563eb', cursor: 'pointer', transition: 'all 0.15s ease', minWidth: '180px' }}
                               onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
                               onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
                               onClick={() => handleOpenBookByTitleOrId(r.bookTitle, r.bookId)}
@@ -1508,7 +1508,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                             >
                               {r.bookTitle}
                             </td>
-                            <td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
                               <div style={{ fontWeight: 600, color: '#0f172a' }}>{r.readerName}</div>
                               {r.readerId && (
                                 <div style={{ fontSize: '11px', color: '#2563eb', fontWeight: 700 }}>
@@ -1516,12 +1516,12 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 </div>
                               )}
                             </td>
-                            <td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
                               <span style={{ fontSize: '12px', color: '#64748b' }}>{r.borrowType || 'Mượn về nhà'}</span>
                             </td>
-                            <td>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</td>
-                            <td>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</td>
-                            <td style={{ textAlign: 'center' }}>
+                            <td style={{ whiteSpace: 'nowrap' }}>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</td>
+                            <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                               {r.fine_amount > 0 ? (
                                 <span style={{
                                   background: '#fef2f2',
@@ -1530,7 +1530,9 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                   borderRadius: '6px',
                                   padding: '2px 7px',
                                   fontSize: '12px',
-                                  fontWeight: 700
+                                  fontWeight: 700,
+                                  whiteSpace: 'nowrap',
+                                  display: 'inline-block'
                                 }}
                                 title={`Trễ ${r.overdue_days || 0} ngày`}
                                 >
@@ -1540,17 +1542,17 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
                               )}
                             </td>
-                            <td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
                               <span className={`badge ${
                                 r.status === 'Đang mượn' ? 'badge-success' :
                                 r.status === 'Chờ duyệt' ? 'badge-warning' :
                                 r.status === 'Quá hạn' ? 'badge-danger' :
                                 r.status === 'Đã trả' ? 'badge-info' : 'badge-neutral'
-                              }`}>
+                              }`} style={{ whiteSpace: 'nowrap' }}>
                                 {r.status}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '208px' }}>
                               <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap' }}>
                                 {r.status === 'Chờ duyệt' && (
                                   <>
@@ -1634,14 +1636,14 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   <table>
                     <thead>
                       <tr>
-                        <th>Mã Đặt</th>
-                        <th>Tên Sách</th>
-                        <th>Độc Giả</th>
-                        <th>Ngày Đặt</th>
-                        <th>Thứ Tự Hàng Chờ</th>
-                        <th>Hạn Giữ Chỗ</th>
-                        <th>Trạng Thái</th>
-                        <th style={{ textAlign: 'right', minWidth: '130px' }}>Thao Tác</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Mã Đặt</th>
+                        <th style={{ minWidth: '220px' }}>Tên Sách</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Độc Giả</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Ngày Đặt</th>
+                        <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>Thứ Tự Hàng Chờ</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Hạn Giữ Chỗ</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Trạng Thái</th>
+                        <th style={{ textAlign: 'right', minWidth: '110px', whiteSpace: 'nowrap' }}>Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1654,14 +1656,14 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                       ) : (
                         reservations.map(res => (
                           <tr key={res.id}>
-                            <td style={{ fontWeight: 700 }}>#{res.id}</td>
-                            <td style={{ fontWeight: 600, color: '#2563eb' }}>{res.bookTitle}</td>
-                            <td>
-                              <strong>{res.readerName}</strong>
+                            <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>#{res.id}</td>
+                            <td style={{ fontWeight: 600, color: '#2563eb', minWidth: '220px' }}>{res.bookTitle}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
+                              <strong style={{ display: 'block' }}>{res.readerName}</strong>
                               <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Mã: DG-{String(res.readerId || 1).padStart(3, '0')}</span>
                             </td>
-                            <td>{res.reservedAt ? res.reservedAt.substring(0, 10) : '-'}</td>
-                            <td style={{ textAlign: 'center' }}>
+                            <td style={{ whiteSpace: 'nowrap' }}>{res.reservedAt ? res.reservedAt.substring(0, 10) : '-'}</td>
+                            <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                               <span style={{
                                 background: res.priority === 1 ? '#dcfce7' : '#eff6ff',
                                 color: res.priority === 1 ? '#15803d' : '#1d4ed8',
@@ -1670,20 +1672,22 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 borderRadius: '6px',
                                 padding: '2px 8px',
                                 fontSize: '12px',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap',
+                                display: 'inline-block'
                               }}>
                                 Ưu tiên #{res.priority || 1}
                               </span>
                             </td>
-                            <td style={{ fontSize: '12px', color: '#64748b' }}>
+                            <td style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>
                               {res.expiresAt ? res.expiresAt.substring(0, 16).replace('T', ' ') : '48 giờ sau khi có sách'}
                             </td>
-                            <td>
-                              <span className={`badge ${res.status === 'Waiting' ? 'badge-warning' : res.status === 'Ready' ? 'badge-success' : 'badge-neutral'}`}>
+                            <td style={{ whiteSpace: 'nowrap' }}>
+                              <span className={`badge ${res.status === 'Waiting' ? 'badge-warning' : res.status === 'Ready' ? 'badge-success' : 'badge-neutral'}`} style={{ whiteSpace: 'nowrap' }}>
                                 {res.status === 'Waiting' ? 'Đang xếp hàng' : res.status === 'Ready' ? 'Sách đã sẵn sàng' : res.status}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '110px' }}>
                               {res.status === 'Waiting' ? (
                                 <button
                                   type="button"
@@ -1721,16 +1725,16 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   <table>
                     <thead>
                       <tr>
-                        <th>Mã Phạt</th>
-                        <th>Phiếu Mượn</th>
-                        <th>Tên Sách</th>
-                        <th>Độc Giả</th>
-                        <th>Hạn Trả</th>
-                        <th>Ngày Trả</th>
-                        <th>Tiền Phạt (VND)</th>
-                        <th>Phương Thức</th>
-                        <th>Trạng Thái</th>
-                        <th style={{ textAlign: 'right', minWidth: '220px' }}>Thao Tác</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Mã</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Mã Phiếu</th>
+                        <th style={{ minWidth: '140px' }}>Tên Sách</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Độc Giả</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Hạn Trả</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Ngày Trả</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Tiền Phạt</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Phương Thức</th>
+                        <th style={{ whiteSpace: 'nowrap' }}>Trạng Thái</th>
+                        <th style={{ textAlign: 'right', minWidth: '180px', whiteSpace: 'nowrap' }}>Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1743,16 +1747,16 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                       ) : (
                         fines.map(f => (
                           <tr key={f.id}>
-                            <td style={{ fontWeight: 700 }}>#{f.id}</td>
-                            <td>#{f.borrowRecordId || '-'}</td>
-                            <td style={{ fontWeight: 600, color: '#2563eb' }}>{f.bookTitle}</td>
-                            <td>
-                              <strong>{f.readerName}</strong>
+                            <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>#{f.id}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>#{f.borrowRecordId || '-'}</td>
+                            <td style={{ fontWeight: 600, color: '#2563eb', minWidth: '150px' }}>{f.bookTitle}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
+                              <strong style={{ display: 'block' }}>{f.readerName}</strong>
                               <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>Mã: DG-{String(f.readerId || 1).padStart(3, '0')}</span>
                             </td>
-                            <td>{f.dueDate ? f.dueDate.substring(0, 10) : '-'}</td>
-                            <td>{f.actualReturnDate ? f.actualReturnDate.substring(0, 10) : '-'}</td>
-                            <td>
+                            <td style={{ whiteSpace: 'nowrap' }}>{f.dueDate ? f.dueDate.substring(0, 10) : '-'}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>{f.actualReturnDate ? f.actualReturnDate.substring(0, 10) : '-'}</td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
                               <span style={{
                                 background: '#fef2f2',
                                 color: '#dc2626',
@@ -1760,14 +1764,16 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 borderRadius: '6px',
                                 padding: '3px 8px',
                                 fontSize: '12.5px',
-                                fontWeight: 700
+                                fontWeight: 700,
+                                whiteSpace: 'nowrap',
+                                display: 'inline-block'
                               }}>
                                 {Number(f.fineAmount || 0).toLocaleString('vi-VN')} đ
                               </span>
                             </td>
-                            <td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
                               {f.paymentMethod ? (
-                                <div>
+                                <div style={{ whiteSpace: 'nowrap' }}>
                                   <span style={{
                                     display: 'inline-flex',
                                     alignItems: 'center',
@@ -1778,7 +1784,8 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                     fontWeight: 700,
                                     background: f.paymentMethod === 'VNPay' ? '#eff6ff' : '#f8fafc',
                                     color: f.paymentMethod === 'VNPay' ? '#1d4ed8' : '#475569',
-                                    border: f.paymentMethod === 'VNPay' ? '1px solid #bfdbfe' : '1px solid #cbd5e1'
+                                    border: f.paymentMethod === 'VNPay' ? '1px solid #bfdbfe' : '1px solid #cbd5e1',
+                                    whiteSpace: 'nowrap'
                                   }}>
                                     {f.paymentMethod === 'VNPay' ? '💳 VNPay' : '💵 Tiền mặt'}
                                   </span>
@@ -1792,15 +1799,15 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 <span style={{ color: '#94a3b8', fontSize: '12px' }}>-</span>
                               )}
                             </td>
-                            <td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
                               <span
                                 className={`badge ${f.status === 'Đã nộp' ? 'badge-success' : (f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt') ? 'badge-warning' : 'badge-danger'}`}
-                                style={f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? { background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', fontWeight: 700 } : {}}
+                                style={f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? { background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', fontWeight: 700, whiteSpace: 'nowrap' } : { whiteSpace: 'nowrap' }}
                               >
                                 {f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? '⏳ Chờ duyệt' : (f.status || 'Chưa nộp')}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '204px' }}>
                               {f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? (
                                 <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap' }}>
                                   <button
@@ -2018,13 +2025,13 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 <table>
                   <thead>
                     <tr>
-                      <th style={{ width: '60px' }}>ID</th>
-                      <th>Tên Sách</th>
+                      <th style={{ width: '60px', whiteSpace: 'nowrap' }}>ID</th>
+                      <th style={{ minWidth: '220px' }}>Tên Sách</th>
                       <th style={{ whiteSpace: 'nowrap' }}>Tác Giả</th>
-                      <th>Thể Loại</th>
+                      <th style={{ whiteSpace: 'nowrap' }}>Thể Loại</th>
                       <th style={{ whiteSpace: 'nowrap' }}>Số Lượng</th>
-                      <th>Trạng Thái</th>
-                      <th style={{ textAlign: 'center', minWidth: '220px' }}>Thao Tác</th>
+                      <th style={{ whiteSpace: 'nowrap' }}>Trạng Thái</th>
+                      <th style={{ textAlign: 'center', minWidth: '210px', whiteSpace: 'nowrap' }}>Thao Tác</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2049,12 +2056,12 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                         return (
                           <tr key={b.id}>
                             {/* Cột 1: Mã sách #ID */}
-                            <td style={{ fontWeight: 700, color: '#64748b', fontSize: '13.5px' }}>
+                            <td style={{ fontWeight: 700, color: '#64748b', fontSize: '13.5px', whiteSpace: 'nowrap' }}>
                               #{b.id}
                             </td>
 
                             {/* Cột 2: Tên sách (Link xanh click xem chi tiết) */}
-                            <td>
+                            <td style={{ minWidth: '220px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                                 {b.imageUrl ? (
                                   <img
@@ -2094,7 +2101,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                             </td>
 
                             {/* Cột 4: Thể loại */}
-                            <td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
                               <span style={{ fontSize: '12.5px', color: '#64748b' }}>
                                 {b.category || 'Khác'}
                               </span>
@@ -2108,7 +2115,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                             </td>
 
                             {/* Cột 6: Trạng thái (Cập nhật số lượng sẵn có thực tế) */}
-                            <td>
+                            <td style={{ whiteSpace: 'nowrap' }}>
                               {avail > 0 ? (
                                 <span
                                   className="badge"
@@ -2143,7 +2150,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                             </td>
 
                             {/* Cột 7: Thao tác (Căn giữa, kích thước đều nhau 95px x 32px, cách đều 8px, hiệu ứng hover riêng) */}
-                            <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '12px 8px' }}>
+                            <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '12px 8px', whiteSpace: 'nowrap', minWidth: '210px' }}>
                               <div style={{
                                 display: 'inline-grid',
                                 gridTemplateColumns: 'repeat(2, 95px)',
@@ -2310,14 +2317,14 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
               <table>
                 <thead>
                   <tr>
-                    <th>Mã Độc Giả</th>
-                    <th>Họ và Tên</th>
-                    <th>Tên Đăng Nhập</th>
-                    <th>Số Điện Thoại</th>
-                    <th>Email</th>
-                    <th>Địa Chỉ</th>
-                    <th>Trạng Thái / Khóa</th>
-                    <th style={{ textAlign: 'right' }}>Thao Tác</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Mã Độc Giả</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Họ và Tên</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Tên Đăng Nhập</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Số Điện Thoại</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Email</th>
+                    <th style={{ minWidth: '160px' }}>Địa Chỉ</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Trạng Thái / Khóa</th>
+                    <th style={{ textAlign: 'right', minWidth: '120px', whiteSpace: 'nowrap' }}>Thao Tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -2330,16 +2337,16 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   ) : (
                     filteredReaders.map(r => (
                       <tr key={r.id}>
-                        <td style={{ fontWeight: 700, color: '#2563eb' }}>{getReaderCode(r.id)}</td>
-                        <td style={{ fontWeight: 700, color: '#0f172a' }}>{r.fullName}</td>
-                        <td><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{r.username}</code></td>
-                        <td>{r.phone || '-'}</td>
-                        <td>{r.email || '-'}</td>
-                        <td>{r.address || '-'}</td>
-                        <td>
+                        <td style={{ fontWeight: 700, color: '#2563eb', whiteSpace: 'nowrap' }}>{getReaderCode(r.id)}</td>
+                        <td style={{ fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>{r.fullName}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}><code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>{r.username}</code></td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{r.phone || '-'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{r.email || '-'}</td>
+                        <td style={{ minWidth: '160px' }}>{r.address || '-'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
                           {r.isLocked ? (
                             <div>
-                              <span className="badge badge-danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span className="badge badge-danger" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
                                 <Lock size={12} /> Bị khóa
                               </span>
                               {r.lockReason && (
@@ -2348,25 +2355,25 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 </div>
                               )}
                               {r.unpaidFines > 0 && (
-                                <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, marginTop: '2px' }}>
+                                <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600, marginTop: '2px', whiteSpace: 'nowrap' }}>
                                   Nợ phạt: {Number(r.unpaidFines).toLocaleString('vi-VN')} đ
                                 </div>
                               )}
                             </div>
                           ) : (
                             <div>
-                              <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                              <span className="badge badge-success" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap' }}>
                                 <Check size={12} /> Hoạt động
                               </span>
                               {r.unpaidFines > 0 && (
-                                <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600, marginTop: '2px' }}>
+                                <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600, marginTop: '2px', whiteSpace: 'nowrap' }}>
                                   Nợ phạt: {Number(r.unpaidFines).toLocaleString('vi-VN')} đ
                                 </div>
                               )}
                             </div>
                           )}
                         </td>
-                        <td style={{ textAlign: 'right' }}>
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '120px' }}>
                           <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                             <button
                               onClick={() => handleToggleReaderLock(r)}

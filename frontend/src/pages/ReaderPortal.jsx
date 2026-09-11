@@ -964,15 +964,15 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
               <table>
                 <thead>
                   <tr>
-                    <th>Mã Phiếu</th>
-                    <th>Tên Sách</th>
-                    <th>Hình Thức</th>
-                    <th>Ngày Mượn</th>
-                    <th>Hạn Trả</th>
-                    <th>Ngày Trả Thực Tế</th>
-                    <th>Trạng Thái</th>
-                    <th>Tiền Phạt</th>
-                    <th style={{ textAlign: 'right' }}>Chứng Từ</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Mã Phiếu</th>
+                    <th style={{ minWidth: '220px' }}>Tên Sách</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Hình Thức</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Ngày Mượn</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Hạn Trả</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Ngày Trả Thực Tế</th>
+                    <th style={{ whiteSpace: 'nowrap' }}>Trạng Thái</th>
+                    <th style={{ whiteSpace: 'nowrap', textAlign: 'center' }}>Tiền Phạt</th>
+                    <th style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>Chứng Từ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -985,9 +985,9 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                   ) : (
                     myBorrows.map(r => (
                       <tr key={r.id}>
-                        <td style={{ fontWeight: 700 }}>#{r.id}</td>
+                        <td style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>#{r.id}</td>
                         <td
-                          style={{ fontWeight: 600, color: '#2563eb', cursor: 'pointer', transition: 'all 0.15s ease' }}
+                          style={{ fontWeight: 600, color: '#2563eb', cursor: 'pointer', transition: 'all 0.15s ease', minWidth: '220px' }}
                           onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
                           onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
                           onClick={() => handleOpenBookByTitleOrId(r.bookTitle, r.bookId)}
@@ -995,21 +995,21 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                         >
                           {r.bookTitle}
                         </td>
-                        <td>{r.borrowType || 'Mượn về nhà'}</td>
-                        <td>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</td>
-                        <td>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</td>
-                        <td>{r.actualReturnDate ? r.actualReturnDate.substring(0, 10) : '-'}</td>
-                        <td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{r.borrowType || 'Mượn về nhà'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{r.actualReturnDate ? r.actualReturnDate.substring(0, 10) : '-'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
                           <span className={`badge ${
                             r.status === 'Đang mượn' ? 'badge-success' :
                             r.status === 'Chờ duyệt' ? 'badge-warning' :
                             r.status === 'Quá hạn' ? 'badge-danger' :
                             r.status === 'Đã trả' ? 'badge-info' : 'badge-neutral'
-                          }`}>
+                          }`} style={{ whiteSpace: 'nowrap' }}>
                             {r.status}
                           </span>
                         </td>
-                        <td style={{ textAlign: 'center' }}>
+                        <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                           {Number(r.fine_amount || r.fineAmount || 0) > 0 ? (
                             <span style={{
                               display: 'inline-block',
@@ -1019,19 +1019,20 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                               borderRadius: '6px',
                               padding: '2px 8px',
                               fontSize: '12px',
-                              fontWeight: 700
+                              fontWeight: 700,
+                              whiteSpace: 'nowrap'
                             }}
                             title={`Trễ ${r.overdue_days || r.overdueDays || r.daysOverdue || 0} ngày`}
                             >
                               {Number(r.fine_amount || r.fineAmount).toLocaleString('vi-VN')} đ
                             </span>
                           ) : (
-                            <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 600 }}>
+                            <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>
                               {r.status === 'Đã trả' ? '✓ Đúng hạn' : '-'}
                             </span>
                           )}
                         </td>
-                        <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: '13px' }}>
+                        <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: '13px', whiteSpace: 'nowrap' }}>
                           -
                         </td>
                       </tr>
