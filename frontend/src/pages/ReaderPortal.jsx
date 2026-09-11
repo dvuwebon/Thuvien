@@ -653,7 +653,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
-                style={{ width: '200px', height: '38px', fontSize: '13px' }}
+                style={{ width: '200px', height: '38px', fontSize: '13px', paddingTop: 0, paddingBottom: 0 }}
               >
                 {categories.map(c => (
                   <option key={c} value={c}>{c === 'All' ? 'Tất cả thể loại' : c}</option>

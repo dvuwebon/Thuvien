@@ -1461,7 +1461,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                     <select
                       value={borrowStatusFilter}
                       onChange={(e) => setBorrowStatusFilter(e.target.value)}
-                      style={{ width: '160px', height: '34px', fontSize: '13px' }}
+                      style={{ width: '160px', height: '34px', fontSize: '13px', paddingTop: 0, paddingBottom: 0 }}
                     >
                       <option value="All">Tất cả trạng thái</option>
                       <option value="Chờ duyệt">Chờ duyệt</option>
@@ -1896,7 +1896,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   <select
                     value={bookCategory}
                     onChange={(e) => setBookCategory(e.target.value)}
-                    style={{ height: '34px', fontSize: '13px', paddingLeft: '28px' }}
+                    style={{ height: '34px', fontSize: '13px', paddingLeft: '28px', paddingTop: 0, paddingBottom: 0 }}
                   >
                     {categories.map(c => (
                       <option key={c} value={c}>{c === 'All' ? 'Tất cả thể loại' : c}</option>
