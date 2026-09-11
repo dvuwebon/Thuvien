@@ -17,6 +17,18 @@ export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
+  useEffect(() => {
+    const kickMsg = sessionStorage.getItem('pendingApprovalKickMsg');
+    if (kickMsg) {
+      setError(kickMsg);
+      sessionStorage.removeItem('pendingApprovalKickMsg');
+    }
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('vnp_result') === 'pending_approval') {
+      setError('Giao dịch nộp phạt VNPay đã gửi thành công và đang chờ Quản trị viên duyệt. Vui lòng đợi trong giây lát hoặc liên hệ ban quản trị!');
+    }
+  }, []);
+
   // Register state
   const [regData, setRegData] = useState({
     fullName: '',
@@ -48,7 +60,15 @@ export default function LoginPage() {
       await login(username, password);
     } catch (err) {
       const errMsg = (err.message || '').toLowerCase();
-      if (err.isLocked || errMsg.includes('khóa') || errMsg.includes('nộp phạt') || errMsg.includes('quá hạn')) {
+      const isPending = err.isPendingApproval ||
+        errMsg.includes('chờ quản trị viên duyệt') ||
+        errMsg.includes('chờ duyệt') ||
+        err.lockData?.error === 'PAYMENT_PENDING_APPROVAL';
+
+      if (isPending) {
+        setError(err.message || 'Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Vui lòng đợi trong giây lát hoặc liên hệ ban quản trị!');
+        setLockedModalData(null);
+      } else if (err.isLocked || errMsg.includes('khóa') || errMsg.includes('nộp phạt') || errMsg.includes('quá hạn')) {
         const lockInfo = err.lockData || {};
         setLockedModalData({
           username,
@@ -72,21 +92,9 @@ export default function LoginPage() {
   };
 
   const handleVNPaySuccess = async (res) => {
-    setToastMessage('🎉 ' + (res.message || 'Thanh toán VNPay thành công! Tài khoản đã được tự động mở khóa. Đang đăng nhập...'));
     setVnpayModalOpen(false);
     setLockedModalData(null);
-
-    // Tự động đăng nhập luôn sau khi đã mở khóa thành công
-    setTimeout(async () => {
-      try {
-        setLoading(true);
-        await login(username, password);
-      } catch (e) {
-        setToastMessage('Tài khoản đã mở khóa thành công! Vui lòng bấm Đăng nhập để vào hệ thống.');
-      } finally {
-        setLoading(false);
-      }
-    }, 1200);
+    setError(res?.message || 'Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Vui lòng đợi trong giây lát hoặc liên hệ ban quản trị!');
   };
 
   const handleRegisterSubmit = async (e) => {
@@ -225,8 +233,29 @@ export default function LoginPage() {
 
         {/* Alerts */}
         {error && (
-          <div style={{ padding: '12px 16px', background: '#fee2e2', color: '#b91c1c', borderRadius: '8px', marginBottom: '18px', fontSize: '13px', fontWeight: 600 }}>
-            {error}
+          <div style={{
+            padding: '14px 16px',
+            background: error.includes('chờ Quản trị viên duyệt') || error.includes('PAYMENT_PENDING_APPROVAL') || error.includes('chờ duyệt') ? '#fffbeb' : '#fee2e2',
+            color: error.includes('chờ Quản trị viên duyệt') || error.includes('PAYMENT_PENDING_APPROVAL') || error.includes('chờ duyệt') ? '#b45309' : '#b91c1c',
+            border: error.includes('chờ Quản trị viên duyệt') || error.includes('PAYMENT_PENDING_APPROVAL') || error.includes('chờ duyệt') ? '1.5px solid #fcd34d' : '1px solid #fecaca',
+            borderRadius: '10px',
+            marginBottom: '18px',
+            fontSize: '13px',
+            fontWeight: 600,
+            lineHeight: 1.5,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '10px'
+          }}>
+            <span style={{ fontSize: '18px', flexShrink: 0 }}>
+              {error.includes('chờ Quản trị viên duyệt') || error.includes('PAYMENT_PENDING_APPROVAL') || error.includes('chờ duyệt') ? '⏳' : '⚠️'}
+            </span>
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: '2px' }}>
+                {error.includes('chờ Quản trị viên duyệt') || error.includes('PAYMENT_PENDING_APPROVAL') || error.includes('chờ duyệt') ? 'Giao dịch đang chờ Quản trị viên phê duyệt' : 'Đăng nhập không thành công'}
+              </div>
+              <div>{error}</div>
+            </div>
           </div>
         )}
         {successMsg && (

@@ -23,8 +23,9 @@ from models import (
     BookCreate, BookUpdate, ReaderCreate, ReaderUpdate,
     BorrowRequestCreate, BorrowStatusUpdate, NotificationReadRequest,
     ReservationCreate, FineStatusUpdate, ReaderLockUpdate,
-    VNPayPaymentCreate, VNPayPaymentVerify, SystemSettings
+    VNPayPaymentCreate, VNPayPaymentVerify, SystemSettings, FineRejectRequest
 )
+
 
 SETTINGS_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "database", "settings.json")
 
@@ -117,6 +118,25 @@ def login(req: LoginRequest):
     if not user:
         raise HTTPException(status_code=401, detail="Tên đăng nhập hoặc mật khẩu không chính xác!")
 
+    # 🔒 Kiểm tra nếu tài khoản đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay
+    pending_fines = [
+        f for f in db.get("fines", [])
+        if int(f.get("readerId") or f.get("userId") or 0) == int(user.get("id", 0)) and f.get("status") in ["Chờ duyệt", "Chờ duyệt nộp phạt"]
+    ]
+    if user.get("pendingPaymentApproval") or pending_fines or "chờ quản trị viên duyệt" in (user.get("lockReason") or "").lower():
+        first_pending = pending_fines[0] if pending_fines else None
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "PAYMENT_PENDING_APPROVAL",
+                "message": "Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Vui lòng đợi trong giây lát hoặc liên hệ ban quản trị!",
+                "readerId": user.get("id"),
+                "readerName": user.get("fullName"),
+                "username": user.get("username"),
+                "fine": first_pending
+            }
+        )
+
     # 🔒 Kiểm tra nếu tài khoản đang bị khóa do mượn sách quá hạn chưa nộp phạt sau 3 ngày
     if user.get("isLocked") or user.get("is_locked"):
         unpaid_fines = [
@@ -138,6 +158,7 @@ def login(req: LoginRequest):
                 "fine": first_fine
             }
         )
+
 
     user_data = {
         "id": user.get("id"),
@@ -1088,6 +1109,104 @@ def pay_fine(fine_id: int, req: FineStatusUpdate):
     return {"message": "Đã xác nhận nộp phạt thành công!", "fine": fine, "unlocked": is_unlocked}
 
 
+@app.put("/api/fines/{fine_id}/approve")
+def approve_fine_payment(fine_id: int):
+    db = db_manager.load_db()
+    fines = db.get("fines", [])
+    fine = next((f for f in fines if int(f.get("id", 0)) == fine_id), None)
+    if not fine:
+        raise HTTPException(status_code=404, detail="Không tìm thấy khoản phạt.")
+
+    now_iso = datetime.now().isoformat()
+    fine["status"] = "Đã nộp"
+    fine["paidAt"] = now_iso
+    db["fines"] = fines
+
+    reader_id = int(fine.get("readerId", 0))
+    users = db.get("users", [])
+    reader = next((u for u in users if int(u.get("id", 0)) == reader_id), None)
+    
+    # Kiểm tra xem độc giả còn khoản phạt nào chưa nộp hoặc chờ duyệt không
+    unresolved_fines = [
+        f for f in fines
+        if int(f.get("readerId", 0)) == reader_id and f.get("status") in ["Chưa nộp", "Chờ duyệt", "Chờ duyệt nộp phạt"] and int(f.get("id", 0)) != fine_id
+    ]
+
+    is_unlocked = False
+    if reader and len(unresolved_fines) == 0:
+        reader["isLocked"] = False
+        reader["lockReason"] = ""
+        reader["pendingPaymentApproval"] = False
+        db["users"] = users
+        db_manager.toggle_reader_lock(reader_id, False, "")
+        is_unlocked = True
+    elif reader:
+        reader["pendingPaymentApproval"] = len([f for f in unresolved_fines if f.get("status") in ["Chờ duyệt", "Chờ duyệt nộp phạt"]]) > 0
+
+    db_manager.save_db(db)
+
+    # Gửi thông báo đến độc giả
+    unlock_text = " Tài khoản của bạn đã được MỞ KHÓA hoàn toàn và có thể đăng nhập bình thường!" if is_unlocked else ""
+    db_manager.add_notification(
+        recipient_role="Reader",
+        recipient_user_id=reader_id,
+        title="Quản trị viên đã duyệt nộp phạt 🎉",
+        message=f"Quản trị viên đã duyệt giao dịch nộp phạt {int(fine.get('fineAmount', 0)):,} đ cho cuốn sách \"{fine.get('bookTitle')}\".{unlock_text}",
+        notif_type="fine_approved",
+        meta={"fineId": fine_id, "fineAmount": fine.get("fineAmount"), "unlocked": is_unlocked}
+    )
+
+    return {
+        "success": True,
+        "message": "Đã duyệt nộp phạt thành công!" + (" Tài khoản độc giả đã được mở khóa." if is_unlocked else ""),
+        "fine": fine,
+        "unlocked": is_unlocked
+    }
+
+
+@app.put("/api/fines/{fine_id}/reject")
+def reject_fine_payment(fine_id: int, req: Optional[FineRejectRequest] = None):
+    db = db_manager.load_db()
+    fines = db.get("fines", [])
+    fine = next((f for f in fines if int(f.get("id", 0)) == fine_id), None)
+    if not fine:
+        raise HTTPException(status_code=404, detail="Không tìm thấy khoản phạt.")
+
+    reject_reason = (req.reason if req and req.reason else "Giao dịch không hợp lệ hoặc chưa nhận được tiền")
+    fine["status"] = "Chưa nộp"
+    fine["rejectedAt"] = datetime.now().isoformat()
+    fine["rejectReason"] = reject_reason
+    fine["transactionRef"] = None
+    db["fines"] = fines
+
+    reader_id = int(fine.get("readerId", 0))
+    users = db.get("users", [])
+    reader = next((u for u in users if int(u.get("id", 0)) == reader_id), None)
+    if reader:
+        reader["isLocked"] = True
+        reader["pendingPaymentApproval"] = False
+        reader["lockReason"] = f"Yêu cầu nộp phạt VNPay bị từ chối: {reject_reason}"
+        db["users"] = users
+        db_manager.toggle_reader_lock(reader_id, True, reader["lockReason"])
+
+    db_manager.save_db(db)
+
+    db_manager.add_notification(
+        recipient_role="Reader",
+        recipient_user_id=reader_id,
+        title="Yêu cầu nộp phạt bị từ chối ❌",
+        message=f"Yêu cầu xác nhận nộp phạt cho cuốn sách \"{fine.get('bookTitle')}\" bị từ chối. Lý do: {reject_reason}. Vui lòng nộp phạt lại hoặc liên hệ thủ thư!",
+        notif_type="fine_rejected",
+        meta={"fineId": fine_id, "reason": reject_reason}
+    )
+
+    return {
+        "success": True,
+        "message": "Đã từ chối giao dịch nộp phạt.",
+        "fine": fine
+    }
+
+
 # ================= VNPAY PAYMENT GATEWAY =================
 @app.post("/api/payment/vnpay/create")
 def create_vnpay_payment(req: VNPayPaymentCreate):
@@ -1138,7 +1257,7 @@ def verify_vnpay_payment(req: VNPayPaymentVerify):
 
     now_iso = datetime.now().isoformat()
     if fine:
-        fine["status"] = "Đã nộp"
+        fine["status"] = "Chờ duyệt"
         fine["paidAt"] = now_iso
         fine["paymentMethod"] = "VNPay"
         fine["transactionRef"] = req.transactionRef
@@ -1151,41 +1270,62 @@ def verify_vnpay_payment(req: VNPayPaymentVerify):
             "readerId": req.readerId,
             "bookTitle": "Phí phạt trễ hạn mượn sách",
             "fineAmount": req.amount,
-            "status": "Đã nộp",
+            "status": "Chờ duyệt",
             "paidAt": now_iso,
             "paymentMethod": "VNPay",
             "transactionRef": req.transactionRef,
-            "note": "Nộp phạt trực tuyến qua VNPay"
+            "note": "Nộp phạt trực tuyến qua VNPay (Chờ duyệt)"
         }
         fines.append(fine)
         db["fines"] = fines
 
-    # TỰ ĐỘNG MỞ KHÓA TÀI KHOẢN ĐỘC GIẢ
+    # Giữ khóa tài khoản độc giả và đánh dấu chờ duyệt
     users = db.get("users", [])
     reader = next((u for u in users if int(u.get("id", 0)) == int(req.readerId)), None)
+    reader_name = reader.get("fullName", f"Độc giả #{req.readerId}") if reader else f"Độc giả #{req.readerId}"
     if reader:
-        reader["isLocked"] = False
-        reader["lockReason"] = ""
+        reader["isLocked"] = True
+        reader["pendingPaymentApproval"] = True
+        reader["lockReason"] = "Giao dịch nộp phạt VNPay đang chờ Quản trị viên duyệt"
         db["users"] = users
-        db_manager.toggle_reader_lock(req.readerId, False, "")
+        db_manager.toggle_reader_lock(req.readerId, True, reader["lockReason"])
 
     db_manager.save_db(db)
 
+    # Gửi thông báo đến Quản trị viên & Thủ thư
+    db_manager.add_notification(
+        recipient_role="Admin",
+        title="🔔 Yêu cầu duyệt nộp phạt VNPay",
+        message=f"Độc giả {reader_name} (ID: {req.readerId}) đã gửi xác nhận thanh toán VNPay {int(req.amount):,} đ (Mã GD: #{req.transactionRef}). Vui lòng kiểm tra và duyệt!",
+        notif_type="fine_pending_approval",
+        meta={"txnRef": req.transactionRef, "amount": req.amount, "readerId": req.readerId, "fineId": fine.get("id")}
+    )
+    db_manager.add_notification(
+        recipient_role="Librarian",
+        title="🔔 Yêu cầu duyệt nộp phạt VNPay",
+        message=f"Độc giả {reader_name} (ID: {req.readerId}) đã thanh toán VNPay {int(req.amount):,} đ (Mã GD: #{req.transactionRef}). Chờ quản trị viên duyệt.",
+        notif_type="fine_pending_approval",
+        meta={"txnRef": req.transactionRef, "amount": req.amount, "readerId": req.readerId, "fineId": fine.get("id")}
+    )
+
+    # Gửi thông báo đến Độc giả
     db_manager.add_notification(
         recipient_role="Reader",
         recipient_user_id=req.readerId,
-        title="Thanh toán VNPay thành công 🎉",
-        message=f"Giao dịch VNPay #{req.transactionRef} số tiền {int(req.amount):,} đ đã được xác nhận. Tài khoản của bạn đã được TỰ ĐỘNG MỞ KHÓA thành công!",
-        notif_type="fine_paid_vnpay",
-        meta={"txnRef": req.transactionRef, "amount": req.amount, "unlocked": True}
+        title="Đã gửi xác nhận nộp phạt VNPay ⏳",
+        message=f"Giao dịch VNPay #{req.transactionRef} số tiền {int(req.amount):,} đ đã được tiếp nhận và đang chờ Quản trị viên duyệt. Tài khoản sẽ được mở sau khi duyệt.",
+        notif_type="fine_submitted_vnpay",
+        meta={"txnRef": req.transactionRef, "amount": req.amount, "pendingApproval": True}
     )
 
     return {
         "success": True,
-        "message": "Thanh toán qua VNPay thành công! Tài khoản đã được tự động mở khóa.",
+        "pendingApproval": True,
+        "status": "WAITING_APPROVAL",
+        "message": "Giao dịch nộp phạt VNPay đã được gửi thành công và đang chờ Quản trị viên duyệt. Hệ thống sẽ tự động đăng xuất để bảo đảm an toàn dữ liệu.",
         "transactionRef": req.transactionRef,
         "amount": req.amount,
-        "unlocked": True,
+        "unlocked": False,
         "paidAt": now_iso,
         "fine": fine
     }
@@ -1196,17 +1336,26 @@ def get_payment_status(txn_ref: str):
     """Kiểm tra trạng thái thanh toán theo mã giao dịch (dùng cho polling từ frontend)"""
     db = db_manager.load_db()
     fines = db.get("fines", [])
-    # Tìm theo transactionRef
-    paid_fine = next((f for f in fines if f.get("transactionRef") == txn_ref and f.get("status") == "Đã nộp"), None)
-    if paid_fine:
-        return {
-            "status": "PAID",
-            "txnRef": txn_ref,
-            "fineId": paid_fine.get("id"),
-            "amount": paid_fine.get("fineAmount"),
-            "paidAt": paid_fine.get("paidAt"),
-            "paymentMethod": paid_fine.get("paymentMethod", "VNPay")
-        }
+    fine = next((f for f in fines if f.get("transactionRef") == txn_ref), None)
+    if fine:
+        if fine.get("status") == "Đã nộp":
+            return {
+                "status": "APPROVED",
+                "txnRef": txn_ref,
+                "fineId": fine.get("id"),
+                "amount": fine.get("fineAmount"),
+                "paidAt": fine.get("paidAt"),
+                "paymentMethod": fine.get("paymentMethod", "VNPay")
+            }
+        elif fine.get("status") in ["Chờ duyệt", "Chờ duyệt nộp phạt"]:
+            return {
+                "status": "WAITING_APPROVAL",
+                "txnRef": txn_ref,
+                "fineId": fine.get("id"),
+                "amount": fine.get("fineAmount"),
+                "paidAt": fine.get("paidAt"),
+                "paymentMethod": fine.get("paymentMethod", "VNPay")
+            }
     return {"status": "PENDING", "txnRef": txn_ref}
 
 
@@ -1231,47 +1380,58 @@ def vnpay_return(
     amount_vnd = int(vnp_Amount or 0) // 100 if vnp_Amount else 0  # VNPay trả về đơn vị x100
 
     if success and txn_ref:
-        # Tự động xác nhận thanh toán vào DB nếu chưa được ghi nhận
+        # Ghi nhận trạng thái Chờ duyệt vào DB nếu chưa ghi nhận
         db = db_manager.load_db()
         fines = db.get("fines", [])
-        already_paid = any(f.get("transactionRef") == txn_ref for f in fines)
-        if not already_paid and amount_vnd > 0:
-            # Tìm khoản phạt chưa nộp nào đó để cập nhật
+        already_recorded = any(f.get("transactionRef") == txn_ref for f in fines)
+        if not already_recorded and amount_vnd > 0:
             txn_parts = txn_ref.split("_")
             reader_id = int(txn_parts[-1]) if txn_parts and txn_parts[-1].isdigit() else 0
             fine = next((f for f in fines if int(f.get("readerId", 0)) == reader_id and f.get("status") == "Chưa nộp"), None)
             now_iso = datetime.now().isoformat()
             if fine:
-                fine["status"] = "Đã nộp"
+                fine["status"] = "Chờ duyệt"
                 fine["paidAt"] = now_iso
                 fine["paymentMethod"] = "VNPay"
                 fine["transactionRef"] = txn_ref
                 fine["bankCode"] = vnp_BankCode or ""
             else:
                 new_id = max([int(f.get("id", 0)) for f in fines], default=0) + 1
-                fines.append({
+                fine = {
                     "id": new_id,
                     "readerId": reader_id,
                     "bookTitle": "Phí phạt trễ hạn mượn sách",
                     "fineAmount": amount_vnd,
-                    "status": "Đã nộp",
+                    "status": "Chờ duyệt",
                     "paidAt": now_iso,
                     "paymentMethod": "VNPay",
                     "transactionRef": txn_ref,
                     "bankCode": vnp_BankCode or ""
-                })
+                }
+                fines.append(fine)
             db["fines"] = fines
-            # Mở khóa tài khoản
+
+            # Độc giả chuyển sang trạng thái chờ duyệt, giữ khóa
             if reader_id:
                 users = db.get("users", [])
                 reader = next((u for u in users if int(u.get("id", 0)) == reader_id), None)
                 if reader:
-                    reader["isLocked"] = False
-                    reader["lockReason"] = ""
+                    reader["isLocked"] = True
+                    reader["pendingPaymentApproval"] = True
+                    reader["lockReason"] = "Giao dịch nộp phạt VNPay đang chờ Quản trị viên duyệt"
                     db["users"] = users
+                    db_manager.toggle_reader_lock(reader_id, True, reader["lockReason"])
+
+                    db_manager.add_notification(
+                        recipient_role="Admin",
+                        title="🔔 Yêu cầu duyệt nộp phạt VNPay",
+                        message=f"Độc giả {reader.get('fullName', f'#{reader_id}')} đã hoàn tất thanh toán VNPay {amount_vnd:,} đ (Mã GD: #{txn_ref}). Chờ duyệt!",
+                        notif_type="fine_pending_approval",
+                        meta={"txnRef": txn_ref, "amount": amount_vnd, "readerId": reader_id}
+                    )
             db_manager.save_db(db)
 
-    redirect_url = f"/?vnp_result=success&vnp_txnRef={txn_ref}&vnp_amount={amount_vnd}" if success else f"/?vnp_result=failed&vnp_code={vnp_ResponseCode or 'ERR'}"
+    redirect_url = f"/?vnp_result=pending_approval&vnp_txnRef={txn_ref}&vnp_amount={amount_vnd}" if success else f"/?vnp_result=failed&vnp_code={vnp_ResponseCode or 'ERR'}"
     return RedirectResponse(url=redirect_url)
 
 

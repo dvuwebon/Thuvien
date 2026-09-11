@@ -217,7 +217,7 @@ class FineModel(Base):
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     book_id = Column(Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False)
     due_date = Column(DateTime, nullable=False)
-    actual_return_date = Column(DateTime, nullable=False)
+    actual_return_date = Column(DateTime, nullable=True)
     fine_amount = Column(Numeric(12, 2), nullable=False, default=0.00)
     status = Column(String(50), nullable=False, default="Chưa nộp", index=True)
     payment_method = Column(String(50), nullable=True, default="Tiền mặt")
@@ -536,9 +536,17 @@ class MySQLDatabaseManager:
             u["unpaidFines"] = total_unpaid
 
             # Quy tắc tự động khóa
+            pending_fines = [
+                f for f in fines
+                if int(f.get("readerId") or f.get("userId") or 0) == uid and f.get("status") in ["Chờ duyệt", "Chờ duyệt nộp phạt"]
+            ]
             dyn_s = get_dynamic_settings()
             lock_threshold = int(dyn_s.get("autoLockAfterDays", 3))
-            if overdue_days_max >= lock_threshold:
+            if pending_fines or u.get("pendingPaymentApproval"):
+                u["isLocked"] = True
+                u["pendingPaymentApproval"] = True
+                u["lockReason"] = "Giao dịch nộp phạt VNPay đang chờ Quản trị viên duyệt"
+            elif overdue_days_max >= lock_threshold:
                 u["isLocked"] = True
                 u["lockReason"] = f"Mượn sách quá hạn {overdue_days_max} ngày (Cần nộp phạt để mở khóa)"
             elif total_unpaid > 0:
@@ -547,9 +555,11 @@ class MySQLDatabaseManager:
             else:
                 # Nếu lý do khóa tự động trước đó đã được giải quyết
                 current_reason = u.get("lockReason", "") or ""
-                if current_reason.startswith("Mượn sách quá hạn") or current_reason.startswith("Còn khoản tiền phạt"):
+                if current_reason.startswith("Mượn sách quá hạn") or current_reason.startswith("Còn khoản tiền phạt") or current_reason.startswith("Giao dịch nộp phạt"):
                     u["isLocked"] = False
                     u["lockReason"] = ""
+                    u["pendingPaymentApproval"] = False
+
 
         return users
 
@@ -692,13 +702,14 @@ class MySQLDatabaseManager:
                     continue
                 existing_f = session.query(FineModel).filter_by(id=fid).first()
                 due_f = datetime.fromisoformat(f.get("dueDate").replace("Z", "")) if f.get("dueDate") else datetime.utcnow()
-                act_f = datetime.fromisoformat(f.get("actualReturnDate").replace("Z", "")) if f.get("actualReturnDate") else None
+                act_f = datetime.fromisoformat(f.get("actualReturnDate").replace("Z", "")) if f.get("actualReturnDate") else datetime.utcnow()
                 f_amt = float(f.get("fineAmount") or 0.0)
                 if existing_f:
                     existing_f.status = f.get("status", existing_f.status)
                     existing_f.fine_amount = f_amt
                     existing_f.payment_method = f.get("paymentMethod")
                     existing_f.transaction_ref = f.get("transactionRef")
+                    existing_f.actual_return_date = act_f
                 else:
                     new_f = FineModel(
                         id=fid,
@@ -726,6 +737,10 @@ class MySQLDatabaseManager:
                     existing_u.phone = u.get("phone", existing_u.phone)
                     existing_u.address = u.get("address", existing_u.address)
                     existing_u.role = u.get("role", existing_u.role)
+                    if "isLocked" in u:
+                        existing_u.is_locked = bool(u.get("isLocked"))
+                    if "lockReason" in u:
+                        existing_u.lock_reason = u.get("lockReason")
                 else:
                     new_u = UserModel(
                         id=uid,

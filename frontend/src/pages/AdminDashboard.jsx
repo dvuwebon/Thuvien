@@ -714,6 +714,28 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     }
   };
 
+  const handleApproveFine = async (fineId) => {
+    try {
+      const res = await api.approveFinePayment(fineId);
+      showToast('🎉 ' + (res?.message || 'Đã duyệt nộp phạt thành công! Tài khoản độc giả đã được mở khóa.'));
+      loadData(true);
+    } catch (e) {
+      showToast('Lỗi khi duyệt nộp phạt: ' + (e.message || 'Lỗi'));
+    }
+  };
+
+  const handleRejectFine = async (fineId) => {
+    const reason = window.prompt('Nhập lý do từ chối nộp phạt:', 'Chưa nhận được giao dịch chuyển khoản hoặc thông tin sai lệch');
+    if (reason === null) return;
+    try {
+      const res = await api.rejectFinePayment(fineId, reason);
+      showToast('✓ ' + (res?.message || 'Đã từ chối giao dịch nộp phạt.'));
+      loadData(true);
+    } catch (e) {
+      showToast('Lỗi khi từ chối nộp phạt: ' + (e.message || 'Lỗi'));
+    }
+  };
+
   const handleToggleReaderLock = async (reader) => {
     try {
       const nextLocked = !reader.isLocked;
@@ -1377,6 +1399,11 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 }}
               >
                 <span>💰 Quản Lý Thu Tiền Phạt</span>
+                {fines.filter(f => f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt').length > 0 && (
+                  <span className="badge" style={{ fontSize: '11px', padding: '1px 6px', background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', fontWeight: 800 }}>
+                    ⏳ {fines.filter(f => f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt').length} Chờ duyệt
+                  </span>
+                )}
                 <span className="badge badge-danger" style={{ fontSize: '11px', padding: '1px 6px' }}>
                   {fines.filter(f => f.status === 'Chưa nộp').length}
                 </span>
@@ -1780,12 +1807,38 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                               )}
                             </td>
                             <td>
-                              <span className={`badge ${f.status === 'Đã nộp' ? 'badge-success' : 'badge-danger'}`}>
-                                {f.status || 'Chưa nộp'}
+                              <span
+                                className={`badge ${f.status === 'Đã nộp' ? 'badge-success' : (f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt') ? 'badge-warning' : 'badge-danger'}`}
+                                style={f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? { background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', fontWeight: 700 } : {}}
+                              >
+                                {f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? '⏳ Chờ duyệt' : (f.status || 'Chưa nộp')}
                               </span>
                             </td>
                             <td style={{ textAlign: 'right' }}>
-                              {f.status !== 'Đã nộp' ? (
+                              {f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? (
+                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleApproveFine(f.id)}
+                                    className="btn btn-success"
+                                    style={{ padding: '4px 10px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    title="Duyệt giao dịch nộp phạt và mở khóa tài khoản độc giả"
+                                  >
+                                    <Check size={13} />
+                                    Duyệt
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRejectFine(f.id)}
+                                    className="btn btn-outline"
+                                    style={{ padding: '4px 10px', fontSize: '11.5px', fontWeight: 600, color: '#dc2626', borderColor: '#fca5a5', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    title="Từ chối giao dịch nộp phạt"
+                                  >
+                                    <X size={13} />
+                                    Từ chối
+                                  </button>
+                                </div>
+                              ) : f.status !== 'Đã nộp' ? (
                                 <button
                                   type="button"
                                   onClick={() => handlePayFine(f.id)}

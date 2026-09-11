@@ -13,6 +13,7 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [successInfo, setSuccessInfo] = useState(null);
   const [countdown, setCountdown] = useState(900);
+  const [kickCountdown, setKickCountdown] = useState(4);
   const [copiedField, setCopiedField] = useState('');
   const [pollingActive, setPollingActive] = useState(false);
   const [confirmLoading, setConfirmLoading] = useState(false);
@@ -27,6 +28,7 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
     setPaymentSuccess(false);
     setSuccessInfo(null);
     setCountdown(900);
+    setKickCountdown(4);
     setPollingActive(false);
     setLoading(true);
 
@@ -74,6 +76,25 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
     return () => clearInterval(timer);
   }, [isOpen, countdown, paymentSuccess]);
 
+  // Đếm ngược tự động kick / đăng xuất sau khi gửi yêu cầu nộp phạt thành công
+  useEffect(() => {
+    if (!paymentSuccess) return;
+    setKickCountdown(4);
+    const timer = setInterval(() => {
+      setKickCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          if (onPaymentSuccess && successInfo) onPaymentSuccess(successInfo);
+          if (onSuccess && successInfo) onSuccess(successInfo);
+          onClose();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [paymentSuccess, successInfo]);
+
   useEffect(() => {
     if (!pollingActive || paymentSuccess || !paymentData?.txnRef) {
       if (pollingRef.current) clearInterval(pollingRef.current);
@@ -84,13 +105,11 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
         const res = await fetch(`/api/payment/status/${paymentData.txnRef}`);
         if (res.ok) {
           const data = await res.json();
-          if (data.status === 'PAID') {
+          if (data.status === 'PAID' || data.status === 'WAITING_APPROVAL' || data.status === 'APPROVED') {
             clearInterval(pollingRef.current);
             setPollingActive(false);
             setPaymentSuccess(true);
             setSuccessInfo(data);
-            if (onPaymentSuccess) onPaymentSuccess(data);
-            if (onSuccess) onSuccess(data);
           }
         }
       } catch (e) {}
@@ -138,10 +157,8 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
       setSuccessInfo(res);
       setPollingActive(false);
       if (pollingRef.current) clearInterval(pollingRef.current);
-      if (onPaymentSuccess) onPaymentSuccess(res);
-      if (onSuccess) onSuccess(res);
     } catch (e) {
-      alert('Loi xac nhan thanh toan: ' + (e.message || 'Vui long thu lai.'));
+      alert('Lỗi xác nhận thanh toán: ' + (e.message || 'Vui lòng thử lại.'));
     } finally {
       setConfirmLoading(false);
     }
@@ -197,10 +214,10 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
               <span style={{ color: '#ed1c24', fontWeight: 900, fontSize: '17px', letterSpacing: '-0.5px' }}>VNPAY</span>
             </div>
             <div>
-              <div style={{ fontWeight: 800, fontSize: '14px' }}>Cong Thanh Toan Truc Tuyen</div>
+              <div style={{ fontWeight: 800, fontSize: '14px' }}>Cổng Thanh Toán Trực Tuyến</div>
               <div style={{ fontSize: '11px', color: '#bfdbfe', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                 <ShieldCheck size={11} />
-                <span>Bao mat PCI-DSS - Ma hoa SSL 256-bit</span>
+                <span>Bảo mật PCI-DSS - Mã hóa SSL 256-bit</span>
               </div>
             </div>
           </div>
@@ -217,32 +234,33 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
           <div style={{ padding: '32px 24px', textAlign: 'center' }}>
             <div style={{
               width: '72px', height: '72px', borderRadius: '50%',
-              background: 'linear-gradient(135deg,#dcfce7,#bbf7d0)', color: '#16a34a',
+              background: 'linear-gradient(135deg,#fef3c7,#fde68a)', color: '#d97706',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(22,163,74,0.25)'
+              margin: '0 auto 16px', boxShadow: '0 8px 24px rgba(217,119,6,0.25)'
             }}>
-              <CheckCircle size={44} strokeWidth={2.5} />
+              <Clock size={42} strokeWidth={2.5} />
             </div>
             <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a', margin: '0 0 6px' }}>
-              Thanh Toan Thanh Cong! 🎉
+              Đã Gửi Yêu Cầu Nộp Phạt! ⏳
             </h3>
-            <p style={{ color: '#15803d', fontSize: '13.5px', fontWeight: 700, margin: '0 0 20px' }}>
-              Tai khoan thu vien cua ban da duoc TU DONG MO KHOA!
+            <p style={{ color: '#b45309', fontSize: '13.5px', fontWeight: 700, margin: '0 0 16px' }}>
+              Giao dịch đã được gửi về trang quản trị và đang chờ Quản trị viên duyệt.
             </p>
             <div style={{
-              background: '#f0fdf4', border: '1px solid #86efac',
+              background: '#fffbeb', border: '1.5px solid #fde68a',
               borderRadius: '12px', padding: '16px', textAlign: 'left',
               fontSize: '13px', marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px'
             }}>
               {[
-                { label: 'Ma giao dich:', value: successInfo?.transactionRef || paymentData?.txnRef || '-' },
-                { label: 'So tien da nop:', value: `${payAmount.toLocaleString('vi-VN')} d`, color: '#16a34a', size: '15px' },
-                { label: 'Doc gia:', value: `${readerName} (DG-${String(readerId).padStart(3, '0')})` },
-                { label: 'Trang thai tai khoan:', value: 'v Dang hoat dong binh thuong', color: '#16a34a', weight: 800 }
+                { label: 'Mã giao dịch:', value: successInfo?.transactionRef || paymentData?.txnRef || '-' },
+                { label: 'Số tiền nộp phạt:', value: `${payAmount.toLocaleString('vi-VN')} đ`, color: '#b45309', size: '15px' },
+                { label: 'Độc giả:', value: `${readerName} (DG-${String(readerId).padStart(3, '0')})` },
+                { label: 'Trạng thái xử lý:', value: '⏳ Chờ Quản trị viên duyệt', color: '#d97706', weight: 800 },
+                { label: 'Lưu ý:', value: 'Tài khoản sẽ được mở lại sau khi Quản trị viên duyệt. Hệ thống sẽ tự động kick độc giả ra ngoài để bảo toàn trạng thái chờ duyệt.', color: '#475569', weight: 600 }
               ].map((item, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ color: '#64748b' }}>{item.label}</span>
-                  <strong style={{ color: item.color || '#0f172a', fontSize: item.size || '13px', fontWeight: item.weight || 700 }}>
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: item.label === 'Lưu ý:' ? 'flex-start' : 'center', gap: '10px' }}>
+                  <span style={{ color: '#64748b', flexShrink: 0 }}>{item.label}</span>
+                  <strong style={{ color: item.color || '#0f172a', fontSize: item.size || '13px', fontWeight: item.weight || 700, textAlign: item.label === 'Lưu ý:' ? 'right' : 'inherit' }}>
                     {item.value}
                   </strong>
                 </div>
@@ -255,13 +273,14 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
                 onClose();
               }}
               style={{
-                width: '100%', background: 'linear-gradient(135deg,#16a34a,#15803d)',
+                width: '100%', background: 'linear-gradient(135deg,#d97706,#b45309)',
                 color: '#fff', border: 'none', padding: '13px', borderRadius: '10px',
                 fontSize: '14px', fontWeight: 800, cursor: 'pointer',
-                boxShadow: '0 4px 16px rgba(22,163,74,0.35)'
+                boxShadow: '0 4px 16px rgba(217,119,6,0.35)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px'
               }}
             >
-              Hoan tat & Tiep tuc muon sach &rarr;
+              <span>Đã hiểu & Đăng xuất ngay ({kickCountdown}s)</span>
             </button>
           </div>
         ) : (

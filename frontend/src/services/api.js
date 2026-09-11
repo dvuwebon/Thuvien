@@ -251,9 +251,11 @@ export const api = {
         } else if (res.status === 403) {
           const err = await res.json().catch(() => ({}));
           const lockDetail = err.detail || {};
+          const isPending = typeof lockDetail === 'object' && lockDetail.error === 'PAYMENT_PENDING_APPROVAL';
           const msg = typeof lockDetail === 'object' ? (lockDetail.message || 'Tài khoản của bạn đã bị khóa do chưa nộp phạt sách quá hạn sau 3 ngày!') : lockDetail;
           const lockErr = new Error(msg);
           lockErr.isLocked = true;
+          lockErr.isPendingApproval = isPending;
           lockErr.lockData = typeof lockDetail === 'object' ? lockDetail : { message: lockDetail };
           throw lockErr;
         } else if (res.status === 401 || res.status === 400) {
@@ -273,6 +275,22 @@ export const api = {
       u => u.username && u.username.toLowerCase() === trimmedUsername.toLowerCase() && u.password === password
     );
     if (found) {
+      const pendingFines = (db.fines || []).filter(
+        f => Number(f.readerId || f.userId || 0) === Number(found.id) && (f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt')
+      );
+      if (found.pendingPaymentApproval || pendingFines.length > 0 || (found.lockReason || '').toLowerCase().includes('chờ quản trị viên duyệt')) {
+        const lockErr = new Error('Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Vui lòng đợi trong giây lát hoặc liên hệ ban quản trị!');
+        lockErr.isLocked = true;
+        lockErr.isPendingApproval = true;
+        lockErr.lockData = {
+          error: 'PAYMENT_PENDING_APPROVAL',
+          readerId: found.id,
+          readerName: found.fullName,
+          message: 'Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Vui lòng đợi trong giây lát hoặc liên hệ ban quản trị!',
+          fine: pendingFines[0] || null
+        };
+        throw lockErr;
+      }
       if (found.isLocked) {
         const lockErr = new Error(found.lockReason || 'Tài khoản của bạn đã bị khóa do chưa nộp phạt sách quá hạn sau 3 ngày!');
         lockErr.isLocked = true;
@@ -1329,7 +1347,7 @@ export const api = {
     db.fines = (db.fines || []).map(f => {
       if (Number(f.readerId) === Number(data.readerId) && f.status === 'Chưa nộp') {
         found = true;
-        return { ...f, status: 'Đã nộp', paidAt: nowIso, paymentMethod: 'VNPay', transactionRef: data.transactionRef };
+        return { ...f, status: 'Chờ duyệt', paidAt: nowIso, paymentMethod: 'VNPay', transactionRef: data.transactionRef };
       }
       return f;
     });
@@ -1339,22 +1357,114 @@ export const api = {
         readerId: data.readerId,
         bookTitle: 'Phí phạt trễ hạn mượn sách',
         fineAmount: data.amount,
-        status: 'Đã nộp',
+        status: 'Chờ duyệt',
         paidAt: nowIso,
         paymentMethod: 'VNPay',
-        transactionRef: data.transactionRef
+        transactionRef: data.transactionRef,
+        note: 'Nộp phạt trực tuyến qua VNPay (Chờ duyệt)'
       }];
     }
-    db.users = (db.users || []).map(u => Number(u.id) === Number(data.readerId) ? { ...u, isLocked: false, lockReason: '' } : u);
+    db.users = (db.users || []).map(u => Number(u.id) === Number(data.readerId) ? {
+      ...u,
+      isLocked: true,
+      pendingPaymentApproval: true,
+      lockReason: 'Giao dịch nộp phạt VNPay đang chờ Quản trị viên duyệt'
+    } : u);
     saveLocalDb(db);
     notifyDataUpdated('fine');
     notifyDataUpdated('reader');
     return {
       success: true,
-      message: 'Thanh toán qua VNPay thành công! Tài khoản đã được tự động mở khóa.',
-      unlocked: true,
+      pendingApproval: true,
+      status: 'WAITING_APPROVAL',
+      message: 'Giao dịch nộp phạt VNPay đã được gửi thành công và đang chờ Quản trị viên duyệt. Hệ thống sẽ tự động đăng xuất.',
+      unlocked: false,
       paidAt: nowIso
     };
+  },
+
+  approveFinePayment: async (fineId) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/fines/${fineId}/approve`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('fine');
+          notifyDataUpdated('reader');
+          return result;
+        }
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    let readerIdToUnlock = null;
+    db.fines = (db.fines || []).map(f => {
+      if (Number(f.id) === Number(fineId)) {
+        readerIdToUnlock = f.readerId;
+        return { ...f, status: 'Đã nộp', paidAt: new Date().toISOString() };
+      }
+      return f;
+    });
+    let isUnlocked = false;
+    if (readerIdToUnlock) {
+      const remainingUnresolved = (db.fines || []).filter(
+        f => Number(f.readerId) === Number(readerIdToUnlock) && (f.status === 'Chưa nộp' || f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt')
+      );
+      if (remainingUnresolved.length === 0) {
+        db.users = (db.users || []).map(u => Number(u.id) === Number(readerIdToUnlock) ? {
+          ...u,
+          isLocked: false,
+          lockReason: '',
+          pendingPaymentApproval: false
+        } : u);
+        isUnlocked = true;
+      }
+    }
+    saveLocalDb(db);
+    notifyDataUpdated('fine');
+    notifyDataUpdated('reader');
+    return { success: true, message: 'Đã duyệt nộp phạt thành công!', unlocked: isUnlocked };
+  },
+
+  rejectFinePayment: async (fineId, reason = '') => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/fines/${fineId}/reject`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('fine');
+          notifyDataUpdated('reader');
+          return result;
+        }
+      } catch (e) {}
+    }
+    const db = getLocalDb();
+    let readerId = null;
+    db.fines = (db.fines || []).map(f => {
+      if (Number(f.id) === Number(fineId)) {
+        readerId = f.readerId;
+        return { ...f, status: 'Chưa nộp', rejectedAt: new Date().toISOString(), rejectReason: reason || 'Giao dịch không hợp lệ' };
+      }
+      return f;
+    });
+    if (readerId) {
+      db.users = (db.users || []).map(u => Number(u.id) === Number(readerId) ? {
+        ...u,
+        isLocked: true,
+        pendingPaymentApproval: false,
+        lockReason: `Yêu cầu nộp phạt VNPay bị từ chối: ${reason || 'Giao dịch không hợp lệ'}`
+      } : u);
+    }
+    saveLocalDb(db);
+    notifyDataUpdated('fine');
+    notifyDataUpdated('reader');
+    return { success: true, message: 'Đã từ chối giao dịch nộp phạt.' };
   },
 
   toggleReaderLock: async (readerId, isLocked, reason = '') => {

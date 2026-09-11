@@ -127,3 +127,6 @@ class SystemSettings(BaseModel):
     libraryPhone: Optional[str] = "0987 654 321"
     libraryEmail: Optional[str] = "support@smartlib.edu.vn"
     libraryHours: Optional[str] = "07:30 - 17:30 (Thứ 2 - Thứ 7)"
+
+class FineRejectRequest(BaseModel):
+    reason: Optional[str] = "Giao dịch không hợp lệ hoặc chưa nhận được tiền"

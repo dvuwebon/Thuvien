@@ -15,7 +15,7 @@ import UpcomingBooksSection from '../components/UpcomingBooksSection';
 import VNPayPaymentModal from '../components/VNPayPaymentModal';
 
 export default function ReaderPortal({ activeTab, onTabChange }) {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const [books, setBooks] = useState(() => (api.getCachedBooks ? api.getCachedBooks() : []));
   const [myBorrows, setMyBorrows] = useState([]);
   const [myReservations, setMyReservations] = useState([]);
@@ -49,6 +49,34 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       api.getSettings().then(s => setSystemSettings(s)).catch(() => {});
     }
   }, []);
+
+  // Tự động kiểm tra và kick độc giả ra khỏi hệ thống nếu tài khoản chuyển sang trạng thái Chờ duyệt nộp phạt
+  useEffect(() => {
+    if (!user) return;
+    const checkPendingAndKick = async () => {
+      if (user.pendingPaymentApproval) {
+        sessionStorage.setItem('pendingApprovalKickMsg', 'Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Hệ thống đã tự động đăng xuất.');
+        if (logout) logout();
+        return;
+      }
+      try {
+        const finesList = await (api.getFines ? api.getFines() : []);
+        const uId = Number(user.id || 0);
+        const hasPending = finesList.some(
+          f => Number(f.readerId || f.userId || 0) === uId && (f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt')
+        );
+        if (hasPending) {
+          sessionStorage.setItem('pendingApprovalKickMsg', 'Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Hệ thống đã tự động đăng xuất.');
+          if (logout) logout();
+        }
+      } catch (e) {}
+    };
+
+    checkPendingAndKick();
+    const handleDataUpdate = () => checkPendingAndKick();
+    window.addEventListener('smartlib:data-updated', handleDataUpdate);
+    return () => window.removeEventListener('smartlib:data-updated', handleDataUpdate);
+  }, [user, logout]);
 
   const showToast = (msg) => {
 
@@ -192,22 +220,13 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   }
 
   const handleVNPaySuccess = (res) => {
-    showToast('🎉 ' + (res?.message || 'Thanh toán VNPay thành công! Tài khoản của bạn đã được tự động mở khóa.'));
-    try {
-      const cu = JSON.parse(localStorage.getItem('currentUser') || '{}');
-      cu.isLocked = false;
-      cu.lockReason = '';
-      localStorage.setItem('currentUser', JSON.stringify(cu));
-    } catch (e) {}
-    if (updateUser) {
-      updateUser({ isLocked: false, lockReason: '' });
-    }
-    setMyFines(prev => (prev || []).map(f => ({ ...f, status: 'Đã nộp' })));
-    setMyBorrows(prev => (prev || []).map(r => r.status === 'Quá hạn' ? { ...r, fineAmount: 0, overdueDays: 0 } : r));
     setVnpayModalOpen(false);
     setSelectedFineForPayment(null);
-    loadBorrowsOnly(true);
-    window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+    const kickMsg = res?.message || 'Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Vui lòng đợi trong giây lát hoặc liên hệ ban quản trị!';
+    sessionStorage.setItem('pendingApprovalKickMsg', kickMsg);
+    if (logout) {
+      logout();
+    }
   };
 
   const handleOpenBorrowModal = (book) => {
