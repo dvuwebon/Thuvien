@@ -112,7 +112,15 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                  (uName && rName && rName === uName) ||
                  (uUsername && rName && rName === uUsername);
         });
-        setMyBorrows(myFiltered);
+        setMyBorrows(prev => {
+          if (
+            prev.length === myFiltered.length &&
+            prev.every((p, idx) => p.id === myFiltered[idx]?.id && p.status === myFiltered[idx]?.status)
+          ) {
+            return prev;
+          }
+          return myFiltered;
+        });
 
         // Tải danh sách sách trong hàng chờ đặt trước của độc giả
         api.getReservations(uId).then(resvs => {

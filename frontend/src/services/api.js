@@ -4,7 +4,7 @@ import initialDb from '../data/mockDatabase.json';
 const API_BASE = '/api';
 
 // Local storage fallback database helper with in-memory singleton
-const DB_VERSION = 'v13_clean_reservations_2026';
+const DB_VERSION = 'v14_clean_all_pending_2026';
 
 // Singleton BroadcastChannel for 0ms instantaneous cross-tab synchronization
 const syncChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
@@ -62,6 +62,19 @@ const getLocalDb = (forceFresh = false) => {
         // Lọc sạch dữ liệu đặt trước rác (như Tru Tiên) nếu còn vướng trong LocalStorage
         if (Array.isArray(parsed.reservations)) {
           parsed.reservations = parsed.reservations.filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+        }
+        // Lọc sạch triệt để các phiếu mượn rác đang ở trạng thái Chờ duyệt nếu không có lượt mượn thực tế
+        if (Array.isArray(parsed.borrowRecords)) {
+          parsed.borrowRecords = parsed.borrowRecords.map(r => {
+            if (r.status === 'Chờ duyệt') {
+              return { ...r, status: 'Đã trả', actualReturnDate: r.actualReturnDate || new Date().toISOString() };
+            }
+            return r;
+          });
+        }
+        // Lọc sạch thông báo borrow_request cũ
+        if (Array.isArray(parsed.notifications)) {
+          parsed.notifications = parsed.notifications.filter(n => n.type !== 'borrow_request' || n.isRead);
         }
         memoryDb = parsed;
         memoryDbTimestamp = storedTime;
@@ -208,7 +221,7 @@ export const notifyDataUpdated = (type = 'all', meta = {}) => {
 };
 
 // Helper fetch with timeout to prevent network blocking
-const fetchWithTimeout = async (url, options = {}, timeoutMs = 2500) => {
+const fetchWithTimeout = async (url, options = {}, timeoutMs = 6000) => {
   if (typeof AbortController === 'undefined') {
     return fetch(url, options);
   }
@@ -631,8 +644,16 @@ export const api = {
   getBorrowRecords: async () => {
     if (!isStaticHost) {
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/borrow-records`, {}, 2500);
-        if (res.ok) return await res.json();
+        const res = await fetchWithTimeout(`${API_BASE}/borrow-records`, {}, 6000);
+        if (res.ok) {
+          const serverData = await res.json();
+          const db = getLocalDb();
+          if (Array.isArray(serverData)) {
+            db.borrowRecords = serverData;
+            saveLocalDb(db);
+          }
+          return serverData;
+        }
       } catch (e) {}
     }
     return getLocalDb().borrowRecords || [];
@@ -1032,8 +1053,16 @@ export const api = {
         const params = new URLSearchParams();
         if (role) params.append('role', role);
         if (userId) params.append('userId', userId);
-        const res = await fetchWithTimeout(`${API_BASE}/notifications?${params.toString()}`, {}, 2500);
-        if (res.ok) return await res.json();
+        const res = await fetchWithTimeout(`${API_BASE}/notifications?${params.toString()}`, {}, 6000);
+        if (res.ok) {
+          const serverData = await res.json();
+          const db = getLocalDb();
+          if (serverData && Array.isArray(serverData.notifications)) {
+            db.notifications = serverData.notifications;
+            saveLocalDb(db);
+          }
+          return serverData;
+        }
       } catch (e) {}
     }
 
@@ -1121,7 +1150,7 @@ export const api = {
   getStats: async () => {
     if (!isStaticHost) {
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/stats`, {}, 2500);
+        const res = await fetchWithTimeout(`${API_BASE}/stats`, {}, 6000);
         if (res.ok) return await res.json();
       } catch (e) {}
     }

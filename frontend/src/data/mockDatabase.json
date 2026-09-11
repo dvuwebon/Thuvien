@@ -1010,12 +1010,12 @@
       "borrowDate": "2026-09-08 08:18:37",
       "dueDate": "2026-09-22 08:18:37",
       "returnDate": "2026-09-22 08:18:37",
-      "actualReturnDate": null,
+      "actualReturnDate": "2026-09-08 17:00:00",
       "borrowType": "Mượn về nhà",
       "fineAmount": 0.0,
       "overdueDays": 0,
-      "status": "Đang mượn",
-      "notes": ""
+      "status": "Đã trả",
+      "notes": "Đã hoàn tất trả sách"
     }
   ],
   "reservations": [
@@ -1052,9 +1052,9 @@
       "id": 2,
       "recipientRole": "Admin",
       "recipientUserId": null,
-      "title": "Yêu cầu mượn sách mới",
-      "message": "Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách \"Giáo Trình Triết Học Mác - Lênin\" (Mượn về nhà).",
-      "type": "borrow_request",
+      "title": "Yêu cầu mượn sách đã hoàn tất",
+      "message": "Độc giả Trần Thị Mai đã hoàn tất mượn và trả cuốn sách \"Giáo Trình Triết Học Mác - Lênin\".",
+      "type": "book_returned",
       "isRead": true,
       "meta": {
         "recordId": 4,

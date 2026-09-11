@@ -804,9 +804,39 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
         api.getFines ? api.getFines().catch(() => []) : []
       ]);
       if (sRes) setStats(sRes);
-      if (brRes) setBorrowRecords(brRes);
-      if (resvRes) setReservations(resvRes);
-      if (finesRes) setFines(finesRes);
+      if (brRes) {
+        setBorrowRecords(prev => {
+          if (
+            prev.length === brRes.length &&
+            prev.every((p, idx) => p.id === brRes[idx]?.id && p.status === brRes[idx]?.status)
+          ) {
+            return prev;
+          }
+          return brRes;
+        });
+      }
+      if (resvRes) {
+        setReservations(prev => {
+          if (
+            prev.length === resvRes.length &&
+            prev.every((p, idx) => p.id === resvRes[idx]?.id && p.status === resvRes[idx]?.status)
+          ) {
+            return prev;
+          }
+          return resvRes;
+        });
+      }
+      if (finesRes) {
+        setFines(prev => {
+          if (
+            prev.length === finesRes.length &&
+            prev.every((p, idx) => p.id === finesRes[idx]?.id && p.status === finesRes[idx]?.status)
+          ) {
+            return prev;
+          }
+          return finesRes;
+        });
+      }
     } catch (e) {
       console.error('Error polling dynamic admin data:', e);
     }
