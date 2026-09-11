@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { BookOpen, User, Lock, Mail, Phone, Calendar, MapPin, ArrowRight, ShieldCheck, AlertTriangle, CreditCard, X, CheckCircle } from 'lucide-react';
 import VNPayPaymentModal from '../components/VNPayPaymentModal';
