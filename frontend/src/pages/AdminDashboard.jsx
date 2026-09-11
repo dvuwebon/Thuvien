@@ -1641,7 +1641,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                         <th>Thứ Tự Hàng Chờ</th>
                         <th>Hạn Giữ Chỗ</th>
                         <th>Trạng Thái</th>
-                        <th style={{ textAlign: 'right' }}>Thao Tác</th>
+                        <th style={{ textAlign: 'right', minWidth: '130px' }}>Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1683,18 +1683,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 {res.status === 'Waiting' ? 'Đang xếp hàng' : res.status === 'Ready' ? 'Sách đã sẵn sàng' : res.status}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right' }}>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                               {res.status === 'Waiting' ? (
                                 <button
                                   type="button"
                                   onClick={() => handleCancelReservation(res.id)}
-                                  className="btn btn-outline"
-                                  style={{ padding: '3px 8px', fontSize: '11.5px', color: '#dc2626', borderColor: '#fca5a5' }}
+                                  className="btn btn-reject btn-table-action"
+                                  title="Hủy lượt đặt trước này"
                                 >
-                                  Hủy đặt
+                                  <X size={14} /> Hủy đặt
                                 </button>
                               ) : (
-                                <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                                <span style={{ color: '#94a3b8', fontSize: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '98px', height: '32px' }}>—</span>
                               )}
                             </td>
                           </tr>

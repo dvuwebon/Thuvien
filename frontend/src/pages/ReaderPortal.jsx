@@ -895,20 +895,12 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                         {/* Nút Hủy yêu cầu cho sách đang Chờ duyệt */}
                         {canCancel ? (
                           <button
+                            type="button"
                             onClick={() => handleCancelBorrow(r.id, r.bookTitle)}
-                            className="btn btn-outline"
-                            style={{
-                              padding: '6px 14px',
-                              fontSize: '12.5px',
-                              color: '#dc2626',
-                              borderColor: '#fca5a5',
-                              background: '#fef2f2',
-                              cursor: 'pointer',
-                              fontWeight: 600
-                            }}
+                            className="btn btn-reject btn-table-action"
                             title="Hủy yêu cầu mượn cuốn sách này"
                           >
-                            Hủy yêu cầu
+                            <X size={14} /> Hủy yêu cầu
                           </button>
                         ) : null}
                       </div>
@@ -1183,16 +1175,12 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
                       {isWaiting && (
                         <button
+                          type="button"
                           onClick={() => handleCancelReservation(res.id)}
-                          className="btn btn-outline"
-                          style={{
-                            color: '#dc2626',
-                            borderColor: '#fca5a5',
-                            fontSize: '12px',
-                            padding: '5px 12px'
-                          }}
+                          className="btn btn-reject btn-table-action"
+                          title="Hủy đặt trước cuốn sách này"
                         >
-                          Hủy đặt trước
+                          <X size={14} /> Hủy đặt
                         </button>
                       )}
                     </div>
