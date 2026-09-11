@@ -1103,27 +1103,40 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
           {/* Top 4 Stat Cards (Chính xác theo Ảnh 1) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '22px' }}>
-            {/* Card 1: Tổng số sách */}
+            {/* Card 1: Kho sách */}
             <div
-              onClick={() => handleFilterAndScrollBorrows('All')}
+              onClick={() => {
+                onTabChange('books');
+                setTimeout(() => {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }, 100);
+              }}
               style={{
                 background: '#ffffff',
                 borderRadius: '16px',
-                border: borrowStatusFilter === 'All' ? '2px solid #2563eb' : '1px solid #eef2f6',
+                border: '1px solid #eef2f6',
                 padding: '20px 22px',
                 display: 'flex',
                 justifyContent: 'space-between',
-                boxShadow: borrowStatusFilter === 'All' ? '0 4px 14px rgba(37,99,235,0.12)' : '0 2px 8px rgba(0,0,0,0.02)',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease'
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = borrowStatusFilter === 'All' ? '0 4px 14px rgba(37,99,235,0.12)' : '0 2px 8px rgba(0,0,0,0.02)'; }}
-              title="Nhấn để cuộn xuống xem danh sách tất cả phiếu mượn"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 16px rgba(37,99,235,0.1)';
+                e.currentTarget.style.borderColor = '#93c5fd';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
+                e.currentTarget.style.borderColor = '#eef2f6';
+              }}
+              title="Nhấn để chuyển đến Quản lý Kho sách"
             >
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                  Tổng số sách
+                  Kho sách
                 </div>
                 <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: '6px 0 8px 0', lineHeight: 1 }}>
                   {stats?.totalBooks || actualBooks.length}
