@@ -697,6 +697,9 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
   const [borrowActionModal, setBorrowActionModal] = useState(null); // { type: 'approve' | 'reject', record }
   const [isProcessingBorrowAction, setIsProcessingBorrowAction] = useState(false);
   const [borrowActionError, setBorrowActionError] = useState('');
+  const [fineActionModal, setFineActionModal] = useState(null); // { type: 'approve' | 'reject', fine, reason: '' }
+  const [isProcessingFineAction, setIsProcessingFineAction] = useState(false);
+  const [fineActionError, setFineActionError] = useState('');
   const [toastMessage, setToastMessage] = useState('');
 
   const showToast = (msg) => {
@@ -724,16 +727,11 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     }
   };
 
-  const handleRejectFine = async (fineId) => {
-    const reason = window.prompt('Nhập lý do từ chối nộp phạt:', 'Chưa nhận được giao dịch chuyển khoản hoặc thông tin sai lệch');
-    if (reason === null) return;
-    try {
-      const res = await api.rejectFinePayment(fineId, reason);
-      showToast('✓ ' + (res?.message || 'Đã từ chối giao dịch nộp phạt.'));
-      loadData(true);
-    } catch (e) {
-      showToast('Lỗi khi từ chối nộp phạt: ' + (e.message || 'Lỗi'));
-    }
+  const handleRejectFineWithReason = async (fineId, reason) => {
+    const finalReason = reason || 'Chưa nhận được giao dịch chuyển khoản hoặc thông tin sai lệch';
+    const res = await api.rejectFinePayment(fineId, finalReason);
+    showToast('✓ ' + (res?.message || 'Đã từ chối giao dịch nộp phạt.'));
+    loadData(true);
   };
 
   const handleToggleReaderLock = async (reader) => {
@@ -1744,7 +1742,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                         <th>Tiền Phạt (VND)</th>
                         <th>Phương Thức</th>
                         <th>Trạng Thái</th>
-                        <th style={{ textAlign: 'right' }}>Thao Tác</th>
+                        <th style={{ textAlign: 'right', minWidth: '180px' }}>Thao Tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1814,28 +1812,46 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                 {f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? '⏳ Chờ duyệt' : (f.status || 'Chưa nộp')}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right' }}>
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
                               {f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt' ? (
-                                <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                <div style={{ display: 'inline-flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'nowrap' }}>
                                   <button
                                     type="button"
-                                    onClick={() => handleApproveFine(f.id)}
+                                    onClick={() => setFineActionModal({ type: 'approve', fine: f })}
                                     className="btn btn-success"
-                                    style={{ padding: '4px 10px', fontSize: '11.5px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    style={{
+                                      padding: '6px 14px',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      whiteSpace: 'nowrap',
+                                      borderRadius: '6px',
+                                      cursor: 'pointer'
+                                    }}
                                     title="Duyệt giao dịch nộp phạt và mở khóa tài khoản độc giả"
                                   >
-                                    <Check size={13} />
-                                    Duyệt
+                                    <Check size={14} /> Duyệt
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => handleRejectFine(f.id)}
-                                    className="btn btn-outline"
-                                    style={{ padding: '4px 10px', fontSize: '11.5px', fontWeight: 600, color: '#dc2626', borderColor: '#fca5a5', background: '#fff', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                                    onClick={() => setFineActionModal({ type: 'reject', fine: f, reason: 'Chưa nhận được giao dịch chuyển khoản hoặc thông tin sai lệch' })}
+                                    className="btn btn-danger"
+                                    style={{
+                                      padding: '6px 14px',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '5px',
+                                      whiteSpace: 'nowrap',
+                                      borderRadius: '6px',
+                                      cursor: 'pointer'
+                                    }}
                                     title="Từ chối giao dịch nộp phạt"
                                   >
-                                    <X size={13} />
-                                    Từ chối
+                                    <X size={14} /> Từ chối
                                   </button>
                                 </div>
                               ) : f.status !== 'Đã nộp' ? (
@@ -1843,13 +1859,13 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                   type="button"
                                   onClick={() => handlePayFine(f.id)}
                                   className="btn btn-success"
-                                  style={{ padding: '4px 10px', fontSize: '11.5px', fontWeight: 600 }}
+                                  style={{ padding: '6px 14px', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap', borderRadius: '6px' }}
                                   title="Xác nhận độc giả đã nộp đủ tiền phạt"
                                 >
                                   Thu phạt
                                 </button>
                               ) : (
-                                <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 600 }}>✓ Đã thu</span>
+                                <span style={{ color: '#16a34a', fontSize: '12px', fontWeight: 600, whiteSpace: 'nowrap' }}>✓ Đã thu</span>
                               )}
                             </td>
                           </tr>
@@ -3793,6 +3809,147 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 }}
               >
                 {isProcessingBorrowAction ? 'Đang xử lý...' : (borrowActionModal.type === 'approve' ? 'Xác nhận duyệt' : 'Xác nhận từ chối')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DIV Modal xác nhận Duyệt / Từ chối nộp phạt VNPay */}
+      {fineActionModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.45)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+          onClick={() => !isProcessingFineAction && setFineActionModal(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '26px 28px',
+              maxWidth: '450px',
+              width: '100%',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+              textAlign: 'center'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: '54px',
+                height: '54px',
+                borderRadius: '50%',
+                background: fineActionModal.type === 'approve' ? '#dcfce7' : '#fee2e2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto'
+              }}
+            >
+              {fineActionModal.type === 'approve' ? (
+                <CheckCircle size={28} color="#16a34a" />
+              ) : (
+                <XCircle size={28} color="#dc2626" />
+              )}
+            </div>
+
+            <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: '0 0 8px 0' }}>
+              {fineActionModal.type === 'approve' ? 'Xác nhận duyệt nộp phạt VNPay?' : 'Xác nhận từ chối giao dịch nộp phạt?'}
+            </h3>
+
+            <p style={{ fontSize: '13.5px', color: '#64748b', lineHeight: 1.6, margin: '0 0 16px 0' }}>
+              {fineActionModal.type === 'approve' ? (
+                <>
+                  Duyệt nộp phạt số tiền <strong style={{ color: '#16a34a' }}>{Number(fineActionModal.fine.fineAmount || 0).toLocaleString('vi-VN')} đ</strong> cho độc giả <strong style={{ color: '#0f172a' }}>"{fineActionModal.fine.readerName}"</strong>. Tài khoản của độc giả sẽ được <strong>TỰ ĐỘNG MỞ KHÓA</strong>.
+                </>
+              ) : (
+                <>
+                  Từ chối giao dịch nộp phạt <strong style={{ color: '#dc2626' }}>{Number(fineActionModal.fine.fineAmount || 0).toLocaleString('vi-VN')} đ</strong> của độc giả <strong style={{ color: '#0f172a' }}>"{fineActionModal.fine.readerName}"</strong>. Tài khoản sẽ tiếp tục bị khóa.
+                </>
+              )}
+            </p>
+
+            {fineActionModal.type === 'reject' && (
+              <div style={{ textAlign: 'left', marginBottom: '18px' }}>
+                <label style={{ display: 'block', fontSize: '12.5px', fontWeight: 600, color: '#334155', marginBottom: '6px' }}>
+                  Lý do từ chối (gửi thông báo đến độc giả):
+                </label>
+                <input
+                  type="text"
+                  value={fineActionModal.reason || ''}
+                  onChange={(e) => setFineActionModal({ ...fineActionModal, reason: e.target.value })}
+                  placeholder="Nhập lý do từ chối..."
+                  style={{
+                    width: '100%',
+                    padding: '9px 12px',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    fontSize: '13px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            )}
+
+            {fineActionError && (
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '8px',
+                  padding: '10px 14px',
+                  color: '#b91c1c',
+                  fontSize: '13px',
+                  marginBottom: '16px',
+                  textAlign: 'left'
+                }}
+              >
+                {fineActionError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
+              <button
+                type="button"
+                disabled={isProcessingFineAction}
+                onClick={() => setFineActionModal(null)}
+                className="btn btn-outline"
+                style={{ padding: '9px 18px', fontSize: '13.5px', fontWeight: 600 }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={isProcessingFineAction}
+                onClick={async () => {
+                  setIsProcessingFineAction(true);
+                  setFineActionError('');
+                  try {
+                    if (fineActionModal.type === 'approve') {
+                      await handleApproveFine(fineActionModal.fine.id);
+                    } else {
+                      await handleRejectFineWithReason(fineActionModal.fine.id, fineActionModal.reason);
+                    }
+                    setFineActionModal(null);
+                  } catch (err) {
+                    setFineActionError(err.message || 'Có lỗi xảy ra');
+                  } finally {
+                    setIsProcessingFineAction(false);
+                  }
+                }}
+                className={`btn ${fineActionModal.type === 'approve' ? 'btn-success' : 'btn-danger'}`}
+                style={{ padding: '9px 18px', fontSize: '13.5px', fontWeight: 700 }}
+              >
+                {isProcessingFineAction ? 'Đang xử lý...' : (fineActionModal.type === 'approve' ? 'Xác nhận duyệt' : 'Xác nhận từ chối')}
               </button>
             </div>
           </div>
