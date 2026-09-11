@@ -1368,7 +1368,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   gap: '6px'
                 }}
               >
-                <span>Phiếu Mượn & Trả Sách</span>
+                <span>Mượn - Trả sách</span>
                 <span className="badge badge-info" style={{ fontSize: '11px', padding: '1px 6px' }}>{borrowRecords.length}</span>
               </button>
 
