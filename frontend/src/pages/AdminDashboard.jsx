@@ -1432,6 +1432,29 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                     <span>
                       Danh sách Phiếu Mượn ({filteredBorrows.length})
                     </span>
+                    {borrowStatusFilter !== 'All' && (
+                      <button
+                        type="button"
+                        onClick={() => setBorrowStatusFilter('All')}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '3px 8px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#2563eb',
+                          border: '1px solid #bfdbfe',
+                          background: '#eff6ff',
+                          borderRadius: '6px',
+                          cursor: 'pointer'
+                        }}
+                        title="Xóa bộ lọc trạng thái để xem toàn bộ danh sách"
+                      >
+                        <span>Đang lọc: {borrowStatusFilter}</span>
+                        <X size={12} />
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         onTabChange('books');
