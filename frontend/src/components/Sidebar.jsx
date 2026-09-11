@@ -307,14 +307,12 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
                 icon={<BookOpen size={17} strokeWidth={2} />}
                 label="Quản lý Kho sách"
               />
-              {isAdmin && (
-                <NavItem
-                  active={activeTab === 'readers'}
-                  onClick={() => onTabChange('readers')}
-                  icon={<Users size={17} strokeWidth={2} />}
-                  label="Quản lý Độc giả"
-                />
-              )}
+              <NavItem
+                active={activeTab === 'readers'}
+                onClick={() => onTabChange('readers')}
+                icon={<Users size={17} strokeWidth={2} />}
+                label="Quản lý Độc giả"
+              />
               {isAdmin && (
                 <NavItem
                   active={activeTab === 'settings'}

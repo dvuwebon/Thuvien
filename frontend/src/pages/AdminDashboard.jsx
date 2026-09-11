@@ -841,11 +841,15 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
   // Khi chuyển tab, chỉ cập nhật dữ liệu động
   useEffect(() => {
+    if (isLibrarian && activeTab === 'settings') {
+      onTabChange('dashboard');
+      return;
+    }
     loadDynamicData();
-    if (activeTab === 'settings') {
+    if (activeTab === 'settings' && !isLibrarian) {
       loadSettings();
     }
-  }, [activeTab]);
+  }, [activeTab, isLibrarian, onTabChange]);
 
   const loadSettings = async () => {
     try {
@@ -2418,7 +2422,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
 
       {/* ================= TAB 4: CÀI ĐẶT HỆ THỐNG (SETTINGS) ================= */}
-      {activeTab === 'settings' && (
+      {activeTab === 'settings' && !isLibrarian && (
         <div>
           {/* Sticky Header Nav Bar */}
           <div
