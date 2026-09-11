@@ -1455,34 +1455,6 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                         <X size={12} />
                       </button>
                     )}
-                    <button
-                      onClick={() => {
-                        onTabChange('books');
-                        setTimeout(() => {
-                          document.getElementById('books-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        }, 100);
-                      }}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '5px',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        color: '#2563eb',
-                        background: '#eff6ff',
-                        border: '1px solid #bfdbfe',
-                        borderRadius: '8px',
-                        padding: '4px 10px',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.background = '#eff6ff'; }}
-                      title="Chuyển sang tab Quản lý Kho sách để xem toàn bộ 50 đầu sách"
-                    >
-                      <BookOpen size={13} />
-                      <span>Xem Kho sách ({actualBooks.length} đầu sách) →</span>
-                    </button>
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <div style={{ position: 'relative', width: '250px' }}>
