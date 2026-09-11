@@ -135,7 +135,12 @@ INSERT INTO users (id, username, password_hash, full_name, role, email, phone, a
 VALUES
   (1, 'admin', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Quản trị viên', 'Admin', 'admin@smartlib.edu.vn', '0987 654 321', 'Phòng Quản lý Thư viện, ĐHQG Hà Nội', '1990-01-01', 1, 0, NULL),
   (2, 'reader', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Trần Thị Mai', 'Reader', 'mai.tran@smartlib.edu.vn', '0901 234 567', 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội', '2002-10-20', 1, 0, NULL),
-  (3, 'librarian', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Thủ thư Nguyễn Văn Hưng', 'Librarian', 'librarian@smartlib.edu.vn', '0912 888 999', 'Bộ phận Nghiệp vụ Thư viện, ĐHQG Hà Nội', '1995-05-12', 1, 0, NULL);
+  (3, 'librarian', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Thủ thư Nguyễn Văn Hưng', 'Librarian', 'librarian@smartlib.edu.vn', '0912 888 999', 'Bộ phận Nghiệp vụ Thư viện, ĐHQG Hà Nội', '1995-05-12', 1, 0, NULL),
+  (4, 'namlh', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Lê Hoàng Nam', 'Reader', 'nam.le@smartlib.edu.vn', '0912 345 678', 'KTX Bách Khoa, Hai Bà Trưng, Hà Nội', '2003-03-15', 1, 0, NULL),
+  (5, 'haptt', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Phạm Thu Hà', 'Reader', 'ha.pham@smartlib.edu.vn', '0983 222 333', 'Số 45 Chùa Láng, Đống Đa, Hà Nội', '2002-11-28', 1, 0, NULL),
+  (6, 'annv', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Nguyễn Văn An', 'Reader', 'an.nguyen@smartlib.edu.vn', '0974 555 666', 'KTX Đại học Quốc Gia, Cầu Giấy, Hà Nội', '2003-07-09', 1, 0, NULL),
+  (7, 'duchm', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Hoàng Minh Đức', 'Reader', 'duc.hoang@smartlib.edu.vn', '0905 111 222', 'Số 12 Chùa Bộc, Đống Đa, Hà Nội', '2001-05-19', 1, 1, 'Mượn sách quá hạn 18 ngày (Cần nộp phạt để mở khóa)'),
+  (8, 'lanvt', 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', 'Vũ Thị Lan', 'Reader', 'lan.vu@smartlib.edu.vn', '0936 777 888', 'Số 88 Nguyễn Trãi, Thanh Xuân, Hà Nội', '2002-09-02', 1, 0, NULL);
 
 -- =====================================================================
 -- DỮ LIỆU SEED KHỞI TẠO: 2. KHO SÁCH (books - 60 ĐẦU SÁCH)
@@ -208,29 +213,35 @@ VALUES
 -- =====================================================================
 INSERT INTO borrow_records (id, user_id, book_id, borrow_date, due_date, return_date, actual_return_date, borrow_type, fine_amount, overdue_days, status, notes)
 VALUES
-  (1, 2, 2, '2026-09-01 08:30:00', '2026-09-15 17:00:00', '2026-09-06 21:46:41', '2026-09-06 21:46:41', 'Mượn về nhà', 0.0, 0, 'Đã trả', NULL),
-  (2, 2, 1, '2026-09-06 21:46:36', '2026-09-20 17:00:00', '2026-09-06 21:46:44', '2026-09-06 21:46:44', 'Mượn về nhà', 0.0, 0, 'Đã trả', NULL),
-  (3, 2, 4, '2026-08-15 09:00:00', '2026-08-29 17:00:00', '2026-08-28 15:30:00', '2026-08-28 15:30:00', 'Mượn về nhà', 0.0, 0, 'Đã trả', NULL),
-  (4, 2, 1, '2026-09-08 08:18:37', '2026-09-22 08:18:37', NULL, NULL, 'Mượn về nhà', 0.0, 0, 'Đang mượn', NULL);
+  (1, 2, 2, '2026-09-02 08:30:00', '2026-09-16 17:00:00', NULL, NULL, 'Mượn về nhà', 0.0, 0, 'Đang mượn', 'Độc giả mượn nghiên cứu chuyên đề kỹ năng mềm'),
+  (2, 4, 1, '2026-08-20 09:00:00', '2026-09-03 17:00:00', '2026-09-01 15:45:00', '2026-09-01 15:45:00', 'Mượn về nhà', 0.0, 0, 'Đã trả', 'Đã trả sách nguyên vẹn, đúng hạn'),
+  (3, 5, 4, '2026-09-05 10:15:00', '2026-09-19 17:00:00', NULL, NULL, 'Mượn về nhà', 0.0, 0, 'Đang mượn', 'Mượn đọc giải trí cuối tuần'),
+  (4, 6, 5, '2026-08-25 14:00:00', '2026-09-08 17:00:00', '2026-09-07 16:20:00', '2026-09-07 16:20:00', 'Mượn về nhà', 0.0, 0, 'Đã trả', 'Đã hoàn tất trả đúng thời hạn'),
+  (5, 7, 8, '2026-08-10 08:30:00', '2026-08-24 17:00:00', NULL, NULL, 'Mượn về nhà', 36000.0, 18, 'Quá hạn', 'Quá hạn 18 ngày chưa trả sách, hệ thống đã tạm khóa tài khoản'),
+  (6, 8, 6, '2026-09-10 13:45:00', '2026-09-17 17:00:00', NULL, NULL, 'Mượn tại thư viện', 0.0, 0, 'Đang mượn', 'Đọc tại phòng đọc mở tầng 2'),
+  (7, 2, 3, '2026-09-11 09:15:00', '2026-09-25 17:00:00', NULL, NULL, 'Mượn về nhà', 0.0, 0, 'Chờ duyệt', 'Yêu cầu mượn trực tuyến qua cổng Reader Portal');
 
 -- =====================================================================
 -- DỮ LIỆU SEED KHỞI TẠO: 4. HÀNG CHỜ ĐẶT TRƯỚC (reservations)
 -- =====================================================================
 INSERT INTO reservations (id, user_id, book_id, reserved_at, priority, expires_at, status)
 VALUES
-  (1, 2, 51, '2026-09-09 14:00:00', 1, '2026-09-12 14:00:00', 'Waiting');
+  (1, 2, 51, '2026-09-09 14:00:00', 1, '2026-09-16 14:00:00', 'Waiting');
 
 -- =====================================================================
 -- DỮ LIỆU SEED KHỞI TẠO: 5. PHIẾU PHẠT QUÁ HẠN (fines)
 -- =====================================================================
--- Hiện tại chưa có vi phạm quá hạn tồn đọng.
+INSERT INTO fines (id, record_id, user_id, book_id, due_date, actual_return_date, fine_amount, status, paid_at, note, payment_method, transaction_ref)
+VALUES
+  (1, 5, 7, 8, '2026-08-24 17:00:00', '2026-09-11 18:00:00', 36000.00, 'Chưa nộp', NULL, 'Mượn sách quá hạn 18 ngày (2.000 đ/ngày)', 'Tiền mặt', NULL),
+  (2, 2, 4, 1, '2026-08-25 17:00:00', '2026-08-28 10:00:00', 6000.00, 'Đã nộp', '2026-08-28 10:30:00', 'Trễ hạn 3 ngày - Đã thanh toán nộp phạt thành công', 'Chuyển khoản VNPay', 'VNP178905221000');
 
 -- =====================================================================
 -- DỮ LIỆU SEED KHỞI TẠO: 6. THÔNG BÁO HỆ THỐNG (notifications)
 -- =====================================================================
 INSERT INTO notifications (id, recipient_role, recipient_user_id, title, message, type, is_read, meta_json, created_at)
 VALUES
-  (1, 'Reader', 2, 'Yêu cầu mượn sách đã được duyệt', 'Yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" của bạn đã được duyệt thành công!', 'borrow_approved', 1, '{"recordId": 4, "bookId": 1}', '2026-09-08 08:18:37'),
-  (2, 'Admin', NULL, 'Yêu cầu mượn sách mới', 'Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách "Giáo Trình Triết Học Mác - Lênin" (Mượn về nhà).', 'borrow_request', 1, '{"recordId": 4, "bookId": 1, "bookTitle": "Giáo Trình Triết Học Mác - Lênin", "readerName": "Trần Thị Mai"}', '2026-09-08 08:10:00'),
-  (3, 'Reader', 2, 'Xác nhận trả sách thành công', 'Bạn đã hoàn tất trả cuốn sách "Giáo Trình Triết Học Mác - Lênin". Cảm ơn bạn đã giữ gìn sách cẩn thận!', 'book_returned', 1, '{"recordId": 2, "bookId": 1}', '2026-09-06 21:46:44'),
+  (1, 'Admin', NULL, 'Yêu cầu mượn sách mới', 'Độc giả Trần Thị Mai vừa gửi yêu cầu mượn cuốn sách "Tru Tiên" (Mượn về nhà).', 'borrow_request', 0, '{"recordId": 7, "bookId": 3, "bookTitle": "Tru Tiên", "readerName": "Trần Thị Mai"}', '2026-09-11 09:15:00'),
+  (2, 'Reader', 2, 'Yêu cầu mượn sách đang chờ duyệt', 'Yêu cầu mượn cuốn sách "Tru Tiên" của bạn đã được gửi thành công và đang chờ thủ thư phê duyệt.', 'borrow_request', 0, '{"recordId": 7, "bookId": 3, "bookTitle": "Tru Tiên"}', '2026-09-11 09:15:00'),
+  (3, 'Reader', 4, 'Xác nhận trả sách thành công', 'Bạn đã hoàn tất trả cuốn sách "Giáo Trình Triết Học Mác - Lênin". Cảm ơn bạn đã giữ gìn sách cẩn thận!', 'book_returned', 1, '{"recordId": 2, "bookId": 1}', '2026-09-01 15:45:00'),
   (4, 'Reader', 2, 'Đặt trước sách thành công', 'Bạn đã đặt trước cuốn "Ao no Hako Season 2 (Chiếc Hộp Xanh)". Vị trí hàng chờ: #1. Hệ thống sẽ thông báo khi sách sẵn sàng.', 'reservation_created', 0, '{"reservationId": 1, "bookId": 51, "bookTitle": "Ao no Hako Season 2 (Chiếc Hộp Xanh)", "priority": 1}', '2026-09-09 14:00:00');
