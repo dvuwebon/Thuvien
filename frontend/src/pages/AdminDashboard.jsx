@@ -1344,7 +1344,10 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
             <div style={{ padding: '16px 20px 0 20px', display: 'flex', gap: '8px', borderBottom: '1px solid #f1f5f9', background: '#fafafa' }}>
               <button
                 type="button"
-                onClick={() => setActiveBorrowView('borrows')}
+                onClick={() => {
+                  setActiveBorrowView('borrows');
+                  setBorrowStatusFilter('All');
+                }}
                 style={{
                   padding: '9px 16px',
                   borderRadius: '10px 10px 0 0',
@@ -1361,7 +1364,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   gap: '6px'
                 }}
               >
-                <span>📋 Phiếu Mượn & Trả Sách</span>
+                <span>Phiếu Mượn & Trả Sách</span>
                 <span className="badge badge-info" style={{ fontSize: '11px', padding: '1px 6px' }}>{borrowRecords.length}</span>
               </button>
 
@@ -1384,7 +1387,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   gap: '6px'
                 }}
               >
-                <span>⏳ Hàng Chờ Đặt Trước (FIFO)</span>
+                <span>Hàng Chờ Đặt Trước (FIFO)</span>
                 <span className="badge badge-warning" style={{ fontSize: '11px', padding: '1px 6px' }}>
                   {reservations.filter(r => r.status === 'Waiting').length}
                 </span>
@@ -1409,10 +1412,10 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   gap: '6px'
                 }}
               >
-                <span>💰 Quản Lý Thu Tiền Phạt</span>
+                <span>Quản Lý Thu Tiền Phạt</span>
                 {fines.filter(f => f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt').length > 0 && (
                   <span className="badge" style={{ fontSize: '11px', padding: '1px 6px', background: '#fef3c7', color: '#b45309', border: '1px solid #fcd34d', fontWeight: 800 }}>
-                    ⏳ {fines.filter(f => f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt').length} Chờ duyệt
+                    {fines.filter(f => f.status === 'Chờ duyệt' || f.status === 'Chờ duyệt nộp phạt').length} Chờ duyệt
                   </span>
                 )}
                 <span className="badge badge-danger" style={{ fontSize: '11px', padding: '1px 6px' }}>
@@ -1427,8 +1430,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 <div className="card-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                     <span>
-                      Danh sách Phiếu Mượn
-                      {borrowStatusFilter !== 'All' ? ` - ${borrowStatusFilter}` : ''} ({filteredBorrows.length})
+                      Danh sách Phiếu Mượn ({filteredBorrows.length})
                     </span>
                     <button
                       onClick={() => {
@@ -1460,7 +1462,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                     </button>
                   </div>
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <div style={{ position: 'relative', width: '220px' }}>
+                    <div style={{ position: 'relative', width: '250px' }}>
                       <input
                         type="text"
                         placeholder="Tìm tên sách / độc giả..."
@@ -1470,19 +1472,6 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                       />
                       <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: '#94a3b8' }} />
                     </div>
-
-                    <select
-                      value={borrowStatusFilter}
-                      onChange={(e) => setBorrowStatusFilter(e.target.value)}
-                      style={{ width: '160px', height: '34px', fontSize: '13px', paddingTop: 0, paddingBottom: 0 }}
-                    >
-                      <option value="All">Tất cả trạng thái</option>
-                      <option value="Chờ duyệt">Chờ duyệt</option>
-                      <option value="Đang mượn">Đang mượn</option>
-                      <option value="Quá hạn">Quá hạn</option>
-                      <option value="Đã trả">Đã trả</option>
-                      <option value="Từ chối">Từ chối</option>
-                    </select>
                   </div>
                 </div>
 
