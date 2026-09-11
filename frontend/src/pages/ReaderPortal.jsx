@@ -884,18 +884,20 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                         {canReturn ? (
                           <button
                             onClick={() => setReturnConfirmRecord(r)}
-                            className="btn btn-primary"
+                            className="btn btn-return"
                             style={{
                               padding: '6px 14px',
                               fontSize: '12.5px',
-                              background: '#16a34a',
-                              borderColor: '#16a34a',
                               cursor: 'pointer',
-                              fontWeight: 600
+                              fontWeight: 700,
+                              borderRadius: '6px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '5px'
                             }}
                             title="Trả sách về thư viện"
                           >
-                            Trả sách
+                            <CheckCircle size={14} /> Trả sách
                           </button>
                         ) : null}
 
@@ -1277,6 +1279,20 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
             }}
             onClick={(e) => e.stopPropagation()}
           >
+            <div
+              style={{
+                width: '52px',
+                height: '52px',
+                borderRadius: '50%',
+                background: '#e0f2fe',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto'
+              }}
+            >
+              <CheckCircle size={28} color="#0284c7" />
+            </div>
             <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: '0 0 10px 0' }}>
               Xác nhận trả sách
             </h3>
@@ -1297,17 +1313,15 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 type="button"
                 onClick={handleConfirmReturn}
                 disabled={isReturning}
-                className="btn btn-primary"
+                className="btn btn-return"
                 style={{
                   padding: '8px 20px',
                   borderRadius: '8px',
                   fontSize: '13px',
-                  fontWeight: 600,
-                  background: '#16a34a',
-                  borderColor: '#16a34a'
+                  fontWeight: 600
                 }}
               >
-                {isReturning ? 'Đang xử lý...' : 'Xác nhận'}
+                {isReturning ? 'Đang xử lý...' : 'Xác nhận trả sách'}
               </button>
             </div>
           </div>

@@ -271,22 +271,15 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                               readerName: rec?.readerName || notif.readerName || notif.meta?.readerName || 'Độc giả'
                             });
                           }}
+                          className="btn btn-approve"
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            background: '#16a34a',
-                            color: '#ffffff',
-                            border: 'none',
-                            borderRadius: '6px',
                             padding: '5px 12px',
                             fontSize: '12px',
                             fontWeight: 600,
                             cursor: 'pointer',
-                            boxShadow: '0 1px 2px rgba(0,0,0,0.08)'
+                            borderRadius: '6px',
+                            whiteSpace: 'nowrap'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#15803d'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = '#16a34a'}
                         >
                           <Check size={13} /> Duyệt
                         </button>
@@ -304,21 +297,15 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                               readerName: rec?.readerName || notif.readerName || notif.meta?.readerName || 'Độc giả'
                             });
                           }}
+                          className="btn btn-reject"
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            background: '#fee2e2',
-                            color: '#dc2626',
-                            border: '1px solid #fecaca',
-                            borderRadius: '6px',
                             padding: '5px 12px',
                             fontSize: '12px',
                             fontWeight: 600,
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            borderRadius: '6px',
+                            whiteSpace: 'nowrap'
                           }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = '#fecaca'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = '#fee2e2'}
                         >
                           <X size={13} /> Không duyệt
                         </button>
@@ -431,7 +418,7 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                 width: '54px',
                 height: '54px',
                 borderRadius: '50%',
-                background: confirmModal.type === 'approve' ? '#dcfce7' : '#fee2e2',
+                background: confirmModal.type === 'approve' ? '#e0f2fe' : '#fee2e2',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -439,7 +426,7 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
               }}
             >
               {confirmModal.type === 'approve' ? (
-                <CheckCircle size={28} color="#16a34a" />
+                <CheckCircle size={28} color="#0284c7" />
               ) : (
                 <XCircle size={28} color="#dc2626" />
               )}
@@ -494,14 +481,12 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
                 type="button"
                 onClick={handleConfirmAction}
                 disabled={isProcessing}
-                className="btn btn-primary"
+                className={`btn ${confirmModal.type === 'approve' ? 'btn-approve' : 'btn-reject'}`}
                 style={{
                   padding: '8px 22px',
                   borderRadius: '8px',
                   fontSize: '13px',
-                  fontWeight: 600,
-                  background: confirmModal.type === 'approve' ? '#16a34a' : '#dc2626',
-                  borderColor: confirmModal.type === 'approve' ? '#16a34a' : '#dc2626'
+                  fontWeight: 700
                 }}
               >
                 {isProcessing ? 'Đang xử lý...' : (confirmModal.type === 'approve' ? 'Xác nhận duyệt' : 'Xác nhận từ chối')}
