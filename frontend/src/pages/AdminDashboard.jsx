@@ -1391,7 +1391,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   gap: '6px'
                 }}
               >
-                <span>Hàng Chờ Đặt Trước (FIFO)</span>
+                <span>Đặt trước sách</span>
                 <span className="badge badge-warning" style={{ fontSize: '11px', padding: '1px 6px' }}>
                   {reservations.filter(r => r.status === 'Waiting').length}
                 </span>
@@ -1627,7 +1627,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
               <>
                 <div className="card-header">
                   <div>
-                    <span style={{ fontWeight: 700, color: '#0f172a' }}>Danh sách Hàng Chờ Đặt Trước Sách (Cơ chế FIFO 48h)</span>
+                    <span style={{ fontWeight: 700, color: '#0f172a' }}>Danh sách Đặt Trước Sách (Cơ chế FIFO 48h)</span>
                     <p style={{ margin: '2px 0 0 0', fontSize: '12.5px', color: '#64748b' }}>
                       Tự động xếp hàng độc giả theo thứ tự thời gian khi sách trong kho tạm hết
                     </p>
