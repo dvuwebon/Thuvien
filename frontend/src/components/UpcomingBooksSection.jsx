@@ -114,6 +114,8 @@ const UPCOMING_BOOKS = [
   }
 ];
 
+export { UPCOMING_BOOKS };
+
 export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [] }) {
   const [showAll, setShowAll] = useState(false);
   const [subscribedIds, setSubscribedIds] = useState([]);

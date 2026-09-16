@@ -7,11 +7,11 @@ import BorrowModal from '../components/BorrowModal';
 import {
   Search, BookOpen, Clock, CheckCircle,
   BookMarked, ArrowRight, ChevronLeft, ChevronRight,
-  Lock, CreditCard
+  Lock, CreditCard, X, Plus, AlertCircle, Check, Filter
 } from 'lucide-react';
 
 import FeaturedCarousel from '../components/FeaturedCarousel';
-import UpcomingBooksSection from '../components/UpcomingBooksSection';
+import UpcomingBooksSection, { UPCOMING_BOOKS } from '../components/UpcomingBooksSection';
 import VNPayPaymentModal from '../components/VNPayPaymentModal';
 
 export default function ReaderPortal({ activeTab, onTabChange }) {
@@ -43,6 +43,9 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const [vnpayModalOpen, setVnpayModalOpen] = useState(false);
   const [selectedFineForPayment, setSelectedFineForPayment] = useState(null);
   const [systemSettings, setSystemSettings] = useState(null);
+  const [reserveModalOpen, setReserveModalOpen] = useState(false);
+  const [reserveSearch, setReserveSearch] = useState('');
+  const [reserveFilterTab, setReserveFilterTab] = useState('all');
 
   useEffect(() => {
     if (api.getSettings) {
@@ -1053,38 +1056,117 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         </div>
       )}
 
-      {/* TAB 4: HÀNG CHỜ ĐẶT TRƯỚC SÁCH (FIFO QUEUE) */}
+      {/* TAB 4: ĐẶT TRƯỚC SÁCH (FIFO QUEUE) */}
       {activeTab === 'reservations' && (() => {
         const cleanActiveReservations = myReservations.filter(
           r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' &&
                Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))
         );
 
+        const maxRes = Number(systemSettings?.maxReservations || 3);
+        const isQuotaFull = cleanActiveReservations.length >= maxRes;
+
+        // Danh sách sách hợp lệ để đặt trước: Hết bản sao trong kho HOẶC thuộc danh mục Sắp phát hành
+        const outOfStockCatalogBooks = books.filter(b => {
+          const avail = Number(b.available ?? b.available_copies ?? 1);
+          return avail <= 0 || b.status === 'Hết sách';
+        }).map(b => ({
+          ...b,
+          isUpcoming: false
+        }));
+
+        const upcomingFormatted = (UPCOMING_BOOKS || []).map(ub => ({
+          id: ub.id,
+          title: ub.title,
+          author: ub.author,
+          category: ub.category,
+          rating: ub.rating,
+          releaseDate: ub.releaseDate,
+          isUpcoming: true,
+          desc: ub.desc,
+          imageUrl: ub.cover
+        }));
+
+        const allEligibleBooks = [
+          ...upcomingFormatted,
+          ...outOfStockCatalogBooks
+        ];
+
+        // Lọc danh sách trong Modal Đặt trước
+        const filteredEligibleBooks = allEligibleBooks.filter(item => {
+          const matchText = (
+            (item.title || '') + ' ' +
+            (item.author || '') + ' ' +
+            (item.category || '')
+          ).toLowerCase().includes(reserveSearch.toLowerCase().trim());
+
+          if (!matchText) return false;
+          if (reserveFilterTab === 'upcoming') return Boolean(item.isUpcoming);
+          if (reserveFilterTab === 'outofstock') return !item.isUpcoming;
+          return true;
+        });
+
         return (
           <div>
-            <div style={{ marginBottom: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ea580c', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Clock size={18} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#ea580c', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Clock size={18} />
+                  </div>
+                  <h2 style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                    Đặt trước sách
+                  </h2>
                 </div>
-                <h2 style={{ fontFamily: "'Lora', serif", fontSize: '24px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                  Hàng chờ đặt trước sách
-                </h2>
+                <p style={{ margin: 0, fontSize: '13.5px', color: '#64748b' }}>
+                  Hệ thống quản lý hàng chờ tự động theo thứ tự ưu tiên FIFO. Khi sách được trả về thư viện, độc giả đứng đầu hàng chờ sẽ nhận được thông báo để mượn sách trong vòng 48 giờ.
+                </p>
               </div>
-              <p style={{ margin: 0, fontSize: '13.5px', color: '#64748b' }}>
-                Hệ thống quản lý hàng chờ tự động theo thứ tự ưu tiên FIFO. Khi sách được trả về thư viện, độc giả đứng đầu hàng chờ sẽ nhận được thông báo để mượn sách trong vòng 48 giờ.
-              </p>
+
+              <button
+                type="button"
+                onClick={() => setReserveModalOpen(true)}
+                disabled={isReaderLocked || isQuotaFull}
+                className="btn btn-primary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: (isReaderLocked || isQuotaFull)
+                    ? '#94a3b8'
+                    : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                  borderColor: 'transparent',
+                  padding: '9px 18px',
+                  fontSize: '13.5px',
+                  fontWeight: 700,
+                  borderRadius: '8px',
+                  boxShadow: (isReaderLocked || isQuotaFull)
+                    ? 'none'
+                    : '0 4px 12px rgba(234, 88, 12, 0.3)',
+                  cursor: (isReaderLocked || isQuotaFull) ? 'not-allowed' : 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+                title={
+                  isReaderLocked
+                    ? 'Tài khoản đang bị khóa do sách quá hạn'
+                    : isQuotaFull
+                    ? `Đã đạt giới hạn tối đa ${maxRes} cuốn sách`
+                    : 'Đặt trước sách vào hàng chờ'
+                }
+              >
+                <Plus size={16} /> Đặt trước sách mới
+              </button>
             </div>
 
             {/* Thẻ tóm tắt trạng thái */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '24px' }}>
               <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #3b82f6' }}>
-                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Sách đang đặt trước (Tối đa 3)</div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: cleanActiveReservations.length >= 3 ? '#dc2626' : '#1e293b', marginTop: '4px' }}>
-                  {cleanActiveReservations.length} / 3
+                <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Sách đang đặt trước (Tối đa {maxRes})</div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: isQuotaFull ? '#dc2626' : '#1e293b', marginTop: '4px' }}>
+                  {cleanActiveReservations.length} / {maxRes}
                 </div>
-                <div style={{ fontSize: '11px', color: cleanActiveReservations.length >= 3 ? '#ef4444' : '#64748b', fontWeight: 600, marginTop: '2px' }}>
-                  {cleanActiveReservations.length >= 3 ? '⚠️ Hết lượt (Cần hủy bớt để đặt tiếp)' : `Còn lại: ${3 - cleanActiveReservations.length} lượt đặt`}
+                <div style={{ fontSize: '11px', color: isQuotaFull ? '#ef4444' : '#64748b', fontWeight: 600, marginTop: '2px' }}>
+                  {isQuotaFull ? '⚠️ Hết lượt (Cần hủy bớt để đặt tiếp)' : `Còn lại: ${maxRes - cleanActiveReservations.length} lượt đặt`}
                 </div>
               </div>
 
@@ -1093,6 +1175,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 <div style={{ fontSize: '22px', fontWeight: 800, color: '#d97706', marginTop: '4px' }}>
                   {cleanActiveReservations.filter(r => r.status === 'Waiting').length}
                 </div>
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Ưu tiên theo thứ tự FIFO</div>
               </div>
 
               <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #16a34a' }}>
@@ -1100,6 +1183,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
                   {cleanActiveReservations.filter(r => r.status === 'Ready').length}
                 </div>
+                <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>Giữ chỗ ưu tiên trong 48h</div>
               </div>
             </div>
 
@@ -1110,95 +1194,444 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#334155', margin: '0 0 6px 0' }}>
                   Hàng chờ hiện đang trống
                 </h3>
-                <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '480px', margin: '0 auto 18px auto' }}>
+                <p style={{ fontSize: '13px', color: '#64748b', maxWidth: '480px', margin: '0 auto 20px auto' }}>
                   Khi bạn tìm kiếm thấy một cuốn sách đang hết bản sao sẵn có hoặc tại mục "Sách sắp có", bạn có thể bấm <strong>"Đặt trước"</strong> để xếp hàng ưu tiên nhận sách sớm nhất.
                 </p>
-                <button
-                  onClick={() => onTabChange && onTabChange('catalog')}
-                  className="btn btn-primary"
-                  style={{ padding: '8px 20px', fontSize: '13px' }}
-                >
-                  Khám phá kho sách
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
-                {cleanActiveReservations.map(res => {
-                const isReady = res.status === 'Ready';
-                const isWaiting = res.status === 'Waiting';
-
-                return (
-                  <div
-                    key={res.id}
-                    className="card"
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => setReserveModalOpen(true)}
+                    disabled={isReaderLocked}
+                    className="btn btn-primary"
                     style={{
-                      padding: '20px',
-                      margin: 0,
-                      borderLeft: `4px solid ${isReady ? '#16a34a' : isWaiting ? '#ea580c' : '#94a3b8'}`,
-                      background: isReady ? '#f0fdf4' : '#ffffff'
+                      padding: '8px 22px',
+                      fontSize: '13px',
+                      fontWeight: 700,
+                      background: isReaderLocked ? '#94a3b8' : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                      borderColor: 'transparent',
+                      boxShadow: isReaderLocked ? 'none' : '0 4px 12px rgba(234, 88, 12, 0.25)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                      <span className={`badge ${isReady ? 'badge-success' : isWaiting ? 'badge-warning' : 'badge-neutral'}`}>
-                        {isReady ? '🎉 Sách đã về kho!' : isWaiting ? `⏳ Hàng chờ #${res.priority || 1}` : res.status}
-                      </span>
-                      <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Mã #{res.id}</span>
-                    </div>
+                    <Plus size={16} /> Đặt trước sách ngay
+                  </button>
+                  <button
+                    onClick={() => onTabChange && onTabChange('catalog')}
+                    className="btn btn-secondary"
+                    style={{ padding: '8px 20px', fontSize: '13px', fontWeight: 600 }}
+                  >
+                    Khám phá kho sách
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+                {cleanActiveReservations.map(res => {
+                  const isReady = res.status === 'Ready';
+                  const isWaiting = res.status === 'Waiting';
+                  const matchedBook = books.find(b => Number(b.id) === Number(res.bookId)) ||
+                                      (UPCOMING_BOOKS || []).find(ub => Number(ub.id) === Number(res.bookId));
+                  const coverImg = matchedBook?.imageUrl || matchedBook?.cover || matchedBook?.image_url;
 
-                    <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '6px', lineHeight: 1.35 }}>
-                      {res.bookTitle}
-                    </h3>
-
-                    <div style={{ background: isReady ? '#dcfce7' : '#f8fafc', padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '14px' }}>
-                      <div>Thời gian đăng ký: <strong>{res.reservedAt ? res.reservedAt.substring(0, 16).replace('T', ' ') : '-'}</strong></div>
+                  return (
+                    <div
+                      key={res.id}
+                      className="card"
+                      style={{
+                        padding: '18px 20px',
+                        margin: 0,
+                        borderLeft: `4px solid ${isReady ? '#16a34a' : isWaiting ? '#ea580c' : '#94a3b8'}`,
+                        background: isReady ? '#f0fdf4' : '#ffffff',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between'
+                      }}
+                    >
                       <div>
-                        Vị trí ưu tiên: <strong style={{ color: '#2563eb' }}>Số #{res.priority || 1} trong hàng chờ</strong>
-                      </div>
-                      {isReady && res.expiresAt && (
-                        <div style={{ color: '#b91c1c', fontWeight: 700 }}>
-                          ⏰ Hạn giữ chỗ ưu tiên: Đến {res.expiresAt.substring(0, 16).replace('T', ' ')}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                          <span className={`badge ${isReady ? 'badge-success' : isWaiting ? 'badge-warning' : 'badge-neutral'}`}>
+                            {isReady ? '🎉 Sách đã về kho!' : isWaiting ? `⏳ Hàng chờ #${res.priority || 1}` : res.status}
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Mã #{res.id}</span>
                         </div>
-                      )}
-                    </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                      {isReady && (
-                        <button
-                          onClick={() => {
-                            const b = books.find(item => Number(item.id) === Number(res.bookId)) || { id: res.bookId, title: res.bookTitle };
-                            setBorrowTargetBook(b);
-                            setBorrowModalOpen(true);
-                          }}
-                          className="btn btn-primary"
-                          style={{
-                            background: '#16a34a',
-                            borderColor: '#16a34a',
-                            fontSize: '12.5px',
-                            padding: '6px 16px',
-                            fontWeight: 700
-                          }}
-                        >
-                          Mượn sách ngay
-                        </button>
-                      )}
+                        <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                          {coverImg ? (
+                            <img
+                              src={coverImg}
+                              alt={res.bookTitle}
+                              style={{
+                                width: '56px',
+                                height: '78px',
+                                objectFit: 'cover',
+                                borderRadius: '6px',
+                                border: '1px solid #e2e8f0',
+                                flexShrink: 0,
+                                boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                              }}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div style={{
+                              width: '56px',
+                              height: '78px',
+                              borderRadius: '6px',
+                              background: '#f1f5f9',
+                              border: '1px solid #e2e8f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#94a3b8',
+                              flexShrink: 0
+                            }}>
+                              <BookOpen size={24} />
+                            </div>
+                          )}
 
-                      {isWaiting && (
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: '0 0 4px 0', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={res.bookTitle}>
+                              {res.bookTitle}
+                            </h3>
+                            {matchedBook?.author && (
+                              <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 2px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                Tác giả: {matchedBook.author}
+                              </p>
+                            )}
+                            {matchedBook?.category && (
+                              <span style={{ fontSize: '11px', color: '#2563eb', background: '#eff6ff', padding: '1px 6px', borderRadius: '4px', display: 'inline-block' }}>
+                                {matchedBook.category}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div style={{ background: isReady ? '#dcfce7' : '#f8fafc', padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '14px' }}>
+                          <div>Thời gian đăng ký: <strong>{res.reservedAt ? res.reservedAt.substring(0, 16).replace('T', ' ') : '-'}</strong></div>
+                          <div>
+                            Vị trí ưu tiên: <strong style={{ color: '#2563eb' }}>Số #{res.priority || 1} trong hàng chờ FIFO</strong>
+                          </div>
+                          {isReady && res.expiresAt && (
+                            <div style={{ color: '#b91c1c', fontWeight: 700 }}>
+                              ⏰ Hạn giữ chỗ ưu tiên: Đến {res.expiresAt.substring(0, 16).replace('T', ' ')}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                        {isReady ? (
+                          <button
+                            onClick={() => {
+                              const b = books.find(item => Number(item.id) === Number(res.bookId)) || { id: res.bookId, title: res.bookTitle };
+                              setBorrowTargetBook(b);
+                              setBorrowModalOpen(true);
+                            }}
+                            className="btn btn-primary"
+                            style={{
+                              background: '#16a34a',
+                              borderColor: '#16a34a',
+                              fontSize: '12.5px',
+                              padding: '7px 16px',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            <BookOpen size={14} /> Mượn sách ngay
+                          </button>
+                        ) : (
+                          <span style={{ fontSize: '11.5px', color: '#ea580c', fontWeight: 600 }}>
+                            Đang xếp hàng chờ
+                          </span>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => handleCancelReservation(res.id)}
                           className="btn btn-reject btn-table-action"
                           title="Hủy đặt trước cuốn sách này"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px' }}
                         >
                           <X size={14} /> Hủy đặt
                         </button>
-                      )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* QuickReserveModal: Modal chọn và đặt trước sách trực tiếp */}
+            {reserveModalOpen && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                  backdropFilter: 'blur(4px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 99999,
+                  padding: '20px'
+                }}
+                onClick={() => setReserveModalOpen(false)}
+              >
+                <div
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '16px',
+                    width: '100%',
+                    maxWidth: '820px',
+                    maxHeight: '90vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                    overflow: 'hidden'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Modal Header */}
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f8fafc' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <Clock size={20} style={{ color: '#ea580c' }} />
+                        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                          Đặt trước sách vào hàng chờ FIFO
+                        </h3>
+                      </div>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
+                        Chọn tác phẩm sắp phát hành hoặc sách đang tạm hết bản sao để đăng ký giữ chỗ trước.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReserveModalOpen(false)}
+                      style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '4px', display: 'flex' }}
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  {/* Quota Banner */}
+                  <div style={{ padding: '10px 24px', background: isQuotaFull ? '#fef2f2' : '#eff6ff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12.5px' }}>
+                    <span style={{ color: isQuotaFull ? '#b91c1c' : '#1d4ed8', fontWeight: 600 }}>
+                      Hạn mức của bạn: <strong>{cleanActiveReservations.length}/{maxRes} cuốn</strong>
+                    </span>
+                    {isQuotaFull && (
+                      <span style={{ color: '#ef4444', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <AlertCircle size={14} /> Bạn đã đạt tối đa hạn mức đặt trước
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Search and Filters */}
+                  <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', background: '#ffffff' }}>
+                    <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
+                      <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                      <input
+                        type="text"
+                        placeholder="Tìm theo tên sách, tác giả, thể loại..."
+                        value={reserveSearch}
+                        onChange={(e) => setReserveSearch(e.target.value)}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px 8px 36px',
+                          borderRadius: '8px',
+                          border: '1px solid #cbd5e1',
+                          fontSize: '13px',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {[
+                        { id: 'all', label: `Tất cả (${allEligibleBooks.length})` },
+                        { id: 'upcoming', label: `Sắp có (${upcomingFormatted.length})` },
+                        { id: 'outofstock', label: `Hết bản sao (${outOfStockCatalogBooks.length})` }
+                      ].map((tab) => (
+                        <button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => setReserveFilterTab(tab.id)}
+                          style={{
+                            padding: '7px 12px',
+                            borderRadius: '6px',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            border: '1px solid',
+                            borderColor: reserveFilterTab === tab.id ? '#ea580c' : '#e2e8f0',
+                            background: reserveFilterTab === tab.id ? '#fff7ed' : '#ffffff',
+                            color: reserveFilterTab === tab.id ? '#ea580c' : '#64748b',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          {tab.label}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+
+                  {/* Books List Grid */}
+                  <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, maxHeight: 'calc(90vh - 240px)' }}>
+                    {filteredEligibleBooks.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+                        <BookOpen size={40} style={{ margin: '0 auto 8px', color: '#cbd5e1' }} />
+                        <p style={{ margin: 0, fontSize: '13.5px' }}>Không tìm thấy cuốn sách nào phù hợp điều kiện đặt trước.</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '14px' }}>
+                        {filteredEligibleBooks.map((item) => {
+                          const isAlreadyReserved = cleanActiveReservations.some(
+                            r => Number(r.bookId) === Number(item.id)
+                          );
+
+                          return (
+                            <div
+                              key={item.id}
+                              style={{
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '10px',
+                                padding: '12px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                background: isAlreadyReserved ? '#f8fafc' : '#ffffff',
+                                transition: 'all 0.2s ease',
+                                position: 'relative'
+                              }}
+                            >
+                              <div>
+                                <div style={{ height: '140px', borderRadius: '6px', overflow: 'hidden', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px', position: 'relative' }}>
+                                  {item.imageUrl ? (
+                                    <img
+                                      src={item.imageUrl}
+                                      alt={item.title}
+                                      style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                                      onError={(e) => { e.target.style.display = 'none'; }}
+                                    />
+                                  ) : (
+                                    <BookOpen size={36} style={{ color: '#cbd5e1' }} />
+                                  )}
+
+                                  <div style={{
+                                    position: 'absolute',
+                                    top: '6px',
+                                    right: '6px',
+                                    padding: '2px 7px',
+                                    borderRadius: '4px',
+                                    fontSize: '10.5px',
+                                    fontWeight: 700,
+                                    background: item.isUpcoming ? 'rgba(37, 99, 235, 0.92)' : 'rgba(239, 68, 68, 0.92)',
+                                    color: '#ffffff'
+                                  }}>
+                                    {item.isUpcoming ? 'Sắp phát hành' : 'Hết sách'}
+                                  </div>
+                                </div>
+
+                                <h4 style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', margin: '0 0 3px 0', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={item.title}>
+                                  {item.title}
+                                </h4>
+
+                                <p style={{ fontSize: '11.5px', color: '#64748b', margin: '0 0 6px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {item.author || 'Chưa rõ tác giả'}
+                                </p>
+
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>
+                                  <span style={{ background: '#f1f5f9', padding: '1px 6px', borderRadius: '4px' }}>
+                                    {item.category || 'Manga'}
+                                  </span>
+                                  {item.releaseDate && (
+                                    <span style={{ color: '#2563eb', fontWeight: 600 }}>
+                                      Dự kiến: {item.releaseDate}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div>
+                                {isAlreadyReserved ? (
+                                  <button
+                                    disabled
+                                    style={{
+                                      width: '100%',
+                                      padding: '7px 10px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #bbf7d0',
+                                      background: '#f0fdf4',
+                                      color: '#16a34a',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '4px',
+                                      cursor: 'default'
+                                    }}
+                                  >
+                                    <Check size={14} /> Đã trong hàng chờ
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCreateReservation(item)}
+                                    disabled={isReaderLocked || isQuotaFull}
+                                    style={{
+                                      width: '100%',
+                                      padding: '7px 10px',
+                                      borderRadius: '6px',
+                                      border: 'none',
+                                      background: (isReaderLocked || isQuotaFull)
+                                        ? '#94a3b8'
+                                        : item.isUpcoming
+                                        ? 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)'
+                                        : 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)',
+                                      color: '#ffffff',
+                                      fontSize: '12px',
+                                      fontWeight: 700,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: '5px',
+                                      cursor: (isReaderLocked || isQuotaFull) ? 'not-allowed' : 'pointer',
+                                      boxShadow: (isReaderLocked || isQuotaFull) ? 'none' : '0 2px 6px rgba(0,0,0,0.12)'
+                                    }}
+                                  >
+                                    <Clock size={13} /> Đặt trước ngay
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', background: '#f8fafc' }}>
+                    <button
+                      type="button"
+                      onClick={() => setReserveModalOpen(false)}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '13px', padding: '7px 18px' }}
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         );
       })()}
 

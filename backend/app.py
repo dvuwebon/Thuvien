@@ -667,6 +667,16 @@ def reject_borrow(record_id: int):
         raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
 
     record["status"] = "Từ chối"
+    book_id = record.get("bookId")
+    if book_id:
+        books = db.get("books", [])
+        target_book = next((b for b in books if int(b.get("id", 0)) == int(book_id)), None)
+        if target_book:
+            target_book["borrowed"] = max(0, int(target_book.get("borrowed", 1)) - 1)
+            target_book["available"] = min(int(target_book.get("quantity", 1)), int(target_book.get("available", 0)) + 1)
+            if target_book["available"] > 0 and target_book.get("status") == "Hết sách":
+                target_book["status"] = "Sẵn sàng"
+
     for n in db.get("notifications", []):
         if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") == "borrow_request"):
             n["isRead"] = True
@@ -719,6 +729,8 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
             if target_book:
                 target_book["borrowed"] = max(0, int(target_book.get("borrowed", 1)) - 1)
                 target_book["available"] = min(int(target_book.get("quantity", 1)), int(target_book.get("available", 0)) + 1)
+                if target_book["available"] > 0 and target_book.get("status") == "Hết sách":
+                    target_book["status"] = "Sẵn sàng"
 
         # Đánh dấu ĐÃ ĐỌC tất cả thông báo mượn/chờ duyệt/duyệt cũ của lượt mượn này
         for n in db.get("notifications", []):
@@ -726,6 +738,15 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
                 n["isRead"] = True
 
     elif req.status == "Đã hủy":
+        book_id = record.get("bookId")
+        if book_id:
+            books = db.get("books", [])
+            target_book = next((b for b in books if int(b.get("id", 0)) == int(book_id)), None)
+            if target_book:
+                target_book["borrowed"] = max(0, int(target_book.get("borrowed", 1)) - 1)
+                target_book["available"] = min(int(target_book.get("quantity", 1)), int(target_book.get("available", 0)) + 1)
+                if target_book["available"] > 0 and target_book.get("status") == "Hết sách":
+                    target_book["status"] = "Sẵn sàng"
         for n in db.get("notifications", []):
             if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") in ["borrow_request", "borrow_approved"]):
                 n["isRead"] = True

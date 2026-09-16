@@ -289,7 +289,7 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
                 active={activeTab === 'reservations'}
                 onClick={() => onTabChange('reservations')}
                 icon={<Clock size={17} strokeWidth={2} />}
-                label="Hàng chờ đặt trước"
+                label="Đặt trước sách"
               />
             </>
           ) : (

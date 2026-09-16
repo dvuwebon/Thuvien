@@ -4,7 +4,7 @@ import initialDb from '../data/mockDatabase.json';
 const API_BASE = '/api';
 
 // Local storage fallback database helper with in-memory singleton
-const DB_VERSION = 'v14_clean_all_pending_2026';
+const DB_VERSION = 'v15_stable_smartlib_2026';
 
 // Singleton BroadcastChannel for 0ms instantaneous cross-tab synchronization
 const syncChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
@@ -62,19 +62,6 @@ const getLocalDb = (forceFresh = false) => {
         // Lọc sạch dữ liệu đặt trước rác (như Tru Tiên) nếu còn vướng trong LocalStorage
         if (Array.isArray(parsed.reservations)) {
           parsed.reservations = parsed.reservations.filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
-        }
-        // Lọc sạch triệt để các phiếu mượn rác đang ở trạng thái Chờ duyệt nếu không có lượt mượn thực tế
-        if (Array.isArray(parsed.borrowRecords)) {
-          parsed.borrowRecords = parsed.borrowRecords.map(r => {
-            if (r.status === 'Chờ duyệt') {
-              return { ...r, status: 'Đã trả', actualReturnDate: r.actualReturnDate || new Date().toISOString() };
-            }
-            return r;
-          });
-        }
-        // Lọc sạch thông báo borrow_request cũ
-        if (Array.isArray(parsed.notifications)) {
-          parsed.notifications = parsed.notifications.filter(n => n.type !== 'borrow_request' || n.isRead);
         }
         memoryDb = parsed;
         memoryDbTimestamp = storedTime;
@@ -1235,9 +1222,9 @@ export const api = {
     const newId = Math.max(0, ...reservations.map(r => Number(r.id) || 0)) + 1;
     const newRes = {
       id: newId,
-      bookId: Number(bookId),
+      bookId: Number(bId),
       bookTitle: book?.title || 'Sách',
-      readerId: Number(readerId),
+      readerId: Number(rId),
       readerName: reader?.fullName || 'Độc giả',
       reservedAt: new Date().toISOString(),
       status: 'Waiting',
