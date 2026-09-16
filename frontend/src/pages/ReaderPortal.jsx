@@ -18,7 +18,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const { user, updateUser, logout } = useAuth();
   const [books, setBooks] = useState(() => (api.getCachedBooks ? api.getCachedBooks() : []));
   const [myBorrows, setMyBorrows] = useState([]);
-  const [myReservations, setMyReservations] = useState([]);
+  const [myReservations, setMyReservations] = useState(() => (api.getCachedReservations ? api.getCachedReservations(user?.id || 2) : []));
   const [recommendations, setRecommendations] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -138,7 +138,15 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
             r.status !== 'Hủy' && 
             r.status !== 'Fulfilled'
           );
-          setMyReservations(cleanResvs);
+          setMyReservations(prev => {
+            if (
+              prev.length === cleanResvs.length &&
+              prev.every((p, idx) => p.id === cleanResvs[idx]?.id && p.status === cleanResvs[idx]?.status)
+            ) {
+              return prev;
+            }
+            return cleanResvs;
+          });
         }).catch(() => {});
 
         // Tải danh sách các khoản phạt của độc giả
@@ -284,10 +292,14 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       const uId = user.id ? Number(user.id) : 2;
       const res = await api.createReservation({
         bookId: book.id,
-        readerId: uId
+        readerId: uId,
+        bookTitle: book.title
       });
       showToast(res.message || '✓ Đặt trước sách thành công! Bạn đã được thêm vào hàng chờ.');
       setSelectedBook(prev => (prev && Number(prev.id) === Number(book.id)) ? { ...prev, isReserved: true } : prev);
+      if (res.reservation) {
+        setMyReservations(prev => [...prev.filter(r => Number(r.id) !== Number(res.reservation.id)), res.reservation]);
+      }
       loadBorrowsOnly(true);
       window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
     } catch (e) {

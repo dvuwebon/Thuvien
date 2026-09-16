@@ -1036,7 +1036,10 @@ def get_reservations(userId: Optional[int] = Query(None)):
         if int(r.get("bookId", 0)) != 3 and "tru tiên" not in str(r.get("bookTitle", "")).lower()
     ]
     if userId:
-        reservations = [r for r in reservations if int(r.get("readerId", 0)) == userId]
+        reservations = [
+            r for r in reservations
+            if int(r.get("readerId") or r.get("userId") or 0) == userId
+        ]
     return reservations
 
 
@@ -1047,12 +1050,15 @@ def create_reservation(req: ReservationCreate):
     books = db.get("books", [])
     users = db.get("users", [])
 
+    r_id = int(req.readerId or req.userId or 2)
+    b_id = int(req.bookId)
+
     # Kiểm tra sách tồn tại
-    book = next((b for b in books if int(b.get("id", 0)) == int(req.bookId)), None)
+    book = next((b for b in books if int(b.get("id", 0)) == b_id), None)
     if not book:
         raise HTTPException(status_code=404, detail="Không tìm thấy sách.")
 
-    reader = next((u for u in users if int(u.get("id", 0)) == int(req.readerId)), None)
+    reader = next((u for u in users if int(u.get("id", 0)) == r_id), None)
     if not reader:
         raise HTTPException(status_code=404, detail="Không tìm thấy độc giả.")
 
@@ -1075,8 +1081,8 @@ def create_reservation(req: ReservationCreate):
 
     # Tránh đặt trùng
     existing = next(
-        (r for r in reservations if int(r.get("bookId", 0)) == int(req.bookId)
-         and int(r.get("readerId", 0)) == int(req.readerId)
+        (r for r in reservations if int(r.get("bookId", 0)) == b_id
+         and int(r.get("readerId") or r.get("userId") or 0) == r_id
          and r.get("status") in ["Waiting", "Ready"]),
         None
     )
@@ -1088,7 +1094,7 @@ def create_reservation(req: ReservationCreate):
     max_res = int(sys_settings.get("maxReservations", 3))
     active_reservations = [
         r for r in reservations
-        if int(r.get("readerId", 0)) == int(req.readerId)
+        if int(r.get("readerId") or r.get("userId") or 0) == r_id
         and r.get("status") in ["Waiting", "Ready"]
         and int(r.get("bookId", 0)) != 3
         and "tru tiên" not in str(r.get("bookTitle", "")).lower()
@@ -1099,17 +1105,17 @@ def create_reservation(req: ReservationCreate):
             detail=f"Bạn đã hết lượt đặt trước sách. Mỗi độc giả chỉ được đặt trước tối đa {max_res} cuốn sách, nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp."
         )
 
-
     # Xác định thứ tự ưu tiên (FIFO)
-    same_book_waiting = [r for r in reservations if int(r.get("bookId", 0)) == int(req.bookId) and r.get("status") == "Waiting"]
+    same_book_waiting = [r for r in reservations if int(r.get("bookId", 0)) == b_id and r.get("status") == "Waiting"]
     priority = len(same_book_waiting) + 1
 
     new_id = max([int(r.get("id", 0)) for r in reservations], default=0) + 1
     new_res = {
         "id": new_id,
-        "bookId": req.bookId,
+        "bookId": b_id,
         "bookTitle": book.get("title", ""),
-        "readerId": req.readerId,
+        "readerId": r_id,
+        "userId": r_id,
         "readerName": reader.get("fullName", ""),
         "reservedAt": datetime.now().isoformat(),
         "status": "Waiting",
@@ -1120,13 +1126,23 @@ def create_reservation(req: ReservationCreate):
     db["reservations"] = reservations
     db_manager.save_db(db)
 
+    # Gửi thông báo cho Độc giả
     db_manager.add_notification(
         recipient_role="Reader",
-        recipient_user_id=req.readerId,
+        recipient_user_id=r_id,
         title="Đặt trước sách thành công",
         message=f"Bạn đã đặt trước cuốn \"{book.get('title')}\". Vị trí hàng chờ: #{priority}. Hệ thống sẽ thông báo khi sách sẵn sàng.",
         notif_type="reservation_created",
-        meta={"reservationId": new_id, "bookId": req.bookId, "bookTitle": book.get("title"), "priority": priority}
+        meta={"reservationId": new_id, "bookId": b_id, "bookTitle": book.get("title"), "priority": priority}
+    )
+
+    # Gửi thông báo cho Ban Quản trị / Thủ thư
+    db_manager.add_notification(
+        recipient_role="Admin",
+        title="Độc giả đặt trước sách mới",
+        message=f"Độc giả {reader.get('fullName', '')} vừa đặt trước cuốn \"{book.get('title')}\" (Hàng chờ #{priority}).",
+        notif_type="reservation_created",
+        meta={"reservationId": new_id, "bookId": b_id, "readerId": r_id}
     )
 
     return {"message": "Đặt trước sách thành công!", "reservation": new_res}

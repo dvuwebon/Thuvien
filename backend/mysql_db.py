@@ -662,15 +662,18 @@ class MySQLDatabaseManager:
                 if not resid:
                     continue
                 existing_res = session.query(ReservationModel).filter_by(id=resid).first()
+                exp_dt = datetime.fromisoformat(res.get("expiresAt").replace("Z", "")) if res.get("expiresAt") else datetime.utcnow()
+                res_dt = datetime.fromisoformat(res.get("reservedAt").replace("Z", "")) if res.get("reservedAt") else datetime.utcnow()
                 if existing_res:
                     existing_res.status = res.get("status", existing_res.status)
                     existing_res.priority = int(res.get("priority", existing_res.priority))
+                    existing_res.expires_at = exp_dt
                 else:
-                    exp_dt = datetime.fromisoformat(res.get("expiresAt")) if res.get("expiresAt") else datetime.utcnow()
                     new_res = ReservationModel(
                         id=resid,
                         user_id=res.get("readerId") or res.get("userId") or 2,
                         book_id=res.get("bookId") or 1,
+                        reserved_at=res_dt,
                         priority=int(res.get("priority", 1)),
                         expires_at=exp_dt,
                         status=res.get("status", "Waiting")
@@ -1071,15 +1074,18 @@ class MySQLDatabaseManager:
                 if not resid:
                     continue
                 existing_res = session.query(ReservationModel).filter_by(id=resid).first()
+                exp_dt = datetime.fromisoformat(res.get("expiresAt").replace("Z", "")) if res.get("expiresAt") else datetime.utcnow()
+                res_dt = datetime.fromisoformat(res.get("reservedAt").replace("Z", "")) if res.get("reservedAt") else datetime.utcnow()
                 if existing_res:
                     existing_res.status = res.get("status", existing_res.status)
                     existing_res.priority = int(res.get("priority", existing_res.priority))
+                    existing_res.expires_at = exp_dt
                 else:
-                    exp_dt = datetime.fromisoformat(res.get("expiresAt")) if res.get("expiresAt") else datetime.utcnow()
                     new_res = ReservationModel(
                         id=resid,
                         user_id=res.get("readerId") or res.get("userId") or 2,
                         book_id=res.get("bookId") or 1,
+                        reserved_at=res_dt,
                         priority=int(res.get("priority", 1)),
                         expires_at=exp_dt,
                         status=res.get("status", "Waiting")

@@ -80,7 +80,8 @@ class NotificationReadRequest(BaseModel):
 
 class ReservationCreate(BaseModel):
     bookId: int
-    readerId: int
+    readerId: Optional[int] = None
+    userId: Optional[int] = None
 
 class FineStatusUpdate(BaseModel):
     status: Optional[str] = "Đã nộp"

@@ -1259,54 +1259,57 @@ export const api = {
   },
 
   // Reservations (Đặt trước sách)
+  getCachedReservations: (userId = null) => {
+    const db = getLocalDb();
+    let list = db.reservations || [];
+    if (userId) {
+      list = list.filter(r => Number(r.readerId || r.userId) === Number(userId));
+    }
+    return list.filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+  },
+
   getReservations: async (userId = null) => {
     let list = [];
     if (!isStaticHost) {
       try {
         const url = userId ? `${API_BASE}/reservations?userId=${userId}` : `${API_BASE}/reservations`;
-        const res = await fetchWithTimeout(url, {}, 2500);
+        const res = await fetchWithTimeout(url, {}, 6000);
         if (res.ok) {
           list = await res.json();
-          // Lọc sạch dữ liệu rác không thuộc diện sách sắp có / đặt trước
-          return (list || []).filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+          const cleanList = (list || []).filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+          // Đồng bộ tức thì với localDb
+          try {
+            const db = getLocalDb();
+            if (userId) {
+              const otherRes = (db.reservations || []).filter(r => Number(r.readerId || r.userId) !== Number(userId));
+              db.reservations = [...otherRes, ...cleanList];
+            } else {
+              db.reservations = cleanList;
+            }
+            saveLocalDb(db);
+          } catch (e) {}
+          return cleanList;
         }
       } catch (e) {}
     }
     const db = getLocalDb();
     list = db.reservations || [];
     if (userId) {
-      list = list.filter(r => Number(r.readerId) === Number(userId));
+      list = list.filter(r => Number(r.readerId || r.userId) === Number(userId));
     }
     return list.filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
   },
 
   createReservation: async (bookId, readerId) => {
     const bId = typeof bookId === 'object' ? bookId.bookId : bookId;
-    const rId = typeof bookId === 'object' ? bookId.readerId : readerId;
-    if (!isStaticHost) {
-      try {
-        const res = await fetch(`${API_BASE}/reservations`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ bookId: Number(bId), readerId: Number(rId) })
-        });
-        if (res.ok) {
-          const result = await res.json();
-          notifyDataUpdated('reservation');
-          return result;
-        } else {
-          const err = await res.json();
-          throw new Error(err.detail || 'Lỗi khi đặt trước sách');
-        }
-      } catch (e) {
-        if (e.message && !e.message.includes('fetch')) throw e;
-      }
-    }
+    const rId = typeof bookId === 'object' ? (bookId.readerId || bookId.userId) : (readerId || 2);
+    
+    // 1. Kiểm tra quota và chuẩn bị bản ghi
     const db = getLocalDb();
     const books = db.books || [];
     const users = db.users || [];
     const reservations = (db.reservations || []).filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
-    const activeResvs = reservations.filter(r => Number(r.readerId) === Number(rId) && (r.status === 'Waiting' || r.status === 'Ready'));
+    const activeResvs = reservations.filter(r => Number(r.readerId || r.userId) === Number(rId) && (r.status === 'Waiting' || r.status === 'Ready'));
     if (activeResvs.length >= 3) {
       throw new Error('Bạn đã hết lượt đặt trước sách. Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách, nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.');
     }
@@ -1315,41 +1318,77 @@ export const api = {
     const sameWaiting = reservations.filter(r => Number(r.bookId) === Number(bId) && r.status === 'Waiting');
     const priority = sameWaiting.length + 1;
     const newId = Math.max(0, ...reservations.map(r => Number(r.id) || 0)) + 1;
+    const nowIso = new Date().toISOString();
     const newRes = {
       id: newId,
       bookId: Number(bId),
-      bookTitle: book?.title || 'Sách',
+      bookTitle: book?.title || (typeof bookId === 'object' ? bookId.bookTitle : '') || 'Sách',
       readerId: Number(rId),
-      readerName: reader?.fullName || 'Độc giả',
-      reservedAt: new Date().toISOString(),
+      userId: Number(rId),
+      readerName: reader?.fullName || 'Trần Thị Mai',
+      reservedAt: nowIso,
       status: 'Waiting',
       priority,
       expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString()
     };
+
+    // Lưu ngay vào localDb
     db.reservations = [...reservations, newRes];
     saveLocalDb(db);
     notifyDataUpdated('reservation');
+
+    // 2. Gửi request đến backend nếu đang chạy online
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/reservations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bookId: Number(bId), readerId: Number(rId), userId: Number(rId) })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          if (result.reservation) {
+            const freshDb = getLocalDb();
+            freshDb.reservations = (freshDb.reservations || []).map(r => r.id === newId ? result.reservation : r);
+            saveLocalDb(freshDb);
+          }
+          notifyDataUpdated('reservation');
+          return result;
+        } else {
+          const err = await res.json().catch(() => ({}));
+          // Hoàn tác nếu server từ chối
+          const rollbackDb = getLocalDb();
+          rollbackDb.reservations = (rollbackDb.reservations || []).filter(r => r.id !== newId);
+          saveLocalDb(rollbackDb);
+          notifyDataUpdated('reservation');
+          throw new Error(err.detail || 'Lỗi khi đặt trước sách');
+        }
+      } catch (e) {
+        if (e.message && !e.message.includes('fetch')) throw e;
+      }
+    }
+
     return { reservation: newRes, message: 'Đặt trước sách thành công!' };
   },
 
   cancelReservation: async (resId) => {
+    // 1. Cập nhật localDb ngay lập tức
+    const db = getLocalDb();
+    db.reservations = (db.reservations || []).map(r => Number(r.id) === Number(resId) ? { ...r, status: 'Cancelled' } : r);
+    saveLocalDb(db);
+    notifyDataUpdated('reservation');
+
+    // 2. Đồng bộ lên server
     if (!isStaticHost) {
       try {
         const res = await fetch(`${API_BASE}/reservations/${resId}`, { method: 'DELETE' });
         if (res.ok) {
           const result = await res.json();
-          const db = getLocalDb();
-          db.reservations = (db.reservations || []).map(r => Number(r.id) === Number(resId) ? { ...r, status: 'Cancelled' } : r);
-          saveLocalDb(db);
           notifyDataUpdated('reservation');
           return result;
         }
       } catch (e) {}
     }
-    const db = getLocalDb();
-    db.reservations = (db.reservations || []).map(r => Number(r.id) === Number(resId) ? { ...r, status: 'Cancelled' } : r);
-    saveLocalDb(db);
-    notifyDataUpdated('reservation');
     return { success: true, message: 'Đã hủy đặt trước sách.' };
   },
 
