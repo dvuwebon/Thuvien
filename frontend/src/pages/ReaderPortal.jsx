@@ -38,6 +38,10 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const [borrowTargetBook, setBorrowTargetBook] = useState(null);
   const [returnConfirmRecord, setReturnConfirmRecord] = useState(null);
   const [isReturning, setIsReturning] = useState(false);
+  const [renewRecord, setRenewRecord] = useState(null);
+  const [renewDays, setRenewDays] = useState(7);
+  const [renewNotes, setRenewNotes] = useState('');
+  const [isRenewing, setIsRenewing] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [myFines, setMyFines] = useState([]);
   const [vnpayModalOpen, setVnpayModalOpen] = useState(false);
@@ -477,6 +481,46 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     }
   };
 
+  const handleConfirmRenew = async () => {
+    if (!renewRecord) return;
+    const days = Math.max(1, Math.min(60, Number(renewDays) || 7));
+    setIsRenewing(true);
+    try {
+      const baseDateStr = renewRecord.returnDate || renewRecord.dueDate;
+      let baseDate = new Date();
+      if (baseDateStr) {
+        const parsed = new Date(baseDateStr);
+        if (!isNaN(parsed.getTime())) baseDate = parsed;
+      }
+      baseDate.setDate(baseDate.getDate() + days);
+      const newReturnStr = baseDate.toISOString().substring(0, 10);
+
+      // Cập nhật phản hồi tức thì 0ms (60fps) cho giao diện
+      setMyBorrows(prev => prev.map(r => 
+        Number(r.id) === Number(renewRecord.id)
+          ? {
+              ...r,
+              returnDate: newReturnStr,
+              dueDate: newReturnStr,
+              renewCount: Number(r.renewCount || 0) + 1
+            }
+          : r
+      ));
+
+      await api.renewBorrowRecord(renewRecord.id, days, renewNotes);
+      showToast(`✓ Đã gia hạn cuốn sách "${renewRecord.bookTitle}" thêm ${days} ngày! Hạn trả mới: ${newReturnStr}.`);
+      setRenewRecord(null);
+      await loadBorrowsOnly(true);
+    } catch (err) {
+      console.error(err);
+      showToast(err.message || 'Có lỗi xảy ra khi gia hạn sách.');
+      await loadBorrowsOnly(true);
+    } finally {
+      setIsRenewing(false);
+    }
+  };
+
+
   const actualBooks = books.filter(b => 
     b.status !== 'Upcoming' && 
     b.status !== 'Sắp phát hành' && 
@@ -900,6 +944,42 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                             title="Trả sách về thư viện"
                           >
                             <CheckCircle size={14} /> Trả sách
+                          </button>
+                        ) : null}
+
+                        {/* Nút Gia hạn cho sách đang mượn */}
+                        {canReturn ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRenewRecord(r);
+                              setRenewDays(7);
+                              setRenewNotes('');
+                            }}
+                            className="btn btn-table-action"
+                            style={{
+                              background: '#eff6ff',
+                              color: '#2563eb',
+                              border: '1px solid #bfdbfe',
+                              padding: '7px 14px',
+                              borderRadius: '6px',
+                              fontSize: '12.5px',
+                              fontWeight: 700,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = '#dbeafe';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = '#eff6ff';
+                            }}
+                            title="Gia hạn thời gian mượn cuốn sách này"
+                          >
+                            <Clock size={14} /> Gia hạn
                           </button>
                         ) : null}
 
@@ -1710,6 +1790,188 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 className="btn btn-return btn-modal-action"
               >
                 {isReturning ? 'Đang xử lý...' : 'Xác nhận trả sách'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Gia hạn mượn sách */}
+      {renewRecord && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+          onClick={() => !isRenewing && setRenewRecord(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '24px 28px',
+              maxWidth: '460px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              textAlign: 'left'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb' }}>
+                  <Clock size={20} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                    Gia hạn mượn sách
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Phiếu #{renewRecord.id} • {renewRecord.bookTitle}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRenewRecord(null)}
+                disabled={isRenewing}
+                style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '4px', display: 'flex' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Thông tin hạn trả hiện tại & hạn trả mới tính toán */}
+            <div style={{ padding: '12px 14px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '16px', fontSize: '13px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                <span style={{ color: '#64748b' }}>Hạn trả hiện tại:</span>
+                <strong style={{ color: '#0f172a' }}>
+                  {renewRecord.returnDate ? renewRecord.returnDate.substring(0, 10) : (renewRecord.dueDate ? renewRecord.dueDate.substring(0, 10) : '2026-09-30')}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', fontWeight: 700 }}>
+                <span>Hạn trả mới sau gia hạn:</span>
+                <span>
+                  {(() => {
+                    const baseStr = renewRecord.returnDate || renewRecord.dueDate;
+                    let d = new Date();
+                    if (baseStr) {
+                      const p = new Date(baseStr);
+                      if (!isNaN(p.getTime())) d = p;
+                    }
+                    d.setDate(d.getDate() + (Number(renewDays) || 7));
+                    return d.toISOString().substring(0, 10);
+                  })()} (+{renewDays || 7} ngày)
+                </span>
+              </div>
+            </div>
+
+            {/* Nhập số ngày từ bàn phím */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+                Số ngày muốn gia hạn thêm *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="60"
+                value={renewDays}
+                onChange={(e) => setRenewDays(Math.max(1, Math.min(60, parseInt(e.target.value) || 1)))}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '8px',
+                  border: '1.5px solid #2563eb',
+                  fontSize: '15px',
+                  fontWeight: 700,
+                  color: '#0f172a',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+                autoFocus
+                placeholder="Nhập số ngày từ bàn phím..."
+              />
+
+              {/* Nút chọn nhanh số ngày */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                {[7, 14, 21, 30].map(d => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setRenewDays(d)}
+                    style={{
+                      flex: 1,
+                      padding: '5px 8px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: Number(renewDays) === d ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                      background: Number(renewDays) === d ? '#eff6ff' : '#ffffff',
+                      color: Number(renewDays) === d ? '#2563eb' : '#64748b',
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    +{d} ngày
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Ghi chú / Lý do gia hạn (tùy chọn) */}
+            <div style={{ marginBottom: '22px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#475569', marginBottom: '6px' }}>
+                Ghi chú / Lý do gia hạn (tùy chọn)
+              </label>
+              <input
+                type="text"
+                value={renewNotes}
+                onChange={(e) => setRenewNotes(e.target.value)}
+                placeholder="Ví dụ: Cần thêm thời gian nghiên cứu tài liệu..."
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  fontSize: '13px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+            </div>
+
+            {/* Nút hành động */}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setRenewRecord(null)}
+                disabled={isRenewing}
+                className="btn btn-outline"
+                style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '13px', fontWeight: 600 }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRenew}
+                disabled={isRenewing}
+                className="btn btn-primary"
+                style={{
+                  padding: '8px 22px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                {isRenewing ? 'Đang gửi yêu cầu...' : 'Xác nhận gia hạn'}
               </button>
             </div>
           </div>

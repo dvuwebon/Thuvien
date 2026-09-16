@@ -23,7 +23,8 @@ from models import (
     BookCreate, BookUpdate, ReaderCreate, ReaderUpdate,
     BorrowRequestCreate, BorrowStatusUpdate, NotificationReadRequest,
     ReservationCreate, FineStatusUpdate, ReaderLockUpdate,
-    VNPayPaymentCreate, VNPayPaymentVerify, SystemSettings, FineRejectRequest
+    VNPayPaymentCreate, VNPayPaymentVerify, SystemSettings, FineRejectRequest,
+    BorrowRenewRequest
 )
 
 
@@ -899,6 +900,81 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
         result["fine_amount"] = fine_amount
         result["overdue_days"] = record.get("overdue_days", 0)
     return result
+
+
+@app.put("/api/borrow-records/{record_id}/renew")
+def renew_borrow_record(record_id: int, req: BorrowRenewRequest):
+    db = db_manager.load_db()
+    records = db.get("borrowRecords", [])
+    record = next((r for r in records if int(r.get("id", 0)) == record_id), None)
+    if not record:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
+
+    if record.get("status") not in ["Đang mượn", "Chờ duyệt"]:
+        raise HTTPException(status_code=400, detail="Chỉ có thể gia hạn cho sách đang trong trạng thái mượn.")
+
+    days = max(1, min(60, int(req.days or 7)))
+    old_return_str = record.get("returnDate") or record.get("dueDate")
+    try:
+        if old_return_str:
+            base_date = datetime.fromisoformat(old_return_str.replace("Z", ""))
+        else:
+            base_date = datetime.now()
+    except Exception:
+        base_date = datetime.now()
+
+    new_due_date = base_date + timedelta(days=days)
+    new_due_str = new_due_date.isoformat()
+    new_due_date_str = new_due_date.strftime("%Y-%m-%d")
+
+    # Cập nhật hạn trả mới dựa trên dữ liệu trước đó, chỉ làm mới ngày trả sách
+    record["returnDate"] = new_due_str
+    record["dueDate"] = new_due_str
+    record["renewCount"] = int(record.get("renewCount", 0)) + 1
+    if req.notes:
+        old_notes = record.get("notes") or ""
+        record["notes"] = f"{old_notes} | Gia hạn +{days} ngày: {req.notes}".strip(" |")
+
+    # Lưu thay đổi vào DB
+    db_manager.save_db(db)
+
+    # Gửi thông báo đến trang quản trị (Admin & Librarian)
+    reader_name = record.get("readerName") or "Độc giả"
+    book_title = record.get("bookTitle") or "Sách"
+    db_manager.add_notification(
+        recipient_role="Admin",
+        title="Độc giả gia hạn mượn sách",
+        message=f"Độc giả {reader_name} đã gia hạn thêm {days} ngày cho cuốn sách \"{book_title}\". Hạn trả mới: {new_due_date_str}.",
+        notif_type="borrow_renewed",
+        meta={
+            "recordId": record_id,
+            "bookId": record.get("bookId"),
+            "bookTitle": book_title,
+            "readerName": reader_name,
+            "days": days,
+            "newReturnDate": new_due_date_str
+        }
+    )
+
+    # Thông báo xác nhận cho độc giả
+    reader_id = record.get("readerId") or record.get("userId")
+    if reader_id:
+        db_manager.add_notification(
+            recipient_role="Reader",
+            recipient_user_id=int(reader_id),
+            title="Gia hạn mượn sách thành công",
+            message=f"Cuốn sách \"{book_title}\" đã được gia hạn thêm {days} ngày. Hạn trả mới: {new_due_date_str}.",
+            notif_type="borrow_renewed",
+            meta={"recordId": record_id, "newReturnDate": new_due_date_str, "days": days}
+        )
+
+    return {
+        "message": f"Đã gia hạn thành công thêm {days} ngày! Hạn trả mới: {new_due_date_str}.",
+        "record": record,
+        "newReturnDate": new_due_str,
+        "days": days
+    }
+
 
 
 

@@ -132,6 +132,8 @@ export default function NotificationDropdown({ isOpen, onClose, align = 'left' }
         return <XCircle size={16} className="text-red-600" />;
       case 'book_returned':
         return <CheckCheck size={16} className="text-teal-600" />;
+      case 'borrow_renewed':
+        return <Clock size={16} className="text-amber-500" />;
       default:
         return <AlertCircle size={16} className="text-blue-500" />;
     }

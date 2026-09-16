@@ -1033,6 +1033,101 @@ export const api = {
     return { success: true, record: updated };
   },
 
+  renewBorrowRecord: async (recordId, days = 7, notes = '') => {
+    // 1. Cập nhật localDb trước để đảm bảo phản hồi tức thì 0ms (60fps)
+    const db = getLocalDb();
+    let updatedRecord = null;
+    let newReturnStr = '';
+    const numDays = Math.max(1, Math.min(60, Number(days) || 7));
+
+    db.borrowRecords = (db.borrowRecords || []).map(r => {
+      if (Number(r.id) === Number(recordId)) {
+        const baseDateStr = r.returnDate || r.dueDate;
+        let baseDate = new Date();
+        if (baseDateStr) {
+          const parsed = new Date(baseDateStr);
+          if (!isNaN(parsed.getTime())) {
+            baseDate = parsed;
+          }
+        }
+        baseDate.setDate(baseDate.getDate() + numDays);
+        newReturnStr = baseDate.toISOString().substring(0, 10);
+
+        updatedRecord = {
+          ...r,
+          returnDate: newReturnStr,
+          dueDate: newReturnStr,
+          renewCount: Number(r.renewCount || 0) + 1,
+          notes: notes ? `${r.notes || ''} | Gia hạn +${numDays} ngày: ${notes}`.trim() : r.notes
+        };
+        return updatedRecord;
+      }
+      return r;
+    });
+
+    if (updatedRecord) {
+      const maxId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0));
+      const nowStr = new Date().toISOString();
+      const notifAdmin = {
+        id: maxId + 2,
+        recipientRole: 'Admin',
+        title: 'Độc giả gia hạn mượn sách',
+        message: `Độc giả ${updatedRecord.readerName || 'Trần Thị Mai'} đã gia hạn thêm ${numDays} ngày cho cuốn sách "${updatedRecord.bookTitle}". Hạn trả mới: ${newReturnStr}.`,
+        type: 'borrow_renewed',
+        recordId: updatedRecord.id,
+        bookId: updatedRecord.bookId,
+        bookTitle: updatedRecord.bookTitle,
+        readerName: updatedRecord.readerName,
+        days: numDays,
+        newReturnDate: newReturnStr,
+        isRead: false,
+        createdAt: nowStr
+      };
+      const notifReader = {
+        id: maxId + 1,
+        recipientRole: 'Reader',
+        recipientUserId: updatedRecord.readerId || 2,
+        title: 'Gia hạn mượn sách thành công',
+        message: `Cuốn sách "${updatedRecord.bookTitle}" của bạn đã được gia hạn thêm ${numDays} ngày. Hạn trả mới: ${newReturnStr}.`,
+        type: 'borrow_renewed',
+        recordId: updatedRecord.id,
+        bookId: updatedRecord.bookId,
+        bookTitle: updatedRecord.bookTitle,
+        days: numDays,
+        newReturnDate: newReturnStr,
+        isRead: false,
+        createdAt: nowStr
+      };
+      db.notifications = [notifAdmin, notifReader, ...(db.notifications || [])];
+    }
+
+    saveLocalDb(db);
+    notifyDataUpdated('borrow');
+
+    // 2. Gửi request đến backend server nếu có
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/borrow-records/${recordId}/renew`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: numDays, notes })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('borrow');
+          return result;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Không thể gia hạn sách');
+        }
+      } catch (e) {
+        if (e.message && !e.message.includes('fetch')) throw e;
+      }
+    }
+
+    return { success: true, message: `Đã gia hạn thành công thêm ${numDays} ngày! Hạn trả mới: ${newReturnStr}.`, record: updatedRecord };
+  },
+
   // Notifications
   getNotifications: async (role, userId) => {
     if (!isStaticHost) {

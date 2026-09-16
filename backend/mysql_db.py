@@ -691,6 +691,7 @@ class MySQLDatabaseManager:
 
                 if existing_br:
                     existing_br.status = br.get("status", existing_br.status)
+                    existing_br.due_date = due_dt
                     existing_br.fine_amount = fine_val
                     existing_br.overdue_days = overdue_val
                     existing_br.actual_return_date = act_dt
@@ -1045,6 +1046,7 @@ class MySQLDatabaseManager:
 
                 if existing_br:
                     existing_br.status = br.get("status", existing_br.status)
+                    existing_br.due_date = due_dt
                     existing_br.fine_amount = float(br.get("fine_amount") or br.get("fineAmount") or 0.0)
                     existing_br.overdue_days = int(br.get("overdue_days") or br.get("overdueDays") or 0)
                     existing_br.actual_return_date = actual_dt

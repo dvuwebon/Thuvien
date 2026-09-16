@@ -130,3 +130,7 @@ class SystemSettings(BaseModel):
 
 class FineRejectRequest(BaseModel):
     reason: Optional[str] = "Giao dịch không hợp lệ hoặc chưa nhận được tiền"
+
+class BorrowRenewRequest(BaseModel):
+    days: int = 7
+    notes: Optional[str] = None
