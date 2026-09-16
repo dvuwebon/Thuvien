@@ -116,7 +116,7 @@ const UPCOMING_BOOKS = [
 
 export { UPCOMING_BOOKS };
 
-export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [] }) {
+export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancelReserve, reservedBookIds = [] }) {
   const [showAll, setShowAll] = useState(false);
   const [subscribedIds, setSubscribedIds] = useState([]);
 
@@ -354,16 +354,36 @@ export default function UpcomingBooksSection({ onSelectBook, reservedBookIds = [
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (onSelectBook) onSelectBook({ ...item, isReserved: isSubscribed });
+                      }}
                       style={{
+                        background: 'transparent',
+                        border: 'none',
                         color: '#2563eb',
                         fontWeight: 700,
                         fontSize: '12px',
-                        letterSpacing: '0.2px'
+                        letterSpacing: '0.2px',
+                        cursor: 'pointer',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                        transition: 'all 0.15s ease'
                       }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = '#eff6ff';
+                        e.currentTarget.style.color = '#1d4ed8';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = '#2563eb';
+                      }}
+                      title={`Xem thông tin và đặt trước "${item.title}"`}
                     >
                       Xem »
-                    </span>
+                    </button>
                   </div>
                 </div>
               </div>

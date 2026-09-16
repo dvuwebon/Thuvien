@@ -6,7 +6,7 @@ import { exportApi } from '../services/exportApi';
 export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve, onCancelReserve, activeReservationCount = 0, isUserLocked = false }) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
 
-  const isUpcoming = Boolean(book?.isUpcoming || book?.status === 'Sắp phát hành' || book?.status === 'Sắp có');
+  const isUpcoming = Boolean(book?.isUpcoming || book?.status === 'Sắp phát hành' || book?.status === 'Sắp có' || Number(book?.id) >= 51);
   const isReserved = Boolean(book?.isReserved);
 
   useEffect(() => {
@@ -30,9 +30,9 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
 
   if (!isOpen || !book) return null;
 
-  const qty = Number(book.quantity) || 1;
-  const borrowed = Number(book.borrowed) || 0;
-  const available = Math.max(0, qty - borrowed);
+  const qty = isUpcoming ? 0 : (Number(book.quantity) || 0);
+  const borrowed = isUpcoming ? 0 : (Number(book.borrowed) || 0);
+  const available = isUpcoming ? 0 : Math.max(0, qty - borrowed);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -322,7 +322,7 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
                   title={isUserLocked ? "Tài khoản đang bị khóa do quá hạn mượn sách" : (isUpcoming ? "Bấm để đăng ký vào hàng chờ đặt trước sách ưu tiên!" : "Sách đang tạm hết. Bấm để xếp hàng chờ nhận sách ưu tiên!")}
                 >
                   <Clock size={16} />
-                  <span>{isUserLocked ? 'Tài khoản đang bị khóa' : 'Đặt trước (Vào hàng chờ)'}</span>
+                  <span>{isUserLocked ? 'Tài khoản đang bị khóa' : (isUpcoming ? 'Đặt trước sách ngay' : 'Đặt trước (Vào hàng chờ)')}</span>
                 </button>
               )
             )}

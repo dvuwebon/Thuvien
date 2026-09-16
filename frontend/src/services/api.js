@@ -1322,7 +1322,7 @@ export const api = {
     const newRes = {
       id: newId,
       bookId: Number(bId),
-      bookTitle: book?.title || (typeof bookId === 'object' ? bookId.bookTitle : '') || 'Sách',
+      bookTitle: book?.title || (typeof bookId === 'object' ? (bookId.bookTitle || bookId.title) : '') || 'Sách',
       readerId: Number(rId),
       userId: Number(rId),
       readerName: reader?.fullName || 'Trần Thị Mai',

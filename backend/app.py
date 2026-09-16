@@ -1027,7 +1027,7 @@ def clear_read_notifications(role: Optional[str] = Query(None), userId: Optional
 
 # ================= RESERVATIONS (Đặt trước sách) =================
 @app.get("/api/reservations")
-def get_reservations(userId: Optional[int] = Query(None)):
+def get_reservations(userId: Optional[int] = Query(None), readerId: Optional[int] = Query(None)):
     db = db_manager.load_db()
     reservations = db.get("reservations", [])
     # Lọc sạch các bản ghi không hợp lệ hoặc sách không thuộc diện đặt trước (như Tru Tiên)
@@ -1035,10 +1035,11 @@ def get_reservations(userId: Optional[int] = Query(None)):
         r for r in reservations
         if int(r.get("bookId", 0)) != 3 and "tru tiên" not in str(r.get("bookTitle", "")).lower()
     ]
-    if userId:
+    u_id = userId or readerId
+    if u_id:
         reservations = [
             r for r in reservations
-            if int(r.get("readerId") or r.get("userId") or 0) == userId
+            if int(r.get("readerId") or r.get("userId") or 0) == u_id
         ]
     return reservations
 

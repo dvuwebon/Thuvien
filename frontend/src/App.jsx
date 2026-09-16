@@ -160,6 +160,28 @@ export default function App() {
           setBorrowTargetBook(book);
           setBorrowModalOpen(true);
         }}
+        onReserve={async (book) => {
+          try {
+            await api.createReservation({
+              bookId: book.id,
+              readerId: 2,
+              bookTitle: book.title
+            });
+            window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+          } catch (e) {
+            console.error('Error reserving from global modal:', e);
+          }
+        }}
+        onCancelReserve={async (book) => {
+          try {
+            const list = await api.getReservations(2);
+            const target = (list || []).find(r => Number(r.bookId) === Number(book.id) && r.status !== 'Cancelled' && r.status !== 'Hủy');
+            if (target) await api.cancelReservation(target.id);
+            window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+          } catch (e) {
+            console.error('Error cancelling reservation from global modal:', e);
+          }
+        }}
         isAdmin={role === 'Admin'}
       />
 

@@ -416,25 +416,63 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   }, [bookSearch, selectedCategory]);
 
   const handleOpenBookByTitleOrId = (bookTitle, bookId) => {
+    // 1. Kiểm tra danh sách sách sắp có trước (UPCOMING_BOOKS)
+    const upcomingFound = (UPCOMING_BOOKS || []).find(ub =>
+      (bookId && Number(ub.id) === Number(bookId)) ||
+      (bookTitle && ub.title && ub.title.trim().toLowerCase() === bookTitle.trim().toLowerCase())
+    );
+    if (upcomingFound) {
+      const isResv = myReservations.some(r => Number(r.bookId) === Number(upcomingFound.id) && r.status !== 'Cancelled' && r.status !== 'Hủy');
+      setSelectedBook({
+        id: upcomingFound.id,
+        title: upcomingFound.title,
+        author: upcomingFound.author || 'Chưa rõ',
+        category: upcomingFound.category || 'Manga & Light Novel',
+        quantity: 0,
+        available: 0,
+        borrowed: 0,
+        status: 'Sắp phát hành',
+        isUpcoming: true,
+        isReserved: isResv,
+        releaseDate: upcomingFound.releaseDate,
+        views: upcomingFound.views,
+        desc: upcomingFound.desc || `Tác phẩm của tác giả ${upcomingFound.author || 'nổi tiếng'} đang chuẩn bị phát hành và sẽ sớm có mặt tại thư viện trong đợt nhập sách tới (${upcomingFound.releaseDate}).`,
+        imageUrl: upcomingFound.cover
+      });
+      setDetailModalOpen(true);
+      return;
+    }
+
+    // 2. Kiểm tra trong danh mục sách thư viện
     const found = books.find(b =>
       (bookId && Number(b.id) === Number(bookId)) ||
       (bookTitle && b.title && b.title.trim().toLowerCase() === bookTitle.trim().toLowerCase())
     );
     if (found) {
-      setSelectedBook(found);
-      setDetailModalOpen(true);
-    } else {
+      const isUp = Number(found.id) >= 51 || found.isUpcoming || found.status === 'Sắp phát hành' || found.status === 'Sắp có';
+      const isResv = myReservations.some(r => Number(r.bookId) === Number(found.id) && r.status !== 'Cancelled' && r.status !== 'Hủy');
       setSelectedBook({
-        id: bookId || 0,
-        title: bookTitle || 'Thông tin sách',
-        author: 'Chưa rõ tác giả',
-        category: 'Tài liệu thư viện',
-        quantity: 1,
-        borrowed: 0,
-        desc: 'Thông tin chi tiết về cuốn sách trong hệ thống thư viện SmartLib.'
+        ...found,
+        isUpcoming: isUp,
+        isReserved: isResv,
+        quantity: isUp ? 0 : found.quantity,
+        available: isUp ? 0 : found.available
       });
       setDetailModalOpen(true);
+      return;
     }
+
+    // 3. Fallback dự phòng
+    setSelectedBook({
+      id: bookId || 0,
+      title: bookTitle || 'Thông tin sách',
+      author: 'Chưa rõ tác giả',
+      category: 'Tài liệu thư viện',
+      quantity: 1,
+      borrowed: 0,
+      desc: 'Thông tin chi tiết về cuốn sách trong hệ thống thư viện SmartLib.'
+    });
+    setDetailModalOpen(true);
   };
 
   const handleBorrowRequest = async (formData) => {
@@ -1334,40 +1372,63 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                         </div>
 
                         <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                          {coverImg ? (
-                            <img
-                              src={coverImg}
-                              alt={res.bookTitle}
-                              style={{
+                          <div
+                            onClick={() => handleOpenBookByTitleOrId(res.bookTitle, res.bookId)}
+                            style={{ cursor: 'pointer', flexShrink: 0 }}
+                            title={`Nhấp để xem chi tiết cuốn sách: ${res.bookTitle}`}
+                          >
+                            {coverImg ? (
+                              <img
+                                src={coverImg}
+                                alt={res.bookTitle}
+                                style={{
+                                  width: '56px',
+                                  height: '78px',
+                                  objectFit: 'cover',
+                                  borderRadius: '6px',
+                                  border: '1px solid #e2e8f0',
+                                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                                }}
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div style={{
                                 width: '56px',
                                 height: '78px',
-                                objectFit: 'cover',
                                 borderRadius: '6px',
+                                background: '#f1f5f9',
                                 border: '1px solid #e2e8f0',
-                                flexShrink: 0,
-                                boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
-                              }}
-                              onError={(e) => { e.target.style.display = 'none'; }}
-                            />
-                          ) : (
-                            <div style={{
-                              width: '56px',
-                              height: '78px',
-                              borderRadius: '6px',
-                              background: '#f1f5f9',
-                              border: '1px solid #e2e8f0',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              color: '#94a3b8',
-                              flexShrink: 0
-                            }}>
-                              <BookOpen size={24} />
-                            </div>
-                          )}
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#94a3b8'
+                              }}>
+                                <BookOpen size={24} />
+                              </div>
+                            )}
+                          </div>
 
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', margin: '0 0 4px 0', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={res.bookTitle}>
+                            <h3
+                              style={{
+                                fontSize: '15px',
+                                fontWeight: 700,
+                                color: '#0f172a',
+                                margin: '0 0 4px 0',
+                                lineHeight: 1.35,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                cursor: 'pointer',
+                                transition: 'color 0.15s ease'
+                              }}
+                              onClick={() => handleOpenBookByTitleOrId(res.bookTitle, res.bookId)}
+                              onMouseEnter={(e) => { e.currentTarget.style.color = '#2563eb'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.color = '#0f172a'; }}
+                              title={`Nhấp để xem chi tiết cuốn sách: ${res.bookTitle}`}
+                            >
                               {res.bookTitle}
                             </h3>
                             {matchedBook?.author && (
@@ -1577,7 +1638,22 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                               }}
                             >
                               <div>
-                                <div style={{ height: '140px', borderRadius: '6px', overflow: 'hidden', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '10px', position: 'relative' }}>
+                                <div
+                                  onClick={() => handleOpenBookByTitleOrId(item.title, item.id)}
+                                  style={{
+                                    height: '140px',
+                                    borderRadius: '6px',
+                                    overflow: 'hidden',
+                                    background: '#f1f5f9',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginBottom: '10px',
+                                    position: 'relative',
+                                    cursor: 'pointer'
+                                  }}
+                                  title={`Xem chi tiết ấn phẩm: ${item.title}`}
+                                >
                                   {item.imageUrl ? (
                                     <img
                                       src={item.imageUrl}
@@ -1604,7 +1680,26 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                                   </div>
                                 </div>
 
-                                <h4 style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', margin: '0 0 3px 0', lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }} title={item.title}>
+                                <h4
+                                  style={{
+                                    fontSize: '13.5px',
+                                    fontWeight: 700,
+                                    color: '#0f172a',
+                                    margin: '0 0 3px 0',
+                                    lineHeight: 1.35,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    cursor: 'pointer',
+                                    transition: 'color 0.15s ease'
+                                  }}
+                                  onClick={() => handleOpenBookByTitleOrId(item.title, item.id)}
+                                  onMouseEnter={(e) => { e.currentTarget.style.color = '#2563eb'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.color = '#0f172a'; }}
+                                  title={`Xem chi tiết ấn phẩm: ${item.title}`}
+                                >
                                   {item.title}
                                 </h4>
 
@@ -1624,13 +1719,34 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                                 </div>
                               </div>
 
-                              <div>
+                              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenBookByTitleOrId(item.title, item.id)}
+                                  style={{
+                                    padding: '7px 9px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #bfdbfe',
+                                    background: '#eff6ff',
+                                    color: '#2563eb',
+                                    fontSize: '11.5px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    whiteSpace: 'nowrap',
+                                    transition: 'all 0.15s ease'
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.background = '#dbeafe'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.background = '#eff6ff'; }}
+                                  title="Xem chi tiết cuốn sách này"
+                                >
+                                  Chi tiết
+                                </button>
                                 {isAlreadyReserved ? (
                                   <button
                                     disabled
                                     style={{
-                                      width: '100%',
-                                      padding: '7px 10px',
+                                      flex: 1,
+                                      padding: '7px 8px',
                                       borderRadius: '6px',
                                       border: '1px solid #bbf7d0',
                                       background: '#f0fdf4',
@@ -1644,7 +1760,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                                       cursor: 'default'
                                     }}
                                   >
-                                    <Check size={14} /> Đã trong hàng chờ
+                                    <Check size={13} /> Đã đặt
                                   </button>
                                 ) : (
                                   <button
@@ -1652,8 +1768,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                                     onClick={() => handleCreateReservation(item)}
                                     disabled={isReaderLocked || isQuotaFull}
                                     style={{
-                                      width: '100%',
-                                      padding: '7px 10px',
+                                      flex: 1,
+                                      padding: '7px 8px',
                                       borderRadius: '6px',
                                       border: 'none',
                                       background: (isReaderLocked || isQuotaFull)
@@ -1667,12 +1783,12 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                                       display: 'flex',
                                       alignItems: 'center',
                                       justifyContent: 'center',
-                                      gap: '5px',
+                                      gap: '4px',
                                       cursor: (isReaderLocked || isQuotaFull) ? 'not-allowed' : 'pointer',
                                       boxShadow: (isReaderLocked || isQuotaFull) ? 'none' : '0 2px 6px rgba(0,0,0,0.12)'
                                     }}
                                   >
-                                    <Clock size={13} /> Đặt trước ngay
+                                    <Clock size={13} /> Đặt trước
                                   </button>
                                 )}
                               </div>
