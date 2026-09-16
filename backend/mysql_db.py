@@ -9,7 +9,7 @@ from urllib.parse import quote_plus
 
 from sqlalchemy import (
     create_engine, Column, Integer, String, Text, DateTime, Date,
-    Numeric, Boolean, JSON, ForeignKey, Enum as SQLEnum, text
+    Numeric, Boolean, JSON, ForeignKey, Enum as SQLEnum, text, event
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, scoped_session
 
@@ -308,8 +308,22 @@ class MySQLDatabaseManager:
             self.sqlite_engine = create_engine(
                 f"sqlite:///{self.db_path}",
                 echo=False,
-                connect_args={"check_same_thread": False}
+                connect_args={"check_same_thread": False, "timeout": 30}
             )
+
+            @event.listens_for(self.sqlite_engine, "connect")
+            def set_sqlite_pragma(dbapi_connection, connection_record):
+                try:
+                    cursor = dbapi_connection.cursor()
+                    cursor.execute("PRAGMA journal_mode=WAL;")
+                    cursor.execute("PRAGMA synchronous=NORMAL;")
+                    cursor.execute("PRAGMA cache_size=-64000;")
+                    cursor.execute("PRAGMA temp_store=MEMORY;")
+                    cursor.execute("PRAGMA mmap_size=268435456;")
+                    cursor.close()
+                except Exception:
+                    pass
+
             self.SqliteSession = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=self.sqlite_engine))
         except Exception:
             self.sqlite_engine = None

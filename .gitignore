@@ -21,6 +21,7 @@ Thumbs.db
 .idea/
 New folder/
 
-# Legacy JSON DB
-/data/
-*.json.bak
+# SQLite WAL temporary buffers
+*.db-wal
+*.db-shm
+*.db-journal
