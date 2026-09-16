@@ -1066,16 +1066,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         const maxRes = Number(systemSettings?.maxReservations || 3);
         const isQuotaFull = cleanActiveReservations.length >= maxRes;
 
-        // Danh sách sách hợp lệ để đặt trước: Hết bản sao trong kho HOẶC thuộc danh mục Sắp phát hành
-        const outOfStockCatalogBooks = books.filter(b => {
-          const avail = Number(b.available ?? b.available_copies ?? 1);
-          return avail <= 0 || b.status === 'Hết sách';
-        }).map(b => ({
-          ...b,
-          isUpcoming: false
-        }));
-
-        const upcomingFormatted = (UPCOMING_BOOKS || []).map(ub => ({
+        // Danh sách 10 cuốn sách đặt trước trong hệ thống (Sách sắp phát hành)
+        const allEligibleBooks = (UPCOMING_BOOKS || []).map(ub => ({
           id: ub.id,
           title: ub.title,
           author: ub.author,
@@ -1087,11 +1079,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           imageUrl: ub.cover
         }));
 
-        const allEligibleBooks = [
-          ...upcomingFormatted,
-          ...outOfStockCatalogBooks
-        ];
-
         // Lọc danh sách trong Modal Đặt trước
         const filteredEligibleBooks = allEligibleBooks.filter(item => {
           const matchText = (
@@ -1100,10 +1087,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
             (item.category || '')
           ).toLowerCase().includes(reserveSearch.toLowerCase().trim());
 
-          if (!matchText) return false;
-          if (reserveFilterTab === 'upcoming') return Boolean(item.isUpcoming);
-          if (reserveFilterTab === 'outofstock') return !item.isUpcoming;
-          return true;
+          return matchText;
         });
 
         return (
@@ -1398,17 +1382,12 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Modal Header */}
-                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f8fafc' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                        <Clock size={20} style={{ color: '#ea580c' }} />
-                        <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                          Đặt trước sách vào hàng chờ FIFO
-                        </h3>
-                      </div>
-                      <p style={{ margin: 0, fontSize: '13px', color: '#64748b' }}>
-                        Chọn tác phẩm sắp phát hành hoặc sách đang tạm hết bản sao để đăng ký giữ chỗ trước.
-                      </p>
+                  <div style={{ padding: '20px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Clock size={20} style={{ color: '#ea580c' }} />
+                      <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                        Đặt trước sách
+                      </h3>
                     </div>
                     <button
                       type="button"
@@ -1433,6 +1412,29 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
                   {/* Search and Filters */}
                   <div style={{ padding: '16px 24px', borderBottom: '1px solid #f1f5f9', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', background: '#ffffff' }}>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setReserveSearch('')}
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '8px',
+                          fontSize: '13px',
+                          fontWeight: 700,
+                          border: '1px solid #ea580c',
+                          background: '#fff7ed',
+                          color: '#ea580c',
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        Tất cả ({allEligibleBooks.length})
+                      </button>
+                    </div>
+
                     <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
                       <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                       <input
@@ -1450,34 +1452,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                           boxSizing: 'border-box'
                         }}
                       />
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      {[
-                        { id: 'all', label: `Tất cả (${allEligibleBooks.length})` },
-                        { id: 'upcoming', label: `Sắp có (${upcomingFormatted.length})` },
-                        { id: 'outofstock', label: `Hết bản sao (${outOfStockCatalogBooks.length})` }
-                      ].map((tab) => (
-                        <button
-                          key={tab.id}
-                          type="button"
-                          onClick={() => setReserveFilterTab(tab.id)}
-                          style={{
-                            padding: '7px 12px',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            border: '1px solid',
-                            borderColor: reserveFilterTab === tab.id ? '#ea580c' : '#e2e8f0',
-                            background: reserveFilterTab === tab.id ? '#fff7ed' : '#ffffff',
-                            color: reserveFilterTab === tab.id ? '#ea580c' : '#64748b',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          {tab.label}
-                        </button>
-                      ))}
                     </div>
                   </div>
 
