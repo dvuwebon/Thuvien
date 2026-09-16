@@ -397,16 +397,19 @@ tr:hover td {
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
   background: rgba(15, 23, 42, 0.55);
-  z-index: 1000;
+  z-index: 99999;
   display: flex;
   align-items: center;
   justify-content: center;
   backdrop-filter: blur(4px);
   animation: fadeIn 0.2s ease;
   padding: 16px;
+  box-sizing: border-box;
 }
 
 .modal-content {
@@ -514,13 +517,9 @@ html {
 
 /* GPU Composite Layers for zero jank & 60fps animations */
 .card,
-.modal-content,
-.modal-overlay,
 .btn,
 .badge,
-.upcoming-books-grid,
-aside,
-main {
+.upcoming-books-grid {
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
   transform: translateZ(0);

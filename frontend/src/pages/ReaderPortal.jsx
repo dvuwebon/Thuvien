@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import BookCard from '../components/BookCard';
@@ -1502,7 +1503,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
             )}
 
             {/* QuickReserveModal: Modal chọn và đặt trước sách trực tiếp */}
-            {reserveModalOpen && (
+            {reserveModalOpen && typeof document !== 'undefined' && createPortal(
               <div
                 style={{
                   position: 'fixed',
@@ -1510,13 +1511,16 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                   left: 0,
                   right: 0,
                   bottom: 0,
+                  width: '100vw',
+                  height: '100vh',
                   backgroundColor: 'rgba(15, 23, 42, 0.65)',
                   backdropFilter: 'blur(4px)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  zIndex: 99999,
-                  padding: '20px'
+                  zIndex: 999999,
+                  padding: '20px',
+                  boxSizing: 'border-box'
                 }}
                 onClick={() => setReserveModalOpen(false)}
               >
@@ -1530,7 +1534,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                     display: 'flex',
                     flexDirection: 'column',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                    overflow: 'hidden'
+                    overflow: 'hidden',
+                    margin: 'auto'
                   }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -1811,7 +1816,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                     </button>
                   </div>
                 </div>
-              </div>
+              </div>,
+              document.body
             )}
           </div>
         );
@@ -1855,18 +1861,24 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       />
 
       {/* DIV Xác nhận Trả sách (Thay thế hoàn toàn thông báo của trình duyệt) */}
-      {returnConfirmRecord && (
+      {returnConfirmRecord && typeof document !== 'undefined' && createPortal(
         <div
           style={{
             position: 'fixed',
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
             background: 'rgba(15, 23, 42, 0.45)',
             backdropFilter: 'blur(3px)',
-            zIndex: 9999,
+            zIndex: 999999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px'
+            padding: '20px',
+            boxSizing: 'border-box'
           }}
           onClick={() => !isReturning && setReturnConfirmRecord(null)}
         >
@@ -1878,7 +1890,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
               maxWidth: '420px',
               width: '100%',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-              textAlign: 'center'
+              textAlign: 'center',
+              margin: 'auto'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1921,22 +1934,29 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal Gia hạn mượn sách */}
-      {renewRecord && (
+      {renewRecord && typeof document !== 'undefined' && createPortal(
         <div
           style={{
             position: 'fixed',
-            inset: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
             background: 'rgba(15, 23, 42, 0.55)',
             backdropFilter: 'blur(4px)',
-            zIndex: 9999,
+            zIndex: 999999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px'
+            padding: '20px',
+            boxSizing: 'border-box'
           }}
           onClick={() => !isRenewing && setRenewRecord(null)}
         >
@@ -1948,7 +1968,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
               maxWidth: '460px',
               width: '100%',
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-              textAlign: 'left'
+              textAlign: 'left',
+              margin: 'auto'
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -2103,7 +2124,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Toast Notification khi Trả sách thành công */}

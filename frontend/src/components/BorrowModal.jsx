@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, BookOpen, User, Phone, MapPin, Calendar, Clock, CheckCircle, AlertCircle, Bookmark } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -108,9 +109,29 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, onReserve, boo
     }
   };
 
-  return (
-    <div className="modal-overlay" onClick={handleClose}>
-      <div className="modal-content" style={{ width: '580px' }} onClick={(e) => e.stopPropagation()}>
+  const modalContent = (
+    <div
+      className="modal-overlay"
+      onClick={handleClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 999999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div className="modal-content" style={{ width: '580px', maxWidth: '100%', maxHeight: '90vh', margin: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <span>{isSuccess ? 'Xác nhận thành công' : (isAdmin ? 'Tạo phiếu cho mượn sách' : 'Đăng ký mượn sách')}</span>
           <button onClick={handleClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }}>
@@ -310,4 +331,6 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, onReserve, boo
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 }

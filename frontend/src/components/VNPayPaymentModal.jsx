@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, CheckCircle, ShieldCheck, QrCode, CreditCard,
   Clock, AlertTriangle, Copy, Check, RefreshCw,
@@ -184,19 +185,20 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
     </button>
   );
 
-  return (
+  const modalContent = (
     <div
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        width: '100vw', height: '100vh', boxSizing: 'border-box',
         backgroundColor: 'rgba(15,23,42,0.82)', backdropFilter: 'blur(6px)',
-        zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
+        zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px'
       }}
       onClick={onClose}
     >
       <div
         style={{
           background: '#fff', borderRadius: '18px', width: '100%', maxWidth: '530px',
-          maxHeight: '92vh', overflowY: 'auto',
+          maxHeight: '92vh', overflowY: 'auto', margin: 'auto',
           boxShadow: '0 32px 64px -12px rgba(0,0,0,0.35)',
           display: 'flex', flexDirection: 'column', fontFamily: "'Inter', system-ui, sans-serif"
         }}
@@ -510,4 +512,6 @@ export default function VNPayPaymentModal({ isOpen, onClose, reader, fine, amoun
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 }

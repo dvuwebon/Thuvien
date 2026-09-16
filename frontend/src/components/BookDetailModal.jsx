@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2, Download, Clock, AlertCircle } from 'lucide-react';
 import QRCode from 'qrcode';
 import { exportApi } from '../services/exportApi';
@@ -34,9 +35,38 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
   const borrowed = isUpcoming ? 0 : (Number(book.borrowed) || 0);
   const available = isUpcoming ? 0 : Math.max(0, qty - borrowed);
 
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '640px' }}>
+  const modalContent = (
+    <div
+      className="modal-overlay"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(4px)',
+        zIndex: 999999,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div
+        className="modal-content"
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          maxWidth: '640px',
+          width: '100%',
+          maxHeight: '90vh',
+          margin: 'auto'
+        }}
+      >
         <div className="modal-header">
           <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
             Chi tiết ấn phẩm {isUpcoming ? '(Sách sắp có)' : ''}
@@ -331,4 +361,6 @@ export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdi
       </div>
     </div>
   );
+
+  return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 }
