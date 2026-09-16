@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth, DEFAULT_ADMIN, DEFAULT_READER } from '../context/AuthContext';
+import { useAuth, DEFAULT_ADMIN, DEFAULT_READER, DEFAULT_LIBRARIAN } from '../context/AuthContext';
 import { api } from '../services/api';
 import { User, Mail, Phone, MapPin, Calendar, ArrowLeft, Shield, CheckCircle } from 'lucide-react';
 
 export default function ProfilePage({ onBack }) {
   const { user, role, updateUser } = useAuth();
   const isAdmin = role === 'Admin' || user?.role === 'Admin' || user?.username === 'admin';
+  const isLibrarian = role === 'Librarian' || user?.role === 'Librarian' || user?.username === 'librarian';
 
   const getInitialProfile = () => {
     if (isAdmin) {
@@ -25,6 +26,15 @@ export default function ProfilePage({ onBack }) {
         birthDate: (user?.username === 'admin' && user?.birthDate && user?.birthDate !== '2002-10-20') 
           ? user.birthDate 
           : DEFAULT_ADMIN.birthDate
+      };
+    }
+    if (isLibrarian) {
+      return {
+        fullName: user?.fullName || DEFAULT_LIBRARIAN.fullName,
+        email: user?.email || DEFAULT_LIBRARIAN.email,
+        phone: user?.phone || DEFAULT_LIBRARIAN.phone,
+        address: user?.address || DEFAULT_LIBRARIAN.address,
+        birthDate: user?.birthDate || DEFAULT_LIBRARIAN.birthDate
       };
     }
     return {
@@ -57,12 +67,12 @@ export default function ProfilePage({ onBack }) {
     setProfileMsg('');
     setProfileErr('');
     try {
-      const targetId = isAdmin ? 1 : (user?.id || 2);
+      const targetId = isAdmin ? 1 : (isLibrarian ? 3 : (user?.id || 2));
       const payload = {
         ...profileData,
         id: targetId,
-        username: isAdmin ? 'admin' : (user?.username || 'reader'),
-        role: isAdmin ? 'Admin' : 'Reader'
+        username: isAdmin ? 'admin' : (isLibrarian ? 'librarian' : (user?.username || 'reader')),
+        role: isAdmin ? 'Admin' : (isLibrarian ? 'Librarian' : 'Reader')
       };
       await api.updateProfile(targetId, payload);
       updateUser(payload);
@@ -99,7 +109,7 @@ export default function ProfilePage({ onBack }) {
               <User size={18} className="text-blue-600" />
               <span>Thông tin cá nhân</span>
             </div>
-            <span className="badge badge-info">{role === 'Admin' ? 'Quản trị viên' : 'Độc giả'}</span>
+            <span className="badge badge-info">{isAdmin ? 'Quản trị viên' : isLibrarian ? 'Thủ thư' : 'Độc giả'}</span>
           </div>
 
           <form onSubmit={handleUpdateProfile} style={{ padding: '24px' }}>
@@ -127,7 +137,7 @@ export default function ProfilePage({ onBack }) {
 
               <div className="form-group">
                 <label>Tên đăng nhập (Username)</label>
-                <input type="text" value={isAdmin ? 'admin' : (user?.username || 'reader')} disabled />
+                <input type="text" value={isAdmin ? 'admin' : isLibrarian ? 'librarian' : (user?.username || 'reader')} disabled />
               </div>
 
               <div className="form-group">

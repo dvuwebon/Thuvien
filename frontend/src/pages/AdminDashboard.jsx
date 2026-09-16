@@ -964,6 +964,13 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     setIsDeletingBook(true);
     setDeleteBookError('');
     try {
+      const activeBorrowsForBook = (borrowRecords || []).filter(
+        r => (Number(r.bookId) === Number(bookToDelete.id) || Number(r.book_id) === Number(bookToDelete.id)) &&
+             ['Chờ duyệt', 'Đang mượn', 'Quá hạn'].includes(r.status)
+      );
+      if (activeBorrowsForBook.length > 0) {
+        throw new Error(`Không thể xóa sách này vì đang có ${activeBorrowsForBook.length} lượt mượn đang diễn ra hoặc chờ duyệt!`);
+      }
       await api.deleteBook(bookToDelete.id);
       setBookToDelete(null);
       showToast('✓ Đã xóa sách khỏi cơ sở dữ liệu thành công!');
@@ -990,9 +997,10 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     setIsDeletingReader(true);
     setDeleteReaderError('');
     try {
-      // Kiểm tra xem độc giả có sách đang mượn chưa trả không
+      // Kiểm tra xem độc giả có sách đang mượn chưa trả hoặc chờ duyệt không
       const activeBorrows = (borrowRecords || []).filter(
-        b => Number(b.readerId) === Number(readerToDelete.id) && (b.status === 'Approved' || b.status === 'Pending')
+        b => (Number(b.readerId) === Number(readerToDelete.id) || Number(b.reader_id) === Number(readerToDelete.id) || Number(b.userId) === Number(readerToDelete.id)) &&
+             ['Chờ duyệt', 'Đang mượn', 'Quá hạn', 'Pending', 'Approved'].includes(b.status)
       );
       if (activeBorrows.length > 0) {
         throw new Error(`Không thể xóa độc giả này vì đang có ${activeBorrows.length} sách đang mượn hoặc chờ duyệt!`);

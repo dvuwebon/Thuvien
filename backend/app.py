@@ -411,46 +411,43 @@ def toggle_reader_lock(reader_id: int, req: ReaderLockUpdate):
 def create_reader(req: ReaderCreate):
     db = db_manager.load_db()
     users = db.get("users", [])
+
+    if any(u.get("username") == req.username for u in users):
+        raise HTTPException(status_code=400, detail="Tên đăng nhập đã tồn tại.")
+
     new_id = max([int(u.get("id", 0)) for u in users], default=0) + 1
-    
-    username = req.username.strip() if req.username else f"reader_{new_id}"
     new_reader = {
         "id": new_id,
-        "username": username,
+        "username": req.username,
         "password": req.password or "123",
-        "fullName": req.fullName.strip(),
+        "fullName": req.fullName,
+        "email": req.email or "",
+        "phone": req.phone or "",
+        "address": req.address or "",
         "role": "Reader",
-        "email": req.email.strip() if req.email else "",
-        "phone": req.phone.strip() if req.phone else "",
-        "address": req.address.strip() if req.address else "",
-        "birthDate": req.birthDate,
-        "isActive": True
+        "isLocked": False,
+        "lockReason": "",
+        "unpaidFines": 0.0
     }
     users.append(new_reader)
     db["users"] = users
     db_manager.save_db(db)
-    return {"message": "Đã thêm độc giả thành công!", "reader": new_reader}
+    return {"message": "Đã tạo độc giả mới thành công!", "reader": new_reader}
 
 
 @app.put("/api/readers/{reader_id}")
 def update_reader(reader_id: int, req: ReaderUpdate):
     db = db_manager.load_db()
     users = db.get("users", [])
-    reader = next((u for u in users if int(u.get("id", 0)) == reader_id and u.get("role") == "Reader"), None)
-    if not reader:
+    idx = next((i for i, u in enumerate(users) if int(u.get("id", 0)) == reader_id and u.get("role") == "Reader"), -1)
+    if idx == -1:
         raise HTTPException(status_code=404, detail="Không tìm thấy độc giả.")
 
-    if req.fullName is not None:
-        reader["fullName"] = req.fullName.strip()
-    if req.email is not None:
-        reader["email"] = req.email.strip()
-    if req.phone is not None:
-        reader["phone"] = req.phone.strip()
-    if req.address is not None:
-        reader["address"] = req.address.strip()
-    if req.birthDate is not None:
-        reader["birthDate"] = req.birthDate
+    for k, v in req.dict(exclude_unset=True).items():
+        if v is not None:
+            users[idx][k] = v
 
+    db["users"] = users
     db_manager.save_db(db)
     return {"message": "Đã cập nhật thông tin độc giả."}
 
@@ -462,11 +459,11 @@ def delete_reader(reader_id: int):
     borrow_records = db.get("borrowRecords", [])
 
     has_borrows = any(
-        int(r.get("readerId", 0)) == reader_id and r.get("status") in ["Đang mượn", "Quá hạn"]
+        int(r.get("readerId", 0)) == reader_id and r.get("status") in ["Đang mượn", "Quá hạn", "Chờ duyệt"]
         for r in borrow_records
     )
     if has_borrows:
-        raise HTTPException(status_code=400, detail="Không thể xóa độc giả vì đang có sách mượn chưa trả!")
+        raise HTTPException(status_code=400, detail="Không thể xóa độc giả vì đang có sách mượn hoặc chờ duyệt!")
 
     idx = next((i for i, u in enumerate(users) if int(u.get("id", 0)) == reader_id and u.get("role") == "Reader"), -1)
     if idx == -1:
