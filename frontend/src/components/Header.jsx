@@ -40,13 +40,16 @@ export default function Header({ activeTab, onTabChange, onOpenExport }) {
       </div>
 
       <nav className="nav-menu">
-        {role === 'Admin' ? (
+        {role === 'Admin' || role === 'Librarian' ? (
           <>
             <div className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => onTabChange('dashboard')}>
               Thống kê & Mượn trả
             </div>
             <div className={`nav-item ${activeTab === 'books' ? 'active' : ''}`} onClick={() => onTabChange('books')}>
               Quản lý Kho sách
+            </div>
+            <div className={`nav-item ${activeTab === 'pre-orders' ? 'active' : ''}`} onClick={() => onTabChange('pre-orders')}>
+              Sách đặt trước
             </div>
             <div className={`nav-item ${activeTab === 'readers' ? 'active' : ''}`} onClick={() => onTabChange('readers')}>
               Quản lý Độc giả

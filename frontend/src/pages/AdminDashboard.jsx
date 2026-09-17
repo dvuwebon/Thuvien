@@ -9,6 +9,7 @@ import AddEditUpcomingBookModal from '../components/AddEditUpcomingBookModal';
 import AddEditReaderModal from '../components/AddEditReaderModal';
 import BorrowModal from '../components/BorrowModal';
 import ExportReportModal from '../components/ExportReportModal';
+import { UPCOMING_BOOKS } from '../components/UpcomingBooksSection';
 import {
   BookOpen, Users, Clock, AlertTriangle, CheckCircle, Search, Plus,
   FileSpreadsheet, Filter, Grid, List, Check, X, Edit2, Trash2, BookMarked, Eye,
@@ -1276,6 +1277,19 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     b.status !== 'Sắp có' && 
     !b.isUpcoming
   );
+
+  // Danh sách sách đặt trước / sắp về (tự động fallback sang UPCOMING_BOOKS nếu CSDL chưa nạp hoặc đang chạy trên GitHub Pages)
+  const dbUpcoming = books.filter(b => 
+    b.isUpcoming || 
+    b.status === 'Sắp phát hành' || 
+    b.status === 'Sắp có' || 
+    b.status === 'Upcoming' || 
+    (Number(b.id) >= 51 && b.isUpcoming !== false && b.status !== 'Sẵn sàng' && b.status !== 'Hết sách' && b.status !== 'Bảo trì')
+  );
+  const upcomingBooksList = (dbUpcoming.length > 0 ? dbUpcoming : UPCOMING_BOOKS).map(ub => {
+    const matchedDb = (books || []).find(b => Number(b.id) === Number(ub.id));
+    return matchedDb ? { ...ub, ...matchedDb } : ub;
+  });
 
   // Filtered Lists
   const filteredBooks = actualBooks.filter(b => {
@@ -2601,13 +2615,8 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
       {/* TAB PRE-ORDERS: QUẢN LÝ KHO SÁCH ĐẶT TRƯỚC (SÁCH SẮP VỀ) */}
       {activeTab === 'pre-orders' && (() => {
-        const upcomingList = books.filter(b => 
-          b.isUpcoming || 
-          b.status === 'Sắp phát hành' || 
-          b.status === 'Sắp có' || 
-          b.status === 'Upcoming' || 
-          (Number(b.id) >= 51 && b.isUpcoming !== false && b.status !== 'Sẵn sàng' && b.status !== 'Hết sách' && b.status !== 'Bảo trì')
-        );
+        // upcomingBooksList đã được khai báo ở cấp component (dòng ~1289), có fallback sang UPCOMING_BOOKS
+        // khi chạy trên GitHub Pages hoặc khi CSDL chưa có dữ liệu sách sắp về
 
         // Helper chuẩn hóa và trích xuất ngày phát hành sách sắp về
         const parseReleaseDate = (b) => {
@@ -2646,7 +2655,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
         const now = new Date();
 
-        const filteredUpcoming = upcomingList.filter(book => {
+        const filteredUpcoming = upcomingBooksList.filter(book => {
           const q = upcomingSearch.toLowerCase().trim();
           const matchesSearch = !q ||
             (book.title || '').toLowerCase().includes(q) ||
@@ -2685,7 +2694,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
         // Lọc danh sách yêu cầu đặt trước có hiệu lực cho các sách sắp về
         const activePreOrderReservations = reservations.filter(r => 
-          upcomingList.some(ub => Number(ub.id) === Number(r.bookId || r.book_id)) && 
+          upcomingBooksList.some(ub => Number(ub.id) === Number(r.bookId || r.book_id)) && 
           r.status !== 'Cancelled' && 
           r.status !== 'Hủy' && 
           r.status !== 'Fulfilled'
@@ -2711,7 +2720,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
           }
           const entry = preOrderReadersMap.get(readerId);
           entry.reservations.push(r);
-          const b = upcomingList.find(ub => Number(ub.id) === Number(r.bookId || r.book_id)) || books.find(bk => Number(bk.id) === Number(r.bookId || r.book_id));
+          const b = upcomingBooksList.find(ub => Number(ub.id) === Number(r.bookId || r.book_id)) || books.find(bk => Number(bk.id) === Number(r.bookId || r.book_id));
           if (b && !entry.books.some(eb => Number(eb.id) === Number(b.id))) {
             entry.books.push(b);
           }
@@ -2721,12 +2730,12 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
         const totalUniquePreOrderReaders = preOrderReadersMap.size;
 
         // Top 5 sách dự kiến về sớm nhất (sắp xếp theo thời gian tăng dần)
-        const earliestUpcomingBooks = [...upcomingList]
+        const earliestUpcomingBooks = [...upcomingBooksList]
           .sort((a, b) => parseReleaseDate(a) - parseReleaseDate(b))
           .slice(0, 5);
 
         // Top 5 sách được mong đợi nhất theo đánh giá AI
-        const topRatedUpcomingBooks = [...upcomingList]
+        const topRatedUpcomingBooks = [...upcomingBooksList]
           .map(b => {
             const rating = Number(b.rating) || 9.0;
             const waitCount = getBookPreOrderCount(b.id);
@@ -2738,7 +2747,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
         const topAiBook = topRatedUpcomingBooks[0] || null;
 
-        const upcomingCategories = Array.from(new Set(upcomingList.map(b => b.category).filter(Boolean)));
+        const upcomingCategories = Array.from(new Set(upcomingBooksList.map(b => b.category).filter(Boolean)));
 
         return (
           <div>
@@ -2807,7 +2816,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Tổng đầu sách sắp về</div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{upcomingList.length}</div>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{upcomingBooksList.length}</div>
                 </div>
               </div>
 
@@ -2846,7 +2855,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Dự kiến số sách về sớm nhất</div>
                   <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
-                    {earliestUpcomingBooks.length} <span style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8' }}>/ {upcomingList.length} cuốn</span>
+                    {earliestUpcomingBooks.length} <span style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8' }}>/ {upcomingBooksList.length} cuốn</span>
                   </div>
                 </div>
               </div>
@@ -3459,7 +3468,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                           Dự Kiến 5 Cuốn Sách Về Sớm Nhất
                         </h3>
                         <span style={{ fontSize: '12.5px', color: '#78350f', fontWeight: 500 }}>
-                          Lọc từ {upcomingList.length} đầu sách sắp về, sắp xếp theo thời gian dự kiến phát hành sớm nhất
+                          Lọc từ {upcomingBooksList.length} đầu sách sắp về, sắp xếp theo thời gian dự kiến phát hành sớm nhất
                         </span>
                       </div>
                     </div>

@@ -4,7 +4,7 @@ import initialDb from '../data/mockDatabase.json';
 const API_BASE = '/api';
 
 // Local storage fallback database helper with in-memory singleton
-const DB_VERSION = 'v15_stable_smartlib_2026';
+const DB_VERSION = 'v16_smartlib_upcoming_sync_2026';
 
 // Singleton BroadcastChannel for 0ms instantaneous cross-tab synchronization
 const syncChannel = typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined'
@@ -60,10 +60,24 @@ const getLocalDb = (forceFresh = false) => {
             imageUrl: (orig && orig.imageUrl) || b.imageUrl
           };
         });
+
+        // Đảm bảo luôn có đầy đủ 10 cuốn sách sắp về / đặt trước từ initialDb nếu thiếu
+        const hasUpcoming = parsed.books.some(b => b.isUpcoming || b.status === 'Sắp phát hành' || Number(b.id) >= 51);
+        if (!hasUpcoming && Array.isArray(initialDb.books)) {
+          const upcomingFromInitial = initialDb.books.filter(b => b.isUpcoming || b.status === 'Sắp phát hành' || Number(b.id) >= 51);
+          parsed.books = [...parsed.books, ...upcomingFromInitial];
+        }
+
         // Lọc sạch dữ liệu đặt trước rác hoặc đã hủy nếu còn vướng trong LocalStorage
         if (Array.isArray(parsed.reservations)) {
           parsed.reservations = parsed.reservations.filter(r => r && r.status !== 'Cancelled' && r.status !== 'Hủy');
+          if (parsed.reservations.length === 0 && Array.isArray(initialDb.reservations)) {
+            parsed.reservations = initialDb.reservations;
+          }
+        } else if (Array.isArray(initialDb.reservations)) {
+          parsed.reservations = initialDb.reservations;
         }
+
         memoryDb = parsed;
         memoryDbTimestamp = storedTime;
         return memoryDb;
