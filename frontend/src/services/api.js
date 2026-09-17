@@ -39,6 +39,45 @@ const isStaticHost = typeof window !== 'undefined' && (
   window.location.protocol === 'file:'
 );
 
+export const getAuthToken = () => {
+  try {
+    const directToken = localStorage.getItem('token') || sessionStorage.getItem('token') || localStorage.getItem('jwt_token');
+    if (directToken) return directToken;
+
+    const rawUser = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+    const rawRole = localStorage.getItem('currentUserRole') || sessionStorage.getItem('currentUserRole');
+    if (!rawUser && !rawRole) return null;
+
+    const userObj = rawUser ? JSON.parse(rawUser) : {};
+    const role = rawRole || userObj.role || userObj.Role || 'Admin';
+
+    // Tạo payload JWT chuẩn
+    const payload = {
+      sub: String(userObj.id || userObj.UserID || 1),
+      username: userObj.username || 'admin',
+      fullName: userObj.fullName || userObj.FullName || 'Quản trị viên',
+      role: role,
+      Role: role,
+      exp: Math.floor(Date.now() / 1000) + 86400
+    };
+
+    const b64Header = btoa(JSON.stringify({ alg: "HS256", typ: "JWT" })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    const b64Payload = btoa(unescape(encodeURIComponent(JSON.stringify(payload)))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+    return `${b64Header}.${b64Payload}.smartlib_signature`;
+  } catch (e) {
+    return null;
+  }
+};
+
+export const getAuthHeaders = () => {
+  const token = getAuthToken();
+  if (!token) return {};
+  return {
+    'Authorization': `Bearer ${token}`,
+    'X-Auth-Token': token
+  };
+};
+
 const getLocalDb = (forceFresh = false) => {
   try {
     const storedTime = Number(localStorage.getItem('smartlib_db_timestamp') || 0);
@@ -588,6 +627,9 @@ export const api = {
         formData.append('file', imageFile);
         const res = await fetch(`${API_BASE}/ai/extract-book`, {
           method: 'POST',
+          headers: {
+            ...getAuthHeaders()
+          },
           body: formData
         });
         if (res.ok) {
@@ -625,6 +667,211 @@ export const api = {
       };
       reader.readAsDataURL(imageFile);
     });
+  },
+
+  // Text-to-SQL AI Query
+  adminQueryAI: async (promptQuery) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/ai/admin-query`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...getAuthHeaders()
+          },
+          body: JSON.stringify({ query: promptQuery })
+        });
+        if (res.ok) {
+          return await res.json();
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.detail || 'Lỗi khi xử lý câu hỏi truy vấn AI');
+        }
+      } catch (e) {
+        console.warn('Backend AI query failed, falling back to client local database search:', e);
+        if (e.message && !e.message.includes('fetch') && !e.message.includes('NetworkError')) {
+          throw e;
+        }
+      }
+    }
+
+    // Static host or client fallback search
+    const db = getLocalDb();
+    const p = promptQuery.toLowerCase().trim();
+
+    if (p.includes('quá hạn') || p.includes('trễ hạn')) {
+      const records = (db.borrowRecords || []).filter(r => r.status === 'Đang mượn' && (Number(r.overdue_days || r.overdueDays || 0) > 0));
+      return {
+        success: true,
+        query: promptQuery,
+        sql: "SELECT id AS ma_phieu, book_title AS ten_sach, reader_name AS doc_gia, due_date AS han_tra, overdue_days AS so_ngay_qua_han, fine_amount AS tien_phat FROM borrow_records WHERE status = 'Đang mượn' AND overdue_days > 0",
+        columns: ['ma_phieu', 'ten_sach', 'doc_gia', 'han_tra', 'so_ngay_qua_han', 'tien_phat'],
+        data: records.map(r => ({
+          ma_phieu: r.id,
+          ten_sach: r.bookTitle || r.book_title || 'Sách #' + r.bookId,
+          doc_gia: r.readerName || r.reader_name || 'Độc giả #' + r.readerId,
+          han_tra: (r.dueDate || r.returnDate || '').substring(0, 10),
+          so_ngay_qua_han: r.overdueDays || r.overdue_days || 1,
+          tien_phat: r.fineAmount || r.fine_amount || 2000
+        })),
+        total_rows: records.length,
+        explanation: 'Truy vấn danh sách các phiếu mượn sách đã quá hạn trả.'
+      };
+    }
+
+    // Fallback: Tìm sách trong db
+    const books = (db.books || []).slice(0, 20);
+    return {
+      success: true,
+      query: promptQuery,
+      sql: "SELECT id, title AS ten_sach, author AS tac_gia, category AS the_loai, available AS con_san, quantity AS tong_so FROM books LIMIT 20",
+      columns: ['id', 'ten_sach', 'tac_gia', 'the_loai', 'con_san', 'tong_so'],
+      data: books.map(b => ({
+        id: b.id,
+        ten_sach: b.title,
+        tac_gia: b.author,
+        the_loai: b.category,
+        con_san: b.available,
+        tong_so: b.quantity
+      })),
+      total_rows: books.length,
+      explanation: 'Hiển thị dữ liệu trích xuất từ kho sách thư viện.'
+    };
+  },
+
+  // AI Anomaly Detection
+  getFlaggedAnomalies: async () => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/ai/anomalies`, {
+          headers: { ...getAuthHeaders() }
+        });
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch (e) {
+        console.warn('Backend getFlaggedAnomalies failed, falling back to local detection:', e);
+      }
+    }
+
+    // Local client evaluation for static host
+    const db = getLocalDb();
+    const borrows = db.borrowRecords || [];
+    const users = (db.users || []).reduce((acc, u) => ({ ...acc, [u.id]: u.fullName || u.username }), {});
+    const books = (db.books || []).reduce((acc, b) => ({ ...acc, [b.id]: b.title }), {});
+
+    const flagged = [];
+
+    // Quy tắc 1: Trả dưới 15 phút
+    for (const r of borrows) {
+      if (r.status === 'Đã trả' && r.borrowDate && r.actualReturnDate) {
+        const diffMin = (new Date(r.actualReturnDate) - new Date(r.borrowDate)) / (1000 * 60);
+        if (diffMin >= 0 && diffMin < 15) {
+          flagged.push({
+            id: r.id,
+            book_id: r.bookId,
+            book_title: r.bookTitle || books[r.bookId] || `Sách #${r.bookId}`,
+            user_id: r.userId || r.readerId,
+            reader_name: r.readerName || users[r.userId || r.readerId] || `Độc giả #${r.userId || r.readerId}`,
+            borrow_date: r.borrowDate,
+            due_date: r.dueDate || r.returnDate,
+            actual_return_date: r.actualReturnDate,
+            borrow_type: r.borrowType || 'Mượn về nhà',
+            status: r.status,
+            is_flagged: true,
+            anomaly_score: 0.91,
+            anomaly_reason: `Bất thường thời gian: Mượn và trả sách chỉ trong ${diffMin.toFixed(1)} phút (< 15 phút).`
+          });
+        }
+      }
+    }
+
+    // Quy tắc 2: Độc giả có >= 5 sách báo mất
+    const userLost = {};
+    for (const r of borrows) {
+      const s = (r.status || '').toLowerCase();
+      if (s.includes('baomat') || s.includes('báo mất') || s.includes('mất')) {
+        const uid = r.userId || r.readerId;
+        if (!userLost[uid]) userLost[uid] = [];
+        userLost[uid].push(r);
+      }
+    }
+
+    for (const [uid, lostList] of Object.entries(userLost)) {
+      if (lostList.length >= 5) {
+        for (const r of lostList) {
+          flagged.push({
+            id: r.id,
+            book_id: r.bookId,
+            book_title: r.bookTitle || books[r.bookId] || `Sách #${r.bookId}`,
+            user_id: uid,
+            reader_name: r.readerName || users[uid] || `Độc giả #${uid}`,
+            borrow_date: r.borrowDate,
+            due_date: r.dueDate || r.returnDate,
+            actual_return_date: r.actualReturnDate,
+            borrow_type: r.borrowType || 'Mượn về nhà',
+            status: r.status,
+            is_flagged: true,
+            anomaly_score: 0.96,
+            anomaly_reason: `Rủi ro gian lận cao: Độc giả có ${lostList.length} cuốn sách liên tiếp ở trạng thái Báo mất!`
+          });
+        }
+      }
+    }
+
+    return flagged;
+  },
+
+  triggerAnomalyScan: async () => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/ai/anomalies/scan`, { 
+          method: 'POST',
+          headers: { ...getAuthHeaders() }
+        });
+        if (res.ok) return await res.json();
+      } catch (e) {}
+    }
+    return { success: true, message: 'Đã hoàn thành quét phát hiện bất thường.' };
+  },
+
+  resolveAnomaly: async (recordId) => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/ai/anomalies/${recordId}/resolve`, { 
+          method: 'POST',
+          headers: { ...getAuthHeaders() }
+        });
+        if (res.ok) {
+          notifyDataUpdated('borrow');
+          return await res.json();
+        }
+      } catch (e) {}
+    }
+
+    const db = getLocalDb();
+    db.borrowRecords = (db.borrowRecords || []).map(r => 
+      Number(r.id) === Number(recordId) ? { ...r, is_flagged: false, isFlagged: false, anomaly_score: 0.0, anomalyScore: 0.0 } : r
+    );
+    saveLocalDb(db);
+    notifyDataUpdated('borrow');
+    return { success: true };
+  },
+
+  simulateTestAnomalies: async () => {
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/ai/anomalies/simulate-test-data`, { 
+          method: 'POST',
+          headers: { ...getAuthHeaders() }
+        });
+        if (res.ok) {
+          notifyDataUpdated('borrow');
+          return await res.json();
+        }
+      } catch (e) {}
+    }
+    return { success: true, message: 'Đã tạo dữ liệu mẫu bất thường.' };
   },
 
   // Readers

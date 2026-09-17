@@ -8,6 +8,7 @@ import { api } from '../services/api';
 export default function BookAIUpload({ onBookCreated, onCancel }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
@@ -64,6 +65,7 @@ export default function BookAIUpload({ onBookCreated, onCancel }) {
       return;
     }
 
+    setIsLoading(true);
     setIsExtracting(true);
     setErrorMessage('');
 
@@ -85,8 +87,10 @@ export default function BookAIUpload({ onBookCreated, onCancel }) {
       });
     } catch (err) {
       console.error(err);
-      setErrorMessage(err.message || 'Lỗi trong quá trình AI phân tích ảnh. Vui lòng thử lại!');
+      const errMsg = err.message || 'Lỗi kết nối hoặc quá thời gian chờ (timeout) khi bóc tách ảnh bằng AI. Vui lòng thử lại!';
+      setErrorMessage(errMsg);
     } finally {
+      setIsLoading(false);
       setIsExtracting(false);
     }
   };
@@ -338,32 +342,32 @@ export default function BookAIUpload({ onBookCreated, onCancel }) {
             <button
               type="button"
               onClick={handleExtractAI}
-              disabled={isExtracting}
+              disabled={isLoading || isExtracting}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '8px',
                 padding: '11px 22px',
                 borderRadius: '10px',
-                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                background: (isLoading || isExtracting) ? '#94a3b8' : 'linear-gradient(135deg, #7c3aed, #4f46e5)',
                 color: '#ffffff',
                 border: 'none',
                 fontWeight: 700,
                 fontSize: '14px',
-                cursor: isExtracting ? 'not-allowed' : 'pointer',
-                boxShadow: '0 6px 18px rgba(124, 58, 237, 0.35)',
-                transition: 'transform 0.15s ease'
+                cursor: (isLoading || isExtracting) ? 'not-allowed' : 'pointer',
+                boxShadow: (isLoading || isExtracting) ? 'none' : '0 6px 18px rgba(124, 58, 237, 0.35)',
+                transition: 'all 0.15s ease'
               }}
             >
-              {isExtracting ? (
+              {isLoading || isExtracting ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Đang quét và bóc tách thông tin...
+                  <span>Đang xử lý AI...</span>
                 </>
               ) : (
                 <>
                   <Sparkles size={16} />
-                  Bắt đầu trích xuất bằng AI
+                  <span>Bắt đầu trích xuất bằng AI</span>
                 </>
               )}
             </button>
@@ -629,7 +633,7 @@ export default function BookAIUpload({ onBookCreated, onCancel }) {
             )}
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoading}
               className="btn btn-primary"
               style={{
                 display: 'inline-flex',
@@ -637,24 +641,24 @@ export default function BookAIUpload({ onBookCreated, onCancel }) {
                 gap: '8px',
                 padding: '9px 24px',
                 borderRadius: '10px',
-                background: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
+                background: (isSubmitting || isLoading) ? '#94a3b8' : 'linear-gradient(135deg, #2563eb, #1d4ed8)',
                 color: '#ffffff',
                 border: 'none',
                 fontSize: '13.5px',
                 fontWeight: 700,
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)'
+                cursor: (isSubmitting || isLoading) ? 'not-allowed' : 'pointer',
+                boxShadow: (isSubmitting || isLoading) ? 'none' : '0 4px 14px rgba(37, 99, 235, 0.35)'
               }}
             >
-              {isSubmitting ? (
+              {isSubmitting || isLoading ? (
                 <>
                   <Loader2 size={16} className="animate-spin" />
-                  Đang lưu vào kho sách...
+                  <span>{isLoading ? 'Đang xử lý AI...' : 'Đang lưu vào kho sách...'}</span>
                 </>
               ) : (
                 <>
                   <CheckCircle2 size={16} />
-                  Xác nhận & Lưu vào kho sách
+                  <span>Xác nhận & Lưu vào kho sách</span>
                 </>
               )}
             </button>
@@ -664,3 +668,4 @@ export default function BookAIUpload({ onBookCreated, onCancel }) {
     </div>
   );
 }
+

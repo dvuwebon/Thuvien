@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   # -------------------------------------------------------------
-  # DỊCH VỤ 1: CƠ SỞ DỮ LIỆU RELATIONAL MYSQL 8.0 (CHUẨN 3NF)
+  # DỊCH VỤ 1: CƠ SỞ DỮ LIỆU MYSQL 8.0 (CHUẨN 3NF)
   # -------------------------------------------------------------
   mysql_db:
     image: mysql:8.0
@@ -16,42 +14,75 @@ services:
       MYSQL_USER: smartlib
       MYSQL_PASSWORD: smartlib123
     volumes:
-      # Lưu trữ bền vững dữ liệu MySQL trên ổ cứng máy chủ
+      # Lưu trữ bền vững dữ liệu MySQL trên volume ổ cứng
       - mysql_data:/var/lib/mysql
-      # Tự động nạp cấu trúc 6 bảng chuẩn 3NF và dữ liệu seed khi khởi động lần đầu
+      # Tự động nạp cấu trúc bảng và dữ liệu khởi tạo khi container chạy lần đầu
       - ./database/smartlib_mysql.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 15s
+    networks:
+      - smartlib_net
 
   # -------------------------------------------------------------
-  # DỊCH VỤ 2: ỨNG DỤNG SMARTLIB (FASTAPI BACKEND + REACT FRONTEND)
+  # DỊCH VỤ 2: BACKEND FASTAPI (CHẠY BẰNG UVICORN)
   # -------------------------------------------------------------
-  smartlib:
+  backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
-    container_name: smartlib_app
+    container_name: smartlib_backend
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "8000:8000"
     environment:
-      - PORT=3000
-      - HOST=0.0.0.0
       - ENV=production
-      - DB_ENGINE=mysql
       - MYSQL_HOST=mysql_db
       - MYSQL_PORT=3306
       - MYSQL_USER=root
       - MYSQL_PASSWORD=root
       - MYSQL_DATABASE=smartlib_db
-      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - JWT_SECRET=smartlib_super_secret_jwt_key_2026
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      # Chia sẻ thư mục cấu hình và sao lưu dữ liệu với máy host
+      - ./database:/app/database
     depends_on:
       mysql_db:
         condition: service_healthy
+    networks:
+      - smartlib_net
+
+  # -------------------------------------------------------------
+  # DỊCH VỤ 3: FRONTEND REACTJS (BUILD TĨNH VÀ SERVE BẰNG NGINX)
+  # -------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: smartlib_frontend
+    restart: unless-stopped
+    ports:
+      # Mở cả cổng 80 chuẩn HTTP và cổng 3000 để người dùng truy cập thuận tiện
+      - "80:80"
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - smartlib_net
+
+# -------------------------------------------------------------
+# CẤU HÌNH NETWORKS VÀ VOLUMES
+# -------------------------------------------------------------
+networks:
+  smartlib_net:
+    name: smartlib_net
+    driver: bridge
 
 volumes:
   mysql_data:
+    name: smartlib_mysql_data
     driver: local

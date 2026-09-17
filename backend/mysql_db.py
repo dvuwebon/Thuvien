@@ -166,6 +166,9 @@ class BorrowRecordModel(Base):
     pending_renew_days = Column(Integer, nullable=True)
     pending_renew_notes = Column(String(255), nullable=True)
     renew_count = Column(Integer, nullable=False, default=0)
+    is_flagged = Column(Boolean, nullable=False, default=False, index=True)
+    anomaly_score = Column(Numeric(5, 2), nullable=True, default=0.0)
+    anomaly_reason = Column(String(255), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     user = relationship("UserModel")
@@ -195,7 +198,13 @@ class BorrowRecordModel(Base):
             "renewStatus": getattr(self, "renew_status", None),
             "pendingRenewDays": getattr(self, "pending_renew_days", None),
             "pendingRenewNotes": getattr(self, "pending_renew_notes", None),
-            "renewCount": int(getattr(self, "renew_count", 0) or 0)
+            "renewCount": int(getattr(self, "renew_count", 0) or 0),
+            "isFlagged": bool(getattr(self, "is_flagged", False)),
+            "is_flagged": bool(getattr(self, "is_flagged", False)),
+            "anomalyScore": float(getattr(self, "anomaly_score", 0.0) or 0.0),
+            "anomaly_score": float(getattr(self, "anomaly_score", 0.0) or 0.0),
+            "anomalyReason": getattr(self, "anomaly_reason", "") or "",
+            "anomaly_reason": getattr(self, "anomaly_reason", "") or ""
         }
 
 
@@ -299,6 +308,44 @@ class NotificationModel(Base):
         return d
 
 
+class AIProcurementModel(Base):
+    __tablename__ = "ai_procurement"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    book_id = Column(Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False, index=True)
+    book_title = Column(String(255), nullable=False)
+    category = Column(String(100), nullable=True)
+    current_inventory = Column(Integer, nullable=False, default=0)
+    available_copies = Column(Integer, nullable=False, default=0)
+    recent_monthly_avg = Column(Numeric(10, 2), nullable=False, default=0.0)
+    projected_demand = Column(Integer, nullable=False, default=0)
+    shortage_risk = Column(String(50), nullable=False, default="HIGH")
+    recommended_procurement = Column(Integer, nullable=False, default=0)
+    confidence_score = Column(Numeric(5, 2), nullable=False, default=0.0)
+    analysis_date = Column(DateTime, nullable=False, default=datetime.utcnow)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+    book = relationship("BookModel")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "bookId": self.book_id,
+            "bookTitle": self.book_title,
+            "category": self.category or "Chung",
+            "currentInventory": self.current_inventory,
+            "availableCopies": self.available_copies,
+            "recentMonthlyAvg": float(self.recent_monthly_avg or 0.0),
+            "projectedDemand": self.projected_demand,
+            "shortageRisk": self.shortage_risk,
+            "recommendedProcurement": self.recommended_procurement,
+            "confidenceScore": float(self.confidence_score or 0.0),
+            "analysisDate": self.analysis_date.isoformat() if self.analysis_date else None,
+            "notes": self.notes or ""
+        }
+
+
 class MySQLDatabaseManager:
     """
     Quản lý kết nối và thao tác dữ liệu trực tiếp trên Cơ sở dữ liệu MySQL thực tế.
@@ -370,12 +417,18 @@ class MySQLDatabaseManager:
                         conn.execute(text("ALTER TABLE borrow_records ADD COLUMN pending_renew_notes VARCHAR(255);"))
                     if "renew_count" not in existing_cols:
                         conn.execute(text("ALTER TABLE borrow_records ADD COLUMN renew_count INTEGER DEFAULT 0;"))
+                    if "is_flagged" not in existing_cols:
+                        conn.execute(text("ALTER TABLE borrow_records ADD COLUMN is_flagged BOOLEAN DEFAULT 0;"))
+                    if "anomaly_score" not in existing_cols:
+                        conn.execute(text("ALTER TABLE borrow_records ADD COLUMN anomaly_score REAL DEFAULT 0.0;"))
+                    if "anomaly_reason" not in existing_cols:
+                        conn.execute(text("ALTER TABLE borrow_records ADD COLUMN anomaly_reason VARCHAR(255);"))
                     conn.commit()
         except Exception as e:
             logger.warning(f"Lỗi kiểm tra/cập nhật cột SQLite borrow_records: {e}")
 
     def _ensure_mysql_columns(self):
-        """Đảm bảo các cột cho tính năng gia hạn tồn tại trong MySQL"""
+        """Đảm bảo các cột cho tính năng gia hạn và cảnh báo bất thường tồn tại trong MySQL"""
         if not self.engine:
             return
         try:
@@ -390,6 +443,12 @@ class MySQLDatabaseManager:
                     conn.execute(text("ALTER TABLE `borrow_records` ADD COLUMN `pending_renew_notes` VARCHAR(255) NULL;"))
                 if "renew_count" not in existing_cols:
                     conn.execute(text("ALTER TABLE `borrow_records` ADD COLUMN `renew_count` INT NOT NULL DEFAULT 0;"))
+                if "is_flagged" not in existing_cols:
+                    conn.execute(text("ALTER TABLE `borrow_records` ADD COLUMN `is_flagged` TINYINT(1) NOT NULL DEFAULT 0;"))
+                if "anomaly_score" not in existing_cols:
+                    conn.execute(text("ALTER TABLE `borrow_records` ADD COLUMN `anomaly_score` DECIMAL(5,2) NULL DEFAULT 0.0;"))
+                if "anomaly_reason" not in existing_cols:
+                    conn.execute(text("ALTER TABLE `borrow_records` ADD COLUMN `anomaly_reason` VARCHAR(255) NULL;"))
                 conn.commit()
         except Exception as e:
             logger.warning(f"Lỗi kiểm tra/cập nhật cột MySQL borrow_records: {e}")

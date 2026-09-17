@@ -12,11 +12,13 @@ import base64
 import urllib.request
 import urllib.error
 from typing import List, Optional
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from pydantic import BaseModel
 from PIL import Image
 
-router = APIRouter(prefix="/api/ai", tags=["AI Cataloging"])
+from auth_dependency import verify_admin_role
+
+router = APIRouter(prefix="/api/ai", tags=["AI Cataloging"], dependencies=[Depends(verify_admin_role)])
 
 # Danh sách đường dẫn Tesseract phổ biến trên Windows
 TESSERACT_COMMON_PATHS = [
@@ -247,3 +249,4 @@ async def extract_book_info(file: UploadFile = File(...)):
     extracted["cover_preview"] = f"data:{file.content_type};base64,{b64_img}"
 
     return ExtractedBookResponse(**extracted)
+

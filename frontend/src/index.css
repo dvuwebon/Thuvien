@@ -1,3 +1,5 @@
+@import "tailwindcss";
+
 :root {
   --bg-body: #f1f5f9;
   --bg-surface: #ffffff;
@@ -540,4 +542,14 @@ html {
 .btn {
   will-change: transform, background-color, box-shadow;
 }
+
+/* Hide scrollbar utility for modern chatbot suggestions bar */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 

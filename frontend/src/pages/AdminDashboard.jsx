@@ -10,13 +10,15 @@ import AddEditReaderModal from '../components/AddEditReaderModal';
 import BorrowModal from '../components/BorrowModal';
 import ExportReportModal from '../components/ExportReportModal';
 import BookAIUpload from '../components/BookAIUpload';
+import AdminChatbot from '../components/AdminChatbot';
+import AlertQueue from '../components/AlertQueue';
 import { UPCOMING_BOOKS } from '../components/UpcomingBooksSection';
 import {
   BookOpen, Users, Clock, AlertTriangle, CheckCircle, Search, Plus,
   FileSpreadsheet, Filter, Grid, List, Check, X, Edit2, Trash2, BookMarked, Eye,
   BookmarkCheck, XCircle, QrCode, Lock, Unlock,
   SlidersHorizontal, DollarSign, Calendar, Building2, CreditCard, Save, RotateCcw, ShieldCheck,
-  PackageCheck, Sparkles, Star
+  PackageCheck, Sparkles, Star, ShieldAlert
 } from 'lucide-react';
 
 
@@ -659,6 +661,8 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [bookModalOpen, setBookModalOpen] = useState(false);
   const [aiUploadOpen, setAiUploadOpen] = useState(false);
+  const [chatbotOpen, setChatbotOpen] = useState(false);
+  const [alertQueueOpen, setAlertQueueOpen] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
   const [readerModalOpen, setReaderModalOpen] = useState(false);
   const [editingReader, setEditingReader] = useState(null);
@@ -767,6 +771,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
       loadData(true);
     } catch (e) {
       showToast('Lỗi khi cập nhật trạng thái khóa: ' + (e.message || 'Lỗi'));
+    }
+  };
+
+  const handleLockReaderFromAlert = async (userId, reason) => {
+    try {
+      const reader = readers.find(r => Number(r.id) === Number(userId));
+      const name = reader ? reader.fullName : `Độc giả #${userId}`;
+      await api.toggleReaderLock(userId, true, reason || 'Phát hiện hành vi gian lận bởi AI Anomaly Detection');
+      showToast(`🔒 Đã khóa tài khoản "${name}" do phát hiện vi phạm bất thường!`);
+      loadData(true);
+    } catch (e) {
+      showToast('Lỗi khi khóa độc giả: ' + (e.message || 'Lỗi'));
     }
   };
 
@@ -1332,10 +1348,52 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
               <h2 style={{ fontSize: '20px', fontWeight: 800, color: '#0f172a' }}>Tổng quan Thư viện & Duyệt Mượn Trả</h2>
               <p style={{ color: '#64748b', fontSize: '13.5px', marginTop: '2px' }}>Theo dõi chỉ số kho sách và quản lý các phiếu mượn</p>
             </div>
-            <button onClick={() => setExportModalOpen(true)} className="btn btn-primary">
-              <FileSpreadsheet size={16} />
-              <span>Xuất báo cáo</span>
-            </button>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setAlertQueueOpen(true)}
+                className="btn btn-outline"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  background: 'linear-gradient(135deg, #fff1f2, #ffe4e6)',
+                  borderColor: '#fecdd3',
+                  color: '#e11d48',
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(225, 29, 72, 0.08)'
+                }}
+                title="Hàng đợi Cảnh báo Bất thường (Mượn trả < 15 phút, Báo mất liên tiếp)"
+              >
+                <ShieldAlert size={16} color="#e11d48" />
+                <span>Cảnh báo bất thường</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setChatbotOpen(true)}
+                className="btn btn-outline"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  background: 'linear-gradient(135deg, #ede9fe, #f5f3ff)',
+                  borderColor: '#c4b5fd',
+                  color: '#6d28d9',
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(109, 40, 217, 0.08)'
+                }}
+                title="Hỏi đáp và truy vấn CSDL bằng tiếng Việt tự nhiên"
+              >
+                <Sparkles size={16} color="#7c3aed" />
+                <span>Trợ lý Text-to-SQL</span>
+              </button>
+
+              <button onClick={() => setExportModalOpen(true)} className="btn btn-primary">
+                <FileSpreadsheet size={16} />
+                <span>Xuất báo cáo</span>
+              </button>
+            </div>
           </div>
 
           {/* Top 4 Stat Cards (Chính xác theo Ảnh 1 với hiệu ứng hover nhẹ phù hợp từng mục) */}
@@ -6071,6 +6129,87 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 Đóng
               </button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Action Button mở Trợ lý AI Text-to-SQL */}
+      <button
+        type="button"
+        onClick={() => setChatbotOpen(true)}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: toastMessage ? '300px' : '28px',
+          zIndex: 9998,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '11px 18px',
+          borderRadius: '50px',
+          background: 'linear-gradient(135deg, #4f46e5, #2563eb)',
+          color: '#ffffff',
+          fontWeight: 700,
+          fontSize: '13.5px',
+          border: 'none',
+          cursor: 'pointer',
+          boxShadow: '0 8px 24px rgba(79, 70, 229, 0.4)',
+          transition: 'all 0.2s ease'
+        }}
+        title="Truy vấn dữ liệu thư viện bằng tiếng Việt tự nhiên (Text-to-SQL)"
+      >
+        <Sparkles size={17} />
+        <span>Trợ lý Text-to-SQL</span>
+      </button>
+
+      {/* Modal Trợ lý AI Text-to-SQL */}
+      {chatbotOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => setChatbotOpen(false)}
+        >
+          {/* [FIX] Wrapper cần có height rõ ràng để AdminChatbot flex-col + flex-1 min-h-0 hoạt động */}
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '880px', height: 'min(650px, 85vh)', display: 'flex', flexDirection: 'column' }}>
+            <AdminChatbot onClose={() => setChatbotOpen(false)} />
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Hàng đợi Cảnh báo Bất thường (AI Anomaly Detection) */}
+      {alertQueueOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => setAlertQueueOpen(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '880px' }}>
+            <AlertQueue
+              onClose={() => setAlertQueueOpen(false)}
+              onLockReader={(userId, reason) => handleLockReaderFromAlert(userId, reason)}
+            />
           </div>
         </div>,
         document.body
