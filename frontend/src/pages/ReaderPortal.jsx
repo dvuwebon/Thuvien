@@ -569,8 +569,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       showToast('Ngày gia hạn phải sau ngày hạn trả hiện tại!');
       return;
     }
-    if (days > 180) {
-      showToast('Ngày gia hạn không được quá 180 ngày so với hạn trả hiện tại!');
+    if (days > 20) {
+      showToast('Ngày gia hạn không được quá 20 ngày so với hạn trả hiện tại!');
       return;
     }
 
@@ -2133,7 +2133,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                   const baseStr = renewRecord.returnDate || renewRecord.dueDate;
                   let base = new Date();
                   if (baseStr) { const p = new Date(baseStr); if (!isNaN(p.getTime())) base = p; }
-                  base.setDate(base.getDate() + 180);
+                  base.setDate(base.getDate() + 20);
                   return base.toISOString().substring(0, 10);
                 })()}
                 onChange={(e) => setRenewTargetDate(e.target.value)}
@@ -2152,7 +2152,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 autoFocus
               />
               <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
-                Tối đa 180 ngày tính từ hạn trả hiện tại.
+                Tối đa 20 ngày tính từ hạn trả hiện tại.
               </div>
             </div>
 
