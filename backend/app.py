@@ -80,6 +80,7 @@ from export_service import (
     generate_books_excel, generate_borrows_excel, generate_readers_csv,
     generate_borrow_receipt_pdf, generate_qr_code
 )
+from ai_cataloging import router as ai_catalog_router
 
 app = FastAPI(
     title="SmartLib API",
@@ -95,6 +96,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(ai_catalog_router)
 
 @app.get("/api/health")
 def health_check():

@@ -9,6 +9,7 @@ import AddEditUpcomingBookModal from '../components/AddEditUpcomingBookModal';
 import AddEditReaderModal from '../components/AddEditReaderModal';
 import BorrowModal from '../components/BorrowModal';
 import ExportReportModal from '../components/ExportReportModal';
+import BookAIUpload from '../components/BookAIUpload';
 import { UPCOMING_BOOKS } from '../components/UpcomingBooksSection';
 import {
   BookOpen, Users, Clock, AlertTriangle, CheckCircle, Search, Plus,
@@ -657,6 +658,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
   const [selectedBook, setSelectedBook] = useState(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [bookModalOpen, setBookModalOpen] = useState(false);
+  const [aiUploadOpen, setAiUploadOpen] = useState(false);
   const [editingBook, setEditingBook] = useState(null);
   const [readerModalOpen, setReaderModalOpen] = useState(false);
   const [editingReader, setEditingReader] = useState(null);
@@ -2195,14 +2197,36 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 Quản lý chi tiết toàn bộ {actualBooks.length} đầu sách thực tế, tồn kho và cập nhật trực tiếp vào cơ sở dữ liệu
               </p>
             </div>
-            <button
-              onClick={() => { setEditingBook(null); setBookModalOpen(true); }}
-              className="btn btn-primary"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-            >
-              <Plus size={16} />
-              <span>Thêm sách mới</span>
-            </button>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setAiUploadOpen(true)}
+                className="btn btn-outline"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '7px',
+                  background: 'linear-gradient(135deg, #ede9fe, #f5f3ff)',
+                  borderColor: '#c4b5fd',
+                  color: '#6d28d9',
+                  fontWeight: 700,
+                  boxShadow: '0 2px 8px rgba(109, 40, 217, 0.08)'
+                }}
+                title="Tự động bóc tách thông tin tựa sách, tác giả từ ảnh bìa bằng AI"
+              >
+                <Sparkles size={16} color="#7c3aed" />
+                <span>Biên mục bằng AI</span>
+              </button>
+
+              <button
+                onClick={() => { setEditingBook(null); setBookModalOpen(true); }}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={16} />
+                <span>Thêm sách mới</span>
+              </button>
+            </div>
           </div>
 
           {/* Table Container Card (Thiết kế chuẩn theo Ảnh phiếu mượn) */}
@@ -4901,6 +4925,37 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
         onClose={() => { setBookModalOpen(false); setEditingBook(null); }}
         onSave={handleSaveBook}
       />
+
+      {/* Modal AI Tự Động Biên Mục Sách */}
+      {aiUploadOpen && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => setAiUploadOpen(false)}
+        >
+          <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: '850px' }}>
+            <BookAIUpload
+              onBookCreated={(newBook) => {
+                setAiUploadOpen(false);
+                loadData();
+                showToast(`✓ Đã biên mục và lưu thành công sách "${newBook?.title || 'mới'}" vào CSDL!`);
+              }}
+              onCancel={() => setAiUploadOpen(false)}
+            />
+          </div>
+        </div>,
+        document.body
+      )}
 
       <AddEditReaderModal
         reader={editingReader}
