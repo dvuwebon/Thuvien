@@ -43,6 +43,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const [renewDays, setRenewDays] = useState(7);
   const [renewNotes, setRenewNotes] = useState('');
   const [isRenewing, setIsRenewing] = useState(false);
+  const [renewMode, setRenewMode] = useState('days'); // 'days' | 'date'
+  const [renewTargetDate, setRenewTargetDate] = useState('');
   const [toastMessage, setToastMessage] = useState('');
   const [myFines, setMyFines] = useState([]);
   const [vnpayModalOpen, setVnpayModalOpen] = useState(false);
@@ -548,7 +550,28 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
   const handleConfirmRenew = async () => {
     if (!renewRecord) return;
-    const days = Math.max(1, Math.min(60, Number(renewDays) || 7));
+
+
+    let days;
+    if (renewMode === 'date' && renewTargetDate) {
+      // Tính số ngày từ hạn trả hiện tại đến ngày mục tiêu
+      const baseStr = renewRecord.returnDate || renewRecord.dueDate;
+      const baseDate = baseStr && !isNaN(new Date(baseStr).getTime()) ? new Date(baseStr) : new Date();
+      baseDate.setHours(0, 0, 0, 0);
+      const target = new Date(renewTargetDate);
+      target.setHours(0, 0, 0, 0);
+      days = Math.round((target.getTime() - baseDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (days < 1) {
+        showToast('Ngày gia hạn phải sau ngày hạn trả hiện tại!');
+        return;
+      }
+      if (days > 180) {
+        showToast('Ngày gia hạn không được quá 180 ngày so với hạn trả hiện tại!');
+        return;
+      }
+    } else {
+      days = Math.max(1, Math.min(180, Number(renewDays) || 7));
+    }
     setIsRenewing(true);
     try {
       // Cập nhật phản hồi tức thì 0ms (60fps) cho giao diện: chuyển sang trạng thái Chờ duyệt gia hạn
@@ -1044,6 +1067,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                                 setRenewRecord(r);
                                 setRenewDays(7);
                                 setRenewNotes('');
+                                setRenewMode('days');
+                                setRenewTargetDate('');
                               }}
                               className="btn btn-table-action"
                               style={{
@@ -2074,68 +2099,142 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 <span>
                   {(() => {
                     const baseStr = renewRecord.returnDate || renewRecord.dueDate;
-                    let d = new Date();
-                    if (baseStr) {
-                      const p = new Date(baseStr);
-                      if (!isNaN(p.getTime())) d = p;
+                    let baseDate = new Date();
+                    if (baseStr) { const p = new Date(baseStr); if (!isNaN(p.getTime())) baseDate = p; }
+                    if (renewMode === 'date' && renewTargetDate) {
+                      const target = new Date(renewTargetDate);
+                      target.setHours(0, 0, 0, 0);
+                      baseDate.setHours(0, 0, 0, 0);
+                      const diffDays = Math.round((target - baseDate) / (1000 * 60 * 60 * 24));
+                      if (diffDays < 1) return <span style={{ color: '#ef4444' }}>Ngày không hợp lệ</span>;
+                      return `${renewTargetDate} (+${diffDays} ngày)`;
                     }
-                    d.setDate(d.getDate() + (Number(renewDays) || 7));
-                    return d.toISOString().substring(0, 10);
-                  })()} (+{renewDays || 7} ngày)
+                    baseDate.setDate(baseDate.getDate() + (Number(renewDays) || 7));
+                    return `${baseDate.toISOString().substring(0, 10)} (+${renewDays || 7} ngày)`;
+                  })()}
                 </span>
               </div>
             </div>
 
-            {/* Nhập số ngày từ bàn phím */}
-            <div style={{ marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
-                Số ngày muốn gia hạn thêm *
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="60"
-                value={renewDays}
-                onChange={(e) => setRenewDays(Math.max(1, Math.min(60, parseInt(e.target.value) || 1)))}
-                style={{
-                  width: '100%',
-                  padding: '10px 14px',
-                  borderRadius: '8px',
-                  border: '1.5px solid #2563eb',
-                  fontSize: '15px',
-                  fontWeight: 700,
-                  color: '#0f172a',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-                autoFocus
-                placeholder="Nhập số ngày từ bàn phím..."
-              />
-
-              {/* Nút chọn nhanh số ngày */}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                {[7, 14, 21, 30].map(d => (
+            {/* Tab toggle: Số ngày / Chọn ngày */}
+            <div style={{ marginBottom: '14px' }}>
+              <div style={{ display: 'flex', gap: '0', borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden', marginBottom: '14px' }}>
+                {[
+                  { key: 'days', label: '🔢 Số ngày' },
+                  { key: 'date', label: '📅 Chọn ngày' }
+                ].map(tab => (
                   <button
-                    key={d}
+                    key={tab.key}
                     type="button"
-                    onClick={() => setRenewDays(d)}
+                    onClick={() => setRenewMode(tab.key)}
                     style={{
                       flex: 1,
-                      padding: '5px 8px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: 600,
+                      padding: '8px 12px',
+                      fontSize: '13px',
+                      fontWeight: 700,
                       cursor: 'pointer',
-                      border: Number(renewDays) === d ? '1px solid #2563eb' : '1px solid #e2e8f0',
-                      background: Number(renewDays) === d ? '#eff6ff' : '#ffffff',
-                      color: Number(renewDays) === d ? '#2563eb' : '#64748b',
+                      border: 'none',
+                      background: renewMode === tab.key ? '#2563eb' : '#f8fafc',
+                      color: renewMode === tab.key ? '#ffffff' : '#64748b',
                       transition: 'all 0.15s ease'
                     }}
                   >
-                    +{d} ngày
+                    {tab.label}
                   </button>
                 ))}
               </div>
+
+              {renewMode === 'days' ? (
+                <>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+                    Số ngày muốn gia hạn thêm *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="180"
+                    value={renewDays}
+                    onChange={(e) => setRenewDays(Math.max(1, Math.min(180, parseInt(e.target.value) || 1)))}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: '1.5px solid #2563eb',
+                      fontSize: '15px',
+                      fontWeight: 700,
+                      color: '#0f172a',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                    autoFocus
+                    placeholder="Nhập số ngày..."
+                  />
+                  {/* Nút chọn nhanh số ngày */}
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    {[7, 14, 21, 30].map(d => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setRenewDays(d)}
+                        style={{
+                          flex: 1,
+                          padding: '5px 8px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          border: Number(renewDays) === d ? '1px solid #2563eb' : '1px solid #e2e8f0',
+                          background: Number(renewDays) === d ? '#eff6ff' : '#ffffff',
+                          color: Number(renewDays) === d ? '#2563eb' : '#64748b',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        +{d} ngày
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+                    Chọn ngày hạn trả mới *
+                  </label>
+                  <input
+                    type="date"
+                    value={renewTargetDate}
+                    min={(() => {
+                      const baseStr = renewRecord.returnDate || renewRecord.dueDate;
+                      let base = new Date();
+                      if (baseStr) { const p = new Date(baseStr); if (!isNaN(p.getTime())) base = p; }
+                      base.setDate(base.getDate() + 1);
+                      return base.toISOString().substring(0, 10);
+                    })()}
+                    max={(() => {
+                      const baseStr = renewRecord.returnDate || renewRecord.dueDate;
+                      let base = new Date();
+                      if (baseStr) { const p = new Date(baseStr); if (!isNaN(p.getTime())) base = p; }
+                      base.setDate(base.getDate() + 180);
+                      return base.toISOString().substring(0, 10);
+                    })()}
+                    onChange={(e) => setRenewTargetDate(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '8px',
+                      border: `1.5px solid ${renewTargetDate ? '#2563eb' : '#cbd5e1'}`,
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      cursor: 'pointer'
+                    }}
+                  />
+                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px' }}>
+                    Chọn ngày cụ thể bạn muốn hạn trả mới (tối đa 180 ngày từ hạn hiện tại).
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Ghi chú / Lý do gia hạn (tùy chọn) */}
