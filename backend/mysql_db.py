@@ -119,6 +119,14 @@ class BookModel(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     def to_dict(self) -> Dict[str, Any]:
+        is_up = bool(self.status in ["Sắp phát hành", "Upcoming", "Sắp có"])
+        rel_date = ""
+        desc_text = self.description or ""
+        if "Dự kiến phát hành:" in desc_text:
+            try:
+                rel_date = desc_text.split("Dự kiến phát hành:")[1].strip().split(")")[0].split(".")[0].strip()
+            except Exception:
+                pass
         return {
             "id": self.id,
             "title": self.title,
@@ -127,11 +135,13 @@ class BookModel(Base):
             "quantity": self.quantity,
             "available": self.available_copies,
             "borrowed": max(0, self.quantity - self.available_copies),
-            "desc": self.description or "",
-            "description": self.description or "",
+            "desc": desc_text,
+            "description": desc_text,
             "imageUrl": self.image_url,
             "status": self.status,
-            "publishedYear": self.published_year
+            "publishedYear": self.published_year,
+            "isUpcoming": is_up,
+            "releaseDate": rel_date
         }
 
 
@@ -628,10 +638,13 @@ class MySQLDatabaseManager:
             session = self.SqliteSession()
 
             # 1. Sync Books
+            incoming_bids = set()
             for b in data.get("books", []):
                 bid = b.get("id")
                 if not bid:
                     continue
+                bid = int(bid)
+                incoming_bids.add(bid)
                 existing_b = session.query(BookModel).filter_by(id=bid).first()
                 qty = int(b.get("quantity", 1))
                 avail = int(b.get("available", qty))
@@ -642,6 +655,10 @@ class MySQLDatabaseManager:
                     existing_b.quantity = qty
                     existing_b.available_copies = avail
                     existing_b.status = b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách")
+                    if b.get("desc") or b.get("description"):
+                        existing_b.description = b.get("desc") or b.get("description")
+                    if b.get("imageUrl"):
+                        existing_b.image_url = b.get("imageUrl")
                 else:
                     new_b = BookModel(
                         id=bid,
@@ -656,11 +673,22 @@ class MySQLDatabaseManager:
                     )
                     session.add(new_b)
 
+            if incoming_bids and "books" in data:
+                del_books = session.query(BookModel).filter(~BookModel.id.in_(incoming_bids)).all()
+                for dbk in del_books:
+                    session.query(ReservationModel).filter_by(book_id=dbk.id).delete()
+                    session.query(FineModel).filter_by(book_id=dbk.id).delete()
+                    session.query(BorrowRecordModel).filter_by(book_id=dbk.id).delete()
+                    session.delete(dbk)
+
             # 2. Sync Reservations
+            incoming_res_ids = set()
             for res in data.get("reservations", []):
                 resid = res.get("id")
                 if not resid:
                     continue
+                resid = int(resid)
+                incoming_res_ids.add(resid)
                 existing_res = session.query(ReservationModel).filter_by(id=resid).first()
                 exp_dt = datetime.fromisoformat(res.get("expiresAt").replace("Z", "")) if res.get("expiresAt") else datetime.utcnow()
                 res_dt = datetime.fromisoformat(res.get("reservedAt").replace("Z", "")) if res.get("reservedAt") else datetime.utcnow()
@@ -679,6 +707,11 @@ class MySQLDatabaseManager:
                         status=res.get("status", "Waiting")
                     )
                     session.add(new_res)
+
+            if "reservations" in data:
+                del_res = session.query(ReservationModel).filter(~ReservationModel.id.in_(incoming_res_ids)).all()
+                for dres in del_res:
+                    session.delete(dres)
 
             # 3. Sync BorrowRecords
             for br in data.get("borrowRecords", []):
@@ -982,10 +1015,13 @@ class MySQLDatabaseManager:
         session = self.SessionLocal()
         try:
             # 1. Sync Books
+            incoming_bids = set()
             for b in data.get("books", []):
                 bid = b.get("id")
                 if not bid:
                     continue
+                bid = int(bid)
+                incoming_bids.add(bid)
                 existing_book = session.query(BookModel).filter_by(id=bid).first()
                 qty = int(b.get("quantity", 1))
                 avail = int(b.get("available", qty))
@@ -1011,6 +1047,14 @@ class MySQLDatabaseManager:
                         status=b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách")
                     )
                     session.add(new_b)
+
+            if incoming_bids and "books" in data:
+                del_books = session.query(BookModel).filter(~BookModel.id.in_(incoming_bids)).all()
+                for dbk in del_books:
+                    session.query(ReservationModel).filter_by(book_id=dbk.id).delete()
+                    session.query(FineModel).filter_by(book_id=dbk.id).delete()
+                    session.query(BorrowRecordModel).filter_by(book_id=dbk.id).delete()
+                    session.delete(dbk)
 
             # 2. Sync Users
             for u in data.get("users", []):
@@ -1069,10 +1113,13 @@ class MySQLDatabaseManager:
                     session.add(new_br)
 
             # 4. Sync Reservations
+            incoming_res_ids = set()
             for res in data.get("reservations", []):
                 resid = res.get("id")
                 if not resid:
                     continue
+                resid = int(resid)
+                incoming_res_ids.add(resid)
                 existing_res = session.query(ReservationModel).filter_by(id=resid).first()
                 exp_dt = datetime.fromisoformat(res.get("expiresAt").replace("Z", "")) if res.get("expiresAt") else datetime.utcnow()
                 res_dt = datetime.fromisoformat(res.get("reservedAt").replace("Z", "")) if res.get("reservedAt") else datetime.utcnow()
@@ -1091,6 +1138,11 @@ class MySQLDatabaseManager:
                         status=res.get("status", "Waiting")
                     )
                     session.add(new_res)
+
+            if "reservations" in data:
+                del_res = session.query(ReservationModel).filter(~ReservationModel.id.in_(incoming_res_ids)).all()
+                for dres in del_res:
+                    session.delete(dres)
 
             # 5. Sync Fines
             for f in data.get("fines", []):
@@ -1188,6 +1240,19 @@ class MySQLDatabaseManager:
             notif = s.query(NotificationModel).filter_by(id=notif_id).first()
             if notif:
                 s.delete(notif)
+        self._execute_on_db(action)
+
+    def delete_book(self, book_id: int):
+        """Xóa sách và toàn bộ dữ liệu phụ thuộc trên cả MySQL và SQLite"""
+        invalidate_books_cache()
+        bid = int(book_id)
+        def action(s):
+            s.query(ReservationModel).filter_by(book_id=bid).delete(synchronize_session=False)
+            s.query(FineModel).filter_by(book_id=bid).delete(synchronize_session=False)
+            s.query(BorrowRecordModel).filter_by(book_id=bid).delete(synchronize_session=False)
+            b = s.query(BookModel).filter_by(id=bid).first()
+            if b:
+                s.delete(b)
         self._execute_on_db(action)
 
     def clear_read_notifications(self, role: Optional[str] = None, user_id: Optional[int] = None):

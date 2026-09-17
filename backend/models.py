@@ -33,6 +33,9 @@ class BookCreate(BaseModel):
     quantity: int = 1
     desc: Optional[str] = ""
     imageUrl: Optional[str] = None
+    status: Optional[str] = "Sẵn sàng"
+    releaseDate: Optional[str] = None
+    isUpcoming: Optional[bool] = False
 
 class BookUpdate(BaseModel):
     title: Optional[str] = None
@@ -41,6 +44,9 @@ class BookUpdate(BaseModel):
     quantity: Optional[int] = None
     desc: Optional[str] = None
     imageUrl: Optional[str] = None
+    status: Optional[str] = None
+    releaseDate: Optional[str] = None
+    isUpcoming: Optional[bool] = None
 
 class ReaderCreate(BaseModel):
     fullName: str

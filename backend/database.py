@@ -125,6 +125,10 @@ class DatabaseManager:
         """Dọn dẹp các thông báo đã đọc trong MySQL"""
         return self.mysql_mgr.clear_read_notifications(role=role, user_id=user_id)
 
+    def delete_book(self, book_id: int):
+        """Xóa sách và toàn bộ dữ liệu phụ thuộc trên cả MySQL và SQLite"""
+        return self.mysql_mgr.delete_book(book_id)
+
     def cancel_reservation(self, res_id: int):
         """Hủy đặt trước sách trên cả MySQL và SQLite"""
         return self.mysql_mgr.cancel_reservation(res_id)

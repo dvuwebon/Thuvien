@@ -290,22 +290,35 @@ def get_books():
 
 @app.post("/api/books", status_code=201)
 def create_book(req: BookCreate):
-    if not req.title.strip() or req.quantity < 1:
-        raise HTTPException(status_code=400, detail="Vui lòng nhập tên sách và số lượng hợp lệ.")
+    is_upcoming = bool(req.isUpcoming or req.status in ["Upcoming", "Sắp phát hành", "Sắp có"])
+    if not req.title.strip():
+        raise HTTPException(status_code=400, detail="Vui lòng nhập tên sách hợp lệ.")
+    if not is_upcoming and req.quantity < 1:
+        raise HTTPException(status_code=400, detail="Vui lòng nhập số lượng hợp lệ.")
 
     db = db_manager.load_db()
     books = db.get("books", [])
     new_id = max([int(b.get("id", 0)) for b in books], default=0) + 1
     
+    qty = 0 if is_upcoming else int(req.quantity)
+    desc_val = req.desc or ""
+    if req.releaseDate and "Dự kiến phát hành:" not in desc_val:
+        desc_val = f"{desc_val}\n(Dự kiến phát hành: {req.releaseDate})".strip()
+
     new_book = {
         "id": new_id,
         "title": req.title.strip(),
         "author": req.author.strip() if req.author else "Chưa rõ",
         "category": req.category if req.category else "Khác",
-        "quantity": int(req.quantity),
-        "desc": req.desc or "",
+        "quantity": qty,
+        "available": qty,
+        "borrowed": 0,
+        "desc": desc_val,
+        "description": desc_val,
         "imageUrl": req.imageUrl,
-        "borrowed": 0
+        "status": req.status if req.status else ("Sắp phát hành" if is_upcoming else "Sẵn sàng"),
+        "isUpcoming": is_upcoming,
+        "releaseDate": req.releaseDate or ""
     }
     books.insert(0, new_book)
     db["books"] = books
@@ -329,10 +342,30 @@ def update_book(book_id: int, req: BookUpdate):
         book["category"] = req.category
     if req.quantity is not None:
         book["quantity"] = int(req.quantity)
+        book["available"] = max(0, int(req.quantity) - int(book.get("borrowed", 0)))
     if req.desc is not None:
         book["desc"] = req.desc
+        book["description"] = req.desc
     if req.imageUrl is not None:
         book["imageUrl"] = req.imageUrl
+    if req.status is not None:
+        book["status"] = req.status
+        if req.status == "Sẵn sàng":
+            book["isUpcoming"] = False
+            if int(book.get("quantity", 0)) == 0 and req.quantity is None:
+                book["quantity"] = 10
+                book["available"] = 10
+        elif req.status in ["Sắp phát hành", "Upcoming", "Sắp có"]:
+            book["isUpcoming"] = True
+    if req.releaseDate is not None:
+        book["releaseDate"] = req.releaseDate
+        if req.releaseDate:
+            curr_desc = book.get("desc") or ""
+            if "Dự kiến phát hành:" not in curr_desc:
+                book["desc"] = f"{curr_desc}\n(Dự kiến phát hành: {req.releaseDate})".strip()
+                book["description"] = book["desc"]
+    if req.isUpcoming is not None:
+        book["isUpcoming"] = req.isUpcoming
 
     db_manager.save_db(db)
     return {"message": "Đã cập nhật thông tin sách thành công!", "book": book}
@@ -356,7 +389,11 @@ def delete_book(book_id: int):
         raise HTTPException(status_code=404, detail="Không tìm thấy sách.")
 
     books.pop(idx)
+    # Hủy/xóa các lượt đặt trước liên quan đến cuốn sách này nếu có
+    if "reservations" in db:
+        db["reservations"] = [r for r in db["reservations"] if int(r.get("bookId", 0)) != book_id]
     db["books"] = books
+    db_manager.delete_book(book_id)
     db_manager.save_db(db)
     return {"message": "Đã xóa sách khỏi hệ thống."}
 

@@ -308,6 +308,12 @@ export default function Sidebar({ activeTab, onTabChange, onOpenSearch, onOpenEx
                 label="Quản lý Kho sách"
               />
               <NavItem
+                active={activeTab === 'pre-orders'}
+                onClick={() => onTabChange('pre-orders')}
+                icon={<Clock size={17} strokeWidth={2} />}
+                label="Sách đặt trước"
+              />
+              <NavItem
                 active={activeTab === 'readers'}
                 onClick={() => onTabChange('readers')}
                 icon={<Users size={17} strokeWidth={2} />}

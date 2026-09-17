@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../services/api';
 import { exportApi } from '../services/exportApi';
 import BookCard from '../components/BookCard';
 import BookDetailModal from '../components/BookDetailModal';
 import AddEditBookModal from '../components/AddEditBookModal';
+import AddEditUpcomingBookModal from '../components/AddEditUpcomingBookModal';
 import AddEditReaderModal from '../components/AddEditReaderModal';
 import BorrowModal from '../components/BorrowModal';
 import ExportReportModal from '../components/ExportReportModal';
@@ -11,7 +13,8 @@ import {
   BookOpen, Users, Clock, AlertTriangle, CheckCircle, Search, Plus,
   FileSpreadsheet, Filter, Grid, List, Check, X, Printer, Edit2, Trash2, BookMarked, Eye,
   TrendingUp, BookmarkCheck, XCircle, QrCode, Lock, Unlock, ShieldAlert,
-  SlidersHorizontal, DollarSign, Calendar, Building2, CreditCard, Save, RotateCcw, HelpCircle, ShieldCheck
+  SlidersHorizontal, DollarSign, Calendar, Building2, CreditCard, Save, RotateCcw, HelpCircle, ShieldCheck,
+  PackageCheck, Sparkles, Inbox, Layers
 } from 'lucide-react';
 
 
@@ -664,6 +667,21 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
   const [bookToDelete, setBookToDelete] = useState(null);
   const [deleteBookError, setDeleteBookError] = useState('');
 
+  // Upcoming Books Management State (Tab Sách đặt trước)
+  const [upcomingSearch, setUpcomingSearch] = useState('');
+  const [upcomingCategoryFilter, setUpcomingCategoryFilter] = useState('All');
+  const [upcomingMonthFilter, setUpcomingMonthFilter] = useState('All');
+  const [upcomingViewMode, setUpcomingViewMode] = useState('table'); // 'table' | 'grid'
+  const [upcomingBookModalOpen, setUpcomingBookModalOpen] = useState(false);
+  const [editingUpcomingBook, setEditingUpcomingBook] = useState(null);
+  const [upcomingBookToDelete, setUpcomingBookToDelete] = useState(null);
+  const [isDeletingUpcomingBook, setIsDeletingUpcomingBook] = useState(false);
+  const [deleteUpcomingBookError, setDeleteUpcomingBookError] = useState('');
+  const [viewingQueueBook, setViewingQueueBook] = useState(null);
+  const [receiveStockBook, setReceiveStockBook] = useState(null);
+  const [receiveStockQty, setReceiveStockQty] = useState(20);
+  const [isReceivingStock, setIsReceivingStock] = useState(false);
+
   // System Settings state
   const [systemSettings, setSystemSettings] = useState({
     borrowHomeDays: 14,
@@ -979,6 +997,63 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
       setDeleteBookError(err.message || 'Không thể xóa cuốn sách này.');
     } finally {
       setIsDeletingBook(false);
+    }
+  };
+
+  // Upcoming Book Handlers (Thêm / Sửa / Xóa / Nhập kho sách đặt trước)
+  const handleSaveUpcomingBook = async (bookData) => {
+    try {
+      if (editingUpcomingBook) {
+        await api.updateBook(editingUpcomingBook.id, bookData);
+        showToast('✓ Đã cập nhật thông tin sách đặt trước thành công!');
+      } else {
+        await api.createBook(bookData);
+        showToast('✓ Đã thêm sách mới vào kho đặt trước thành công!');
+      }
+      setUpcomingBookModalOpen(false);
+      setEditingUpcomingBook(null);
+      await loadData();
+    } catch (err) {
+      console.error('Lỗi lưu sách đặt trước:', err);
+      throw err;
+    }
+  };
+
+  const handleConfirmDeleteUpcomingBook = async () => {
+    if (!upcomingBookToDelete) return;
+    setIsDeletingUpcomingBook(true);
+    setDeleteUpcomingBookError('');
+    try {
+      await api.deleteBook(upcomingBookToDelete.id);
+      setUpcomingBookToDelete(null);
+      showToast('✓ Đã xóa sách đặt trước khỏi cơ sở dữ liệu thành công!');
+      await loadData();
+    } catch (err) {
+      setDeleteUpcomingBookError(err.message || 'Không thể xóa cuốn sách này.');
+    } finally {
+      setIsDeletingUpcomingBook(false);
+    }
+  };
+
+  const handleConfirmReceiveStock = async () => {
+    if (!receiveStockBook) return;
+    setIsReceivingStock(true);
+    try {
+      const newQty = Math.max(1, Number(receiveStockQty) || 20);
+      await api.updateBook(receiveStockBook.id, {
+        status: 'Sẵn sàng',
+        quantity: newQty,
+        available: newQty,
+        isUpcoming: false
+      });
+      showToast(`✓ Đã nhập kho thành công! Cuốn sách "${receiveStockBook.title}" đã chuyển sang kho sách chính thức (${newQty} cuốn).`);
+      setReceiveStockBook(null);
+      await loadData();
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+    } catch (err) {
+      showToast('Lỗi khi nhập kho: ' + (err.message || ''));
+    } finally {
+      setIsReceivingStock(false);
     }
   };
 
@@ -2319,6 +2394,552 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
           </div>
         </div>
       )}
+
+      {/* TAB PRE-ORDERS: QUẢN LÝ KHO SÁCH ĐẶT TRƯỚC (SÁCH SẮP VỀ) */}
+      {activeTab === 'pre-orders' && (() => {
+        const upcomingList = books.filter(b => 
+          b.isUpcoming || 
+          b.status === 'Sắp phát hành' || 
+          b.status === 'Sắp có' || 
+          b.status === 'Upcoming' || 
+          Number(b.id) >= 51
+        );
+
+        const filteredUpcoming = upcomingList.filter(book => {
+          const q = upcomingSearch.toLowerCase().trim();
+          const matchesSearch = !q ||
+            (book.title || '').toLowerCase().includes(q) ||
+            (book.author || '').toLowerCase().includes(q) ||
+            (book.category || '').toLowerCase().includes(q);
+
+          const matchesCat = upcomingCategoryFilter === 'All' || book.category === upcomingCategoryFilter;
+
+          const relStr = (book.releaseDate || book.desc || book.description || '').toLowerCase();
+          const matchesMonth = upcomingMonthFilter === 'All' || relStr.includes(upcomingMonthFilter.toLowerCase());
+
+          return matchesSearch && matchesCat && matchesMonth;
+        });
+
+        // Compute pre-order count for each book
+        const getBookPreOrderCount = (bookId) => {
+          return reservations.filter(r => 
+            Number(r.bookId) === Number(bookId) && 
+            r.status !== 'Cancelled' && 
+            r.status !== 'Hủy' && 
+            r.status !== 'Fulfilled'
+          ).length;
+        };
+
+        const totalPreOrders = reservations.filter(r => 
+          upcomingList.some(ub => Number(ub.id) === Number(r.bookId)) && 
+          r.status !== 'Cancelled' && 
+          r.status !== 'Hủy' && 
+          r.status !== 'Fulfilled'
+        ).length;
+
+        const arrivingSoonCount = upcomingList.filter(b => 
+          (b.releaseDate || b.desc || '').includes('10-2026')
+        ).length;
+
+        // Find most anticipated book
+        let topBook = null;
+        let maxCount = -1;
+        upcomingList.forEach(b => {
+          const c = getBookPreOrderCount(b.id);
+          if (c > maxCount) {
+            maxCount = c;
+            topBook = b;
+          }
+        });
+
+        const upcomingCategories = Array.from(new Set(upcomingList.map(b => b.category).filter(Boolean)));
+
+        return (
+          <div>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '22px', flexWrap: 'wrap', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, #2563eb, #1d4ed8)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(37, 99, 235, 0.25)' }}>
+                  <Clock size={22} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '21px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                    Quản lý Kho Sách Đặt Trước (Sách Sắp Về)
+                  </h2>
+                  <p style={{ color: '#64748b', fontSize: '13px', margin: '3px 0 0 0' }}>
+                    Theo dõi kế hoạch phát hành, quản lý kho sách chuẩn bị nhập và nhu cầu đăng ký chờ mượn từ độc giả
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setEditingUpcomingBook(null); setUpcomingBookModalOpen(true); }}
+                className="btn btn-primary"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px', borderRadius: '10px', fontWeight: 700, fontSize: '13.5px', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)' }}
+              >
+                <Plus size={17} />
+                <span>Thêm sách sắp về</span>
+              </button>
+            </div>
+
+            {/* KPI Stat Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ background: '#ffffff', borderRadius: '14px', padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <BookOpen size={22} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Tổng đầu sách sắp về</div>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{upcomingList.length}</div>
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', borderRadius: '14px', padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Calendar size={22} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Dự kiến về T10/2026</div>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{arrivingSoonCount}</div>
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', borderRadius: '14px', padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Users size={22} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Độc giả đang đặt trước</div>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', lineHeight: 1.2 }}>{totalPreOrders}</div>
+                </div>
+              </div>
+
+              <div style={{ background: '#ffffff', borderRadius: '14px', padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: '#faf5ff', color: '#9333ea', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Sparkles size={22} />
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Được mong đợi nhất</div>
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={topBook?.title || 'Chưa có'}>
+                    {topBook ? `${topBook.title.substring(0, 22)}...` : 'Chưa có'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Toolbar */}
+            <div className="card" style={{ padding: '16px 20px', marginBottom: '20px', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', borderRadius: '14px' }}>
+              <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', flex: 1, minWidth: '320px' }}>
+                {/* Search */}
+                <div style={{ position: 'relative', flex: 1, minWidth: '220px', maxWidth: '380px' }}>
+                  <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
+                  <input
+                    type="text"
+                    placeholder="Tìm theo tên sách, tác giả, thể loại..."
+                    value={upcomingSearch}
+                    onChange={(e) => setUpcomingSearch(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                  {upcomingSearch && (
+                    <button onClick={() => setUpcomingSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Category filter */}
+                <div style={{ minWidth: '160px' }}>
+                  <select
+                    value={upcomingCategoryFilter}
+                    onChange={(e) => setUpcomingCategoryFilter(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', backgroundColor: '#ffffff' }}
+                  >
+                    <option value="All">Tất cả thể loại</option>
+                    {upcomingCategories.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Month filter */}
+                <div style={{ minWidth: '150px' }}>
+                  <select
+                    value={upcomingMonthFilter}
+                    onChange={(e) => setUpcomingMonthFilter(e.target.value)}
+                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', backgroundColor: '#ffffff' }}
+                  >
+                    <option value="All">Tất cả đợt phát hành</option>
+                    <option value="10-2026">Tháng 10/2026</option>
+                    <option value="11-2026">Tháng 11/2026</option>
+                    <option value="12-2026">Tháng 12/2026</option>
+                    <option value="2027">Năm 2027</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* View Toggle */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#f1f5f9', padding: '4px', borderRadius: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setUpcomingViewMode('table')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: upcomingViewMode === 'table' ? '#ffffff' : 'transparent',
+                    color: upcomingViewMode === 'table' ? '#2563eb' : '#64748b',
+                    boxShadow: upcomingViewMode === 'table' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    fontWeight: 600,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <List size={14} /> Bảng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUpcomingViewMode('grid')}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: upcomingViewMode === 'grid' ? '#ffffff' : 'transparent',
+                    color: upcomingViewMode === 'grid' ? '#2563eb' : '#64748b',
+                    boxShadow: upcomingViewMode === 'grid' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    fontWeight: 600,
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <Grid size={14} /> Thẻ
+                </button>
+              </div>
+            </div>
+
+            {/* Content List */}
+            {filteredUpcoming.length === 0 ? (
+              <div className="card" style={{ padding: '50px 20px', textAlign: 'center', color: '#94a3b8' }}>
+                <Clock size={48} style={{ margin: '0 auto 12px', color: '#cbd5e1' }} />
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#475569', margin: '0 0 6px 0' }}>
+                  Không tìm thấy sách đặt trước nào
+                </h3>
+                <p style={{ fontSize: '13px', margin: '0 0 16px 0' }}>
+                  Không có cuốn sách sắp về nào khớp với từ khóa tìm kiếm hoặc bộ lọc hiện tại.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setUpcomingSearch(''); setUpcomingCategoryFilter('All'); setUpcomingMonthFilter('All'); }}
+                  className="btn btn-outline"
+                  style={{ fontSize: '13px' }}
+                >
+                  Xóa bộ lọc
+                </button>
+              </div>
+            ) : upcomingViewMode === 'table' ? (
+              /* TABLE VIEW */
+              <div className="card" style={{ overflow: 'hidden', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
+                <div className="table-responsive">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th style={{ width: '60px', textAlign: 'center' }}>Mã</th>
+                        <th style={{ minWidth: '240px' }}>Tác phẩm & Bìa sách</th>
+                        <th style={{ minWidth: '130px' }}>Tác giả</th>
+                        <th style={{ minWidth: '140px' }}>Thể loại</th>
+                        <th style={{ minWidth: '120px' }}>Dự kiến về</th>
+                        <th style={{ minWidth: '140px', textAlign: 'center' }}>Bạn đọc chờ</th>
+                        <th style={{ minWidth: '110px', textAlign: 'center' }}>Trạng thái</th>
+                        <th style={{ minWidth: '180px', textAlign: 'center' }}>Thao tác</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUpcoming.map(b => {
+                        const preCount = getBookPreOrderCount(b.id);
+                        const relDate = b.releaseDate || (b.desc && b.desc.includes('Dự kiến phát hành:') ? b.desc.split('Dự kiến phát hành:')[1].trim().split('.')[0].trim() : '10-2026');
+
+                        return (
+                          <tr key={b.id}>
+                            <td style={{ textAlign: 'center', fontWeight: 700, color: '#64748b', fontSize: '12px' }}>
+                              #{b.id}
+                            </td>
+
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div
+                                  onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                  style={{
+                                    width: '40px',
+                                    height: '56px',
+                                    borderRadius: '6px',
+                                    overflow: 'hidden',
+                                    background: '#f1f5f9',
+                                    border: '1px solid #e2e8f0',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    cursor: 'pointer'
+                                  }}
+                                  title="Bấm để xem chi tiết"
+                                >
+                                  {b.imageUrl ? (
+                                    <img src={b.imageUrl} alt={b.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                                  ) : (
+                                    <BookOpen size={18} color="#94a3b8" />
+                                  )}
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  <div
+                                    onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                    style={{ fontWeight: 700, color: '#0f172a', fontSize: '13.5px', cursor: 'pointer', lineHeight: 1.35 }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.color = '#2563eb'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.color = '#0f172a'; }}
+                                    title="Xem chi tiết sách"
+                                  >
+                                    {b.title}
+                                  </div>
+                                  <div style={{ fontSize: '11.5px', color: '#64748b', marginTop: '2px' }}>
+                                    Số lượng dự kiến: <strong>{b.expectedQuantity || b.quantity || 20} cuốn</strong>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            <td style={{ color: '#475569', fontSize: '13px' }}>
+                              {b.author || 'Chưa rõ'}
+                            </td>
+
+                            <td>
+                              <span style={{ display: 'inline-block', padding: '3px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#334155', fontSize: '11.5px', fontWeight: 600 }}>
+                                {b.category || 'Manga'}
+                              </span>
+                            </td>
+
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12.5px', fontWeight: 600, color: '#2563eb' }}>
+                                <Calendar size={14} />
+                                <span>{relDate}</span>
+                              </div>
+                            </td>
+
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => setViewingQueueBook(b)}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '20px',
+                                  border: preCount > 0 ? '1px solid #bfdbfe' : '1px solid #e2e8f0',
+                                  background: preCount > 0 ? '#eff6ff' : '#f8fafc',
+                                  color: preCount > 0 ? '#1d4ed8' : '#64748b',
+                                  fontWeight: 700,
+                                  fontSize: '12px',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  transition: 'all 0.15s ease'
+                                }}
+                                title="Bấm để xem danh sách độc giả đặt trước"
+                              >
+                                <Clock size={12} />
+                                <span>{preCount} bạn đọc</span>
+                              </button>
+                            </td>
+
+                            <td style={{ textAlign: 'center' }}>
+                              <span style={{ display: 'inline-block', padding: '3px 9px', borderRadius: '6px', background: '#dbeafe', color: '#1e40af', fontSize: '11.5px', fontWeight: 700 }}>
+                                Sắp phát hành
+                              </span>
+                            </td>
+
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                  style={{ border: '1px solid #e2e8f0', background: '#ffffff', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', color: '#475569', display: 'flex' }}
+                                  title="Xem chi tiết ấn phẩm"
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditingUpcomingBook(b); setUpcomingBookModalOpen(true); }}
+                                  style={{ border: '1px solid #bfdbfe', background: '#eff6ff', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', color: '#2563eb', display: 'flex' }}
+                                  title="Chỉnh sửa thông tin"
+                                >
+                                  <Edit2 size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setUpcomingBookToDelete(b); setDeleteUpcomingBookError(''); }}
+                                  style={{ border: '1px solid #fecaca', background: '#fef2f2', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', color: '#ef4444', display: 'flex' }}
+                                  title="Xóa sách đặt trước"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => { setReceiveStockBook(b); setReceiveStockQty(b.expectedQuantity || 20); }}
+                                  style={{
+                                    border: 'none',
+                                    background: 'linear-gradient(135deg, #16a34a, #15803d)',
+                                    color: '#ffffff',
+                                    padding: '5px 9px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontWeight: 700,
+                                    fontSize: '11.5px',
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '3px',
+                                    boxShadow: '0 2px 5px rgba(22, 163, 74, 0.25)'
+                                  }}
+                                  title="Sách đã về thư viện? Bấm để nhập kho chính thức"
+                                >
+                                  <PackageCheck size={13} /> Nhập kho
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              /* GRID VIEW */
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
+                {filteredUpcoming.map(b => {
+                  const preCount = getBookPreOrderCount(b.id);
+                  const relDate = b.releaseDate || (b.desc && b.desc.includes('Dự kiến phát hành:') ? b.desc.split('Dự kiến phát hành:')[1].trim().split('.')[0].trim() : '10-2026');
+
+                  return (
+                    <div
+                      key={b.id}
+                      style={{
+                        background: '#ffffff',
+                        borderRadius: '14px',
+                        border: '1px solid #e2e8f0',
+                        padding: '14px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div>
+                        {/* Cover Image */}
+                        <div
+                          onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                          style={{
+                            height: '160px',
+                            borderRadius: '8px',
+                            overflow: 'hidden',
+                            background: '#f8fafc',
+                            position: 'relative',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '12px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {b.imageUrl ? (
+                            <img src={b.imageUrl} alt={b.title} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                          ) : (
+                            <BookOpen size={36} color="#cbd5e1" />
+                          )}
+                          <div style={{ position: 'absolute', top: '8px', right: '8px', padding: '2px 8px', borderRadius: '6px', background: 'rgba(37, 99, 235, 0.9)', color: '#ffffff', fontSize: '10.5px', fontWeight: 700 }}>
+                            Sắp phát hành
+                          </div>
+                        </div>
+
+                        {/* Title & Author */}
+                        <h4
+                          onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                          style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', margin: '0 0 4px 0', lineHeight: 1.35, cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}
+                          title={b.title}
+                        >
+                          {b.title}
+                        </h4>
+                        <p style={{ fontSize: '12px', color: '#64748b', margin: '0 0 8px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {b.author || 'Chưa rõ tác giả'}
+                        </p>
+
+                        {/* Meta Pills */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11.5px', marginBottom: '12px' }}>
+                          <span style={{ color: '#2563eb', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                            <Calendar size={13} /> {relDate}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setViewingQueueBook(b)}
+                            style={{ border: 'none', background: '#eff6ff', color: '#1d4ed8', padding: '2px 7px', borderRadius: '4px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                          >
+                            {preCount} bạn đọc chờ
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Card Action Buttons */}
+                      <div style={{ display: 'flex', gap: '6px', borderTop: '1px solid #f1f5f9', paddingTop: '10px' }}>
+                        <button
+                          type="button"
+                          onClick={() => { setEditingUpcomingBook(b); setUpcomingBookModalOpen(true); }}
+                          className="btn btn-outline"
+                          style={{ flex: 1, padding: '6px', fontSize: '11.5px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                        >
+                          <Edit2 size={12} /> Sửa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setUpcomingBookToDelete(b); setDeleteUpcomingBookError(''); }}
+                          className="btn btn-outline"
+                          style={{ padding: '6px 8px', fontSize: '11.5px', color: '#ef4444', borderColor: '#fecaca' }}
+                          title="Xóa"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setReceiveStockBook(b); setReceiveStockQty(b.expectedQuantity || 20); }}
+                          style={{
+                            flex: 1.2,
+                            padding: '6px',
+                            background: '#16a34a',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '11.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '3px'
+                          }}
+                        >
+                          <PackageCheck size={12} /> Nhập kho
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* TAB 3: QUẢN LÝ ĐỘC GIẢ */}
       {activeTab === 'readers' && (
@@ -3918,6 +4539,364 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal Thêm/Sửa Sách Đặt Trước (Sắp Về) */}
+      <AddEditUpcomingBookModal
+        isOpen={upcomingBookModalOpen}
+        onClose={() => { setUpcomingBookModalOpen(false); setEditingUpcomingBook(null); }}
+        onSave={handleSaveUpcomingBook}
+        book={editingUpcomingBook}
+      />
+
+      {/* Modal Xác nhận Xóa Sách Đặt Trước */}
+      {upcomingBookToDelete && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => !isDeletingUpcomingBook && setUpcomingBookToDelete(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '26px 28px',
+              maxWidth: '440px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              textAlign: 'center',
+              margin: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: '52px',
+                height: '52px',
+                borderRadius: '50%',
+                background: '#fee2e2',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto',
+                color: '#dc2626'
+              }}
+            >
+              <Trash2 size={26} />
+            </div>
+
+            <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: '0 0 8px 0' }}>
+              Xóa sách đặt trước?
+            </h3>
+
+            <p style={{ fontSize: '13.5px', color: '#64748b', lineHeight: 1.6, margin: '0 0 16px 0' }}>
+              Bạn có chắc chắn muốn xóa tác phẩm <strong style={{ color: '#0f172a' }}>"{upcomingBookToDelete.title}"</strong> khỏi kho sách đặt trước không?
+            </p>
+
+            {(() => {
+              const resCount = reservations.filter(r => Number(r.bookId) === Number(upcomingBookToDelete.id) && r.status !== 'Cancelled' && r.status !== 'Hủy').length;
+              if (resCount > 0) {
+                return (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '10px 12px', fontSize: '12.5px', color: '#b45309', marginBottom: '16px', textAlign: 'left', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                    <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                    <span>Lưu ý: Hiện có <strong>{resCount} bạn đọc</strong> đang đăng ký đặt trước cuốn sách này. Khi xóa, các yêu cầu đặt trước liên quan cũng sẽ được tự động hủy bỏ.</span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+
+            {deleteUpcomingBookError && (
+              <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 12px', color: '#b91c1c', fontSize: '13px', marginBottom: '16px', textAlign: 'left' }}>
+                {deleteUpcomingBookError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setUpcomingBookToDelete(null)}
+                disabled={isDeletingUpcomingBook}
+                className="btn btn-outline"
+                style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '13px' }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteUpcomingBook}
+                disabled={isDeletingUpcomingBook}
+                className="btn btn-danger"
+                style={{ padding: '8px 20px', borderRadius: '8px', fontSize: '13px', fontWeight: 700 }}
+              >
+                {isDeletingUpcomingBook ? 'Đang xóa...' : 'Xác nhận xóa'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Nhập Kho Chính Thức */}
+      {receiveStockBook && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => !isReceivingStock && setReceiveStockBook(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              padding: '24px 28px',
+              maxWidth: '460px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              textAlign: 'left',
+              margin: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <PackageCheck size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                  Nhập kho sách chính thức
+                </h3>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Chuyển sang kho sách sẵn sàng cho mượn</span>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '13.5px', color: '#475569', lineHeight: 1.5, margin: '0 0 16px 0' }}>
+              Sách <strong style={{ color: '#0f172a' }}>"{receiveStockBook.title}"</strong> đã về tới thư viện. Nhập số lượng bản in thực tế để đưa vào danh mục cho mượn:
+            </p>
+
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, color: '#0f172a', marginBottom: '6px' }}>
+                Số lượng sách nhập về kho *
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="500"
+                value={receiveStockQty}
+                onChange={(e) => setReceiveStockQty(Math.max(1, parseInt(e.target.value) || 1))}
+                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1.5px solid #16a34a', fontSize: '15px', fontWeight: 700, outline: 'none', boxSizing: 'border-box' }}
+                autoFocus
+              />
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                {[10, 20, 30, 50].map(q => (
+                  <button
+                    key={q}
+                    type="button"
+                    onClick={() => setReceiveStockQty(q)}
+                    style={{
+                      flex: 1,
+                      padding: '5px 8px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      border: Number(receiveStockQty) === q ? '1px solid #16a34a' : '1px solid #e2e8f0',
+                      background: Number(receiveStockQty) === q ? '#f0fdf4' : '#ffffff',
+                      color: Number(receiveStockQty) === q ? '#16a34a' : '#64748b'
+                    }}
+                  >
+                    {q} cuốn
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setReceiveStockBook(null)}
+                disabled={isReceivingStock}
+                className="btn btn-outline"
+                style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '13px' }}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmReceiveStock}
+                disabled={isReceivingStock}
+                className="btn btn-success"
+                style={{ padding: '8px 22px', borderRadius: '8px', fontSize: '13px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                {isReceivingStock ? 'Đang cập nhật...' : 'Xác nhận nhập kho'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Modal Xem Hàng Chờ Đặt Trước Của Sách */}
+      {viewingQueueBook && typeof document !== 'undefined' && createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            background: 'rgba(15, 23, 42, 0.55)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 999999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => setViewingQueueBook(null)}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '16px',
+              maxWidth: '620px',
+              width: '100%',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              overflow: 'hidden',
+              margin: 'auto'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Clock size={18} />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                    Hàng chờ đặt trước: {viewingQueueBook.title}
+                  </h3>
+                  <span style={{ fontSize: '12px', color: '#64748b' }}>Thứ tự ưu tiên nhận sách khi hàng về</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingQueueBook(null)}
+                style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* List */}
+            <div style={{ padding: '16px 22px', overflowY: 'auto', flex: 1 }}>
+              {(() => {
+                const bookResv = reservations.filter(r => 
+                  Number(r.bookId) === Number(viewingQueueBook.id) && 
+                  r.status !== 'Cancelled' && 
+                  r.status !== 'Hủy'
+                ).sort((a, b) => (Number(a.priority || 1) - Number(b.priority || 1)) || new Date(a.reservedAt || 0) - new Date(b.reservedAt || 0));
+
+                if (bookResv.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '36px 0', color: '#94a3b8' }}>
+                      <Clock size={40} style={{ margin: '0 auto 8px', color: '#cbd5e1' }} />
+                      <p style={{ margin: 0, fontSize: '13.5px' }}>Hiện chưa có bạn đọc nào đăng ký đặt trước tác phẩm này.</p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {bookResv.map((res, idx) => (
+                      <div
+                        key={res.id || idx}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '12px 14px',
+                          borderRadius: '10px',
+                          border: '1px solid #e2e8f0',
+                          background: idx === 0 ? '#f0fdf4' : '#ffffff'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: idx === 0 ? '#16a34a' : '#e2e8f0', color: idx === 0 ? '#ffffff' : '#475569', fontWeight: 800, fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            #{idx + 1}
+                          </div>
+                          <div>
+                            <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a' }}>
+                              {res.readerName || (res.userId === 2 ? 'Trần Thị Mai' : `Độc giả #${res.readerId || res.userId}`)}
+                            </div>
+                            <div style={{ fontSize: '11.5px', color: '#64748b' }}>
+                              Mã DG: <strong>{getReaderCode(res.readerId || res.userId)}</strong> • Đặt lúc: {res.reservedAt ? res.reservedAt.substring(0, 10) : 'Gần đây'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, background: idx === 0 ? '#dcfce7' : '#eff6ff', color: idx === 0 ? '#15803d' : '#2563eb' }}>
+                            {idx === 0 ? 'Ưu tiên số 1' : `Thứ tự #${idx + 1}`}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '12px 22px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', background: '#f8fafc' }}>
+              <button
+                type="button"
+                onClick={() => setViewingQueueBook(null)}
+                className="btn btn-secondary"
+                style={{ fontSize: '13px', padding: '7px 18px' }}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Toast Notification khi Thêm/Sửa/Xóa thành công */}

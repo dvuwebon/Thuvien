@@ -15,7 +15,7 @@ import AIChatWidget from './components/AIChatWidget';
 
 export default function App() {
   const { isAuthenticated, role } = useAuth();
-  const [adminTab, setAdminTab] = useState('dashboard'); // 'dashboard' | 'books' | 'readers' | 'profile'
+  const [adminTab, setAdminTab] = useState('dashboard'); // 'dashboard' | 'books' | 'pre-orders' | 'readers' | 'settings' | 'profile'
   const [readerTab, setReaderTab] = useState('catalog'); // 'catalog' | 'active-borrows' | 'history' | 'profile'
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
