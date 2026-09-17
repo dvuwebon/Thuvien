@@ -84,9 +84,10 @@ export default function AddEditUpcomingBookModal({ isOpen, onClose, onSave, book
 
     try {
       let finalDesc = formData.desc.trim();
-      // Ensure release date mention in description if not already there
-      if (!finalDesc.includes('Dự kiến phát hành:')) {
-        finalDesc = finalDesc ? `${finalDesc} Dự kiến phát hành: ${formData.releaseDate.trim()}.` : `Tác phẩm dự kiến phát hành và về kho thư viện vào: ${formData.releaseDate.trim()}.`;
+      if (finalDesc.includes('Dự kiến phát hành:')) {
+        finalDesc = finalDesc.replace(/Dự kiến phát hành:\s*[^).\n]+([).\n]?)/, `Dự kiến phát hành: ${formData.releaseDate.trim()}$1`);
+      } else {
+        finalDesc = finalDesc ? `${finalDesc} (Dự kiến phát hành: ${formData.releaseDate.trim()})` : `Tác phẩm dự kiến phát hành và về kho thư viện vào: ${formData.releaseDate.trim()}.`;
       }
 
       await onSave({

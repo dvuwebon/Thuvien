@@ -8,9 +8,9 @@ import BorrowModal from '../components/BorrowModal';
 import {
   Search, BookOpen, Clock, CheckCircle,
   BookMarked, ArrowRight, ChevronLeft, ChevronRight,
-  Lock, CreditCard, X, Plus, AlertCircle, Check, Filter
+  Lock, CreditCard, X, Plus, AlertCircle, Check, Filter, Download
 } from 'lucide-react';
-
+import { exportApi } from '../services/exportApi';
 import FeaturedCarousel from '../components/FeaturedCarousel';
 import UpcomingBooksSection, { UPCOMING_BOOKS } from '../components/UpcomingBooksSection';
 import VNPayPaymentModal from '../components/VNPayPaymentModal';
@@ -19,7 +19,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const { user, updateUser, logout } = useAuth();
   const [books, setBooks] = useState(() => (api.getCachedBooks ? api.getCachedBooks() : []));
   const [myBorrows, setMyBorrows] = useState([]);
-  const [myReservations, setMyReservations] = useState(() => (api.getCachedReservations ? api.getCachedReservations(user?.id || 2) : []));
+  const [myReservations, setMyReservations] = useState(() => (api.getCachedReservations ? api.getCachedReservations(user?.id) : []));
   const [recommendations, setRecommendations] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -109,8 +109,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     try {
       if (!silent) setLoading(true);
       const brRes = await api.getBorrowRecords().catch(() => []);
-      if (user) {
-        const uId = user.id ? Number(user.id) : 2;
+      if (user && user.id) {
+        const uId = Number(user.id);
         const uName = (user.fullName || '').toLowerCase().trim();
         const uUsername = (user.username || '').toLowerCase().trim();
         const myFiltered = (brRes || []).filter(r => {
@@ -123,7 +123,15 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         setMyBorrows(prev => {
           if (
             prev.length === myFiltered.length &&
-            prev.every((p, idx) => p.id === myFiltered[idx]?.id && p.status === myFiltered[idx]?.status)
+            prev.every((p, idx) => {
+              const next = myFiltered[idx];
+              return p && next &&
+                p.id === next.id &&
+                p.status === next.status &&
+                p.renewStatus === next.renewStatus &&
+                p.returnDate === next.returnDate &&
+                p.dueDate === next.dueDate;
+            })
           ) {
             return prev;
           }
@@ -133,8 +141,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         // Tải danh sách sách trong hàng chờ đặt trước của độc giả
         api.getReservations(uId).then(resvs => {
           const cleanResvs = (resvs || []).filter(r => 
-            Number(r.bookId) !== 3 && 
-            !((r.bookTitle || '').toLowerCase().includes('tru tiên')) &&
             r.status !== 'Cancelled' && 
             r.status !== 'Hủy' && 
             r.status !== 'Fulfilled'
@@ -181,7 +187,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
               b => b.status !== 'Upcoming' && 
                    b.status !== 'Sắp phát hành' && 
                    b.status !== 'Sắp có' && 
-                   Number(b.id) < 51 && 
                    !b.isUpcoming
             );
           }
@@ -280,8 +285,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     // Kiểm tra giới hạn số sách đặt trước tối đa theo cài đặt
     const maxRes = Number(systemSettings?.maxReservations || 3);
     const activeResvs = myReservations.filter(
-      r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' &&
-           Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))
+      r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled'
     );
     if (activeResvs.length >= maxRes) {
       showToast(`Bạn đã hết lượt đặt trước sách! Mỗi độc giả chỉ được đặt trước tối đa ${maxRes} cuốn sách. Nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.`);
@@ -310,13 +314,11 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
   const handleCancelReservation = async (resId) => {
     try {
-      // Cập nhật giao diện ngay lập tức
+      // Cập nhật giao diện phản hồi tức thì 0ms (60fps)
       setMyReservations(prev => prev.filter(r => Number(r.id) !== Number(resId)));
-      await api.cancelReservation(resId);
-      showToast('Đã hủy yêu cầu đặt trước sách.');
       setSelectedBook(prev => prev ? { ...prev, isReserved: false } : null);
-      loadBorrowsOnly(true);
-      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+      showToast('✓ Đã hủy yêu cầu đặt trước sách thành công.');
+      await api.cancelReservation(resId);
     } catch (e) {
       showToast('Lỗi khi hủy đặt trước: ' + (e.message || ''));
       loadBorrowsOnly(true);
@@ -326,16 +328,16 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   const handleCancelReservationForBook = async (bookId) => {
     try {
       const targetRes = myReservations.find(r => Number(r.bookId) === Number(bookId) && r.status !== 'Cancelled' && r.status !== 'Hủy');
-      if (targetRes) {
-        await api.cancelReservation(targetRes.id);
-      }
+      // Cập nhật giao diện phản hồi tức thì 0ms (60fps)
       setMyReservations(prev => prev.filter(r => Number(r.bookId) !== Number(bookId)));
       setSelectedBook(prev => (prev && Number(prev.id) === Number(bookId)) ? { ...prev, isReserved: false } : prev);
       showToast('✓ Đã hủy đặt trước sách thành công.');
-      loadBorrowsOnly(true);
-      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
+      if (targetRes) {
+        await api.cancelReservation(targetRes.id);
+      }
     } catch (e) {
       showToast('Lỗi khi hủy đặt trước: ' + (e.message || ''));
+      loadBorrowsOnly(true);
     }
   };
 
@@ -417,7 +419,32 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
   }, [bookSearch, selectedCategory]);
 
   const handleOpenBookByTitleOrId = (bookTitle, bookId) => {
-    // 1. Kiểm tra danh sách sách sắp có trước (UPCOMING_BOOKS)
+    // 1. Kiểm tra trong danh mục sách thư viện (database) trước tiên để lấy dữ liệu mới nhất
+    const found = (books || []).find(b =>
+      (bookId && Number(b.id) === Number(bookId)) ||
+      (bookTitle && b.title && b.title.trim().toLowerCase() === bookTitle.trim().toLowerCase())
+    );
+    if (found) {
+      const isUp = Boolean(found.isUpcoming) || found.status === 'Sắp phát hành' || found.status === 'Sắp có' || found.status === 'Upcoming' || Number(found.id) >= 51;
+      const isResv = myReservations.some(r => Number(r.bookId) === Number(found.id) && r.status !== 'Cancelled' && r.status !== 'Hủy');
+      let relDate = found.releaseDate;
+      if (!relDate && (found.desc || found.description)) {
+        const match = (found.desc || found.description).match(/Dự kiến phát hành:\s*([^).\n]+)/);
+        if (match) relDate = match[1].trim();
+      }
+      setSelectedBook({
+        ...found,
+        isUpcoming: isUp,
+        isReserved: isResv,
+        releaseDate: relDate || found.releaseDate || '10-2026',
+        quantity: isUp ? 0 : found.quantity,
+        available: isUp ? 0 : found.available
+      });
+      setDetailModalOpen(true);
+      return;
+    }
+
+    // 2. Fallback dự phòng nếu không tìm thấy trong CSDL
     const upcomingFound = (UPCOMING_BOOKS || []).find(ub =>
       (bookId && Number(ub.id) === Number(bookId)) ||
       (bookTitle && ub.title && ub.title.trim().toLowerCase() === bookTitle.trim().toLowerCase())
@@ -439,25 +466,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         views: upcomingFound.views,
         desc: upcomingFound.desc || `Tác phẩm của tác giả ${upcomingFound.author || 'nổi tiếng'} đang chuẩn bị phát hành và sẽ sớm có mặt tại thư viện trong đợt nhập sách tới (${upcomingFound.releaseDate}).`,
         imageUrl: upcomingFound.cover
-      });
-      setDetailModalOpen(true);
-      return;
-    }
-
-    // 2. Kiểm tra trong danh mục sách thư viện
-    const found = books.find(b =>
-      (bookId && Number(b.id) === Number(bookId)) ||
-      (bookTitle && b.title && b.title.trim().toLowerCase() === bookTitle.trim().toLowerCase())
-    );
-    if (found) {
-      const isUp = Number(found.id) >= 51 || found.isUpcoming || found.status === 'Sắp phát hành' || found.status === 'Sắp có';
-      const isResv = myReservations.some(r => Number(r.bookId) === Number(found.id) && r.status !== 'Cancelled' && r.status !== 'Hủy');
-      setSelectedBook({
-        ...found,
-        isUpcoming: isUp,
-        isReserved: isResv,
-        quantity: isUp ? 0 : found.quantity,
-        available: isUp ? 0 : found.available
       });
       setDetailModalOpen(true);
       return;
@@ -537,34 +545,25 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     const days = Math.max(1, Math.min(60, Number(renewDays) || 7));
     setIsRenewing(true);
     try {
-      const baseDateStr = renewRecord.returnDate || renewRecord.dueDate;
-      let baseDate = new Date();
-      if (baseDateStr) {
-        const parsed = new Date(baseDateStr);
-        if (!isNaN(parsed.getTime())) baseDate = parsed;
-      }
-      baseDate.setDate(baseDate.getDate() + days);
-      const newReturnStr = baseDate.toISOString().substring(0, 10);
-
-      // Cập nhật phản hồi tức thì 0ms (60fps) cho giao diện
+      // Cập nhật phản hồi tức thì 0ms (60fps) cho giao diện: chuyển sang trạng thái Chờ duyệt gia hạn
       setMyBorrows(prev => prev.map(r => 
         Number(r.id) === Number(renewRecord.id)
           ? {
               ...r,
-              returnDate: newReturnStr,
-              dueDate: newReturnStr,
-              renewCount: Number(r.renewCount || 0) + 1
+              renewStatus: 'Chờ duyệt gia hạn',
+              pendingRenewDays: days,
+              pendingRenewNotes: renewNotes
             }
           : r
       ));
 
-      await api.renewBorrowRecord(renewRecord.id, days, renewNotes);
-      showToast(`✓ Đã gia hạn cuốn sách "${renewRecord.bookTitle}" thêm ${days} ngày! Hạn trả mới: ${newReturnStr}.`);
+      await api.requestRenewBorrow(renewRecord.id, days, renewNotes);
+      showToast(`✓ Đã gửi yêu cầu gia hạn thêm ${days} ngày! Yêu cầu của bạn đang chờ thủ thư phê duyệt.`);
       setRenewRecord(null);
       await loadBorrowsOnly(true);
     } catch (err) {
       console.error(err);
-      showToast(err.message || 'Có lỗi xảy ra khi gia hạn sách.');
+      showToast(err.message || 'Có lỗi xảy ra khi gửi yêu cầu gia hạn.');
       await loadBorrowsOnly(true);
     } finally {
       setIsRenewing(false);
@@ -576,7 +575,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
     b.status !== 'Upcoming' && 
     b.status !== 'Sắp phát hành' && 
     b.status !== 'Sắp có' && 
-    Number(b.id) < 51 && 
     !b.isUpcoming
   );
 
@@ -708,7 +706,8 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
           {/* Mục SÁCH SẮP CÓ (Upcoming Books Section - Bố cục 5 cột chuẩn theo ảnh mẫu) */}
           <UpcomingBooksSection
-            reservedBookIds={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy').map(r => Number(r.bookId))}
+            books={books}
+            reservedBookIds={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled').map(r => Number(r.bookId))}
             onReserve={handleCreateReservation}
             onCancelReserve={(book) => handleCancelReservationForBook(book.id)}
             onSelectBook={(book) => {
@@ -998,40 +997,74 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                           </button>
                         ) : null}
 
-                        {/* Nút Gia hạn cho sách đang mượn */}
+                        {/* Nút Gia hạn hoặc Trạng thái Chờ duyệt gia hạn cho sách đang mượn */}
                         {canReturn ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRenewRecord(r);
-                              setRenewDays(7);
-                              setRenewNotes('');
-                            }}
-                            className="btn btn-table-action"
-                            style={{
-                              background: '#eff6ff',
-                              color: '#2563eb',
-                              border: '1px solid #bfdbfe',
-                              padding: '7px 14px',
-                              borderRadius: '6px',
-                              fontSize: '12.5px',
-                              fontWeight: 700,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              cursor: 'pointer',
-                              transition: 'all 0.15s ease'
-                            }}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = '#dbeafe';
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = '#eff6ff';
-                            }}
-                            title="Gia hạn thời gian mượn cuốn sách này"
-                          >
-                            <Clock size={14} /> Gia hạn
-                          </button>
+                          r.renewStatus === 'Chờ duyệt gia hạn' ? (
+                            <span
+                              className="badge badge-warning"
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '5px',
+                                padding: '6px 12px',
+                                fontSize: '12px',
+                                fontWeight: 700,
+                                background: '#fef3c7',
+                                color: '#b45309',
+                                border: '1px solid #fde68a'
+                              }}
+                              title="Yêu cầu gia hạn đang chờ thủ thư phê duyệt"
+                            >
+                              <Clock size={13} /> Chờ duyệt gia hạn (+{r.pendingRenewDays || 7} ngày)
+                            </span>
+                          ) : (Number(r.renewCount) || 0) >= 2 ? (
+                            <span
+                              style={{
+                                fontSize: '11.5px',
+                                color: '#94a3b8',
+                                fontWeight: 600,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '6px 4px'
+                              }}
+                              title="Cuốn sách này đã được gia hạn tối đa 2 lần"
+                            >
+                              (Đã gia hạn 2/2 lần)
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRenewRecord(r);
+                                setRenewDays(7);
+                                setRenewNotes('');
+                              }}
+                              className="btn btn-table-action"
+                              style={{
+                                background: '#eff6ff',
+                                color: '#2563eb',
+                                border: '1px solid #bfdbfe',
+                                padding: '7px 14px',
+                                borderRadius: '6px',
+                                fontSize: '12.5px',
+                                fontWeight: 700,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                cursor: 'pointer',
+                                transition: 'all 0.15s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = '#dbeafe';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = '#eff6ff';
+                              }}
+                              title="Gửi yêu cầu xin gia hạn thời gian mượn cuốn sách này"
+                            >
+                              <Clock size={14} /> Xin gia hạn
+                            </button>
+                          )
                         ) : null}
 
                         {/* Nút Hủy yêu cầu cho sách đang Chờ duyệt */}
@@ -1174,8 +1207,30 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                             </span>
                           )}
                         </td>
-                        <td style={{ textAlign: 'right', color: '#94a3b8', fontSize: '13px', whiteSpace: 'nowrap' }}>
-                          -
+                        <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                          {['Đang mượn', 'Đã trả', 'Quá hạn'].includes(r.status) ? (
+                            <button
+                              onClick={() => exportApi.downloadBorrowReceiptPdf(r.id)}
+                              style={{
+                                padding: '4px 9px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: '#2563eb',
+                                background: '#eff6ff',
+                                border: '1px solid #bfdbfe',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                              title="Tải phiếu xác nhận mượn sách (PDF)"
+                            >
+                              <Download size={12} /> PDF
+                            </button>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -1190,25 +1245,38 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       {/* TAB 4: ĐẶT TRƯỚC SÁCH (FIFO QUEUE) */}
       {activeTab === 'reservations' && (() => {
         const cleanActiveReservations = myReservations.filter(
-          r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' &&
-               Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))
+          r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled'
         );
 
         const maxRes = Number(systemSettings?.maxReservations || 3);
         const isQuotaFull = cleanActiveReservations.length >= maxRes;
 
-        // Danh sách 10 cuốn sách đặt trước trong hệ thống (Sách sắp phát hành)
-        const allEligibleBooks = (UPCOMING_BOOKS || []).map(ub => ({
-          id: ub.id,
-          title: ub.title,
-          author: ub.author,
-          category: ub.category,
-          rating: ub.rating,
-          releaseDate: ub.releaseDate,
-          isUpcoming: true,
-          desc: ub.desc,
-          imageUrl: ub.cover
-        }));
+        // Danh sách sách đặt trước trong hệ thống (Ưu tiên lấy từ CSDL books)
+        const upcomingFromDb = (books || []).filter(b => 
+          b.isUpcoming || 
+          b.status === 'Sắp phát hành' || 
+          b.status === 'Sắp có' || 
+          b.status === 'Upcoming' || 
+          Number(b.id) >= 51
+        );
+        const allEligibleBooks = (upcomingFromDb.length > 0 ? upcomingFromDb : UPCOMING_BOOKS).map(ub => {
+          let relDate = ub.releaseDate;
+          if (!relDate && (ub.desc || ub.description)) {
+            const match = (ub.desc || ub.description).match(/Dự kiến phát hành:\s*([^).\n]+)/);
+            if (match) relDate = match[1].trim();
+          }
+          return {
+            id: ub.id,
+            title: ub.title,
+            author: ub.author,
+            category: ub.category,
+            rating: ub.rating || 9.5,
+            releaseDate: relDate || ub.releaseDate || '10-2026',
+            isUpcoming: true,
+            desc: ub.desc || ub.description || '',
+            imageUrl: ub.imageUrl || ub.cover
+          };
+        });
 
         // Lọc danh sách trong Modal Đặt trước
         const filteredEligibleBooks = allEligibleBooks.filter(item => {
@@ -1280,9 +1348,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 <div style={{ fontSize: '22px', fontWeight: 800, color: isQuotaFull ? '#dc2626' : '#1e293b', marginTop: '4px' }}>
                   {cleanActiveReservations.length} / {maxRes}
                 </div>
-                <div style={{ fontSize: '11px', color: isQuotaFull ? '#ef4444' : '#64748b', fontWeight: 600, marginTop: '2px' }}>
-                  {isQuotaFull ? '⚠️ Hết lượt (Cần hủy bớt để đặt tiếp)' : `Còn lại: ${maxRes - cleanActiveReservations.length} lượt đặt`}
-                </div>
               </div>
 
               <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #f59e0b' }}>
@@ -1290,7 +1355,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 <div style={{ fontSize: '22px', fontWeight: 800, color: '#d97706', marginTop: '4px' }}>
                   {cleanActiveReservations.filter(r => r.status === 'Waiting').length}
                 </div>
-                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>Ưu tiên theo thứ tự FIFO</div>
               </div>
 
               <div className="card" style={{ padding: '16px 20px', margin: 0, borderLeft: '4px solid #16a34a' }}>
@@ -1298,7 +1362,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
                   {cleanActiveReservations.filter(r => r.status === 'Ready').length}
                 </div>
-                <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>Giữ chỗ ưu tiên trong 48h</div>
               </div>
             </div>
 
@@ -1447,9 +1510,6 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
 
                         <div style={{ background: isReady ? '#dcfce7' : '#f8fafc', padding: '10px 14px', borderRadius: '8px', fontSize: '12.5px', color: '#475569', display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '14px' }}>
                           <div>Thời gian đăng ký: <strong>{res.reservedAt ? res.reservedAt.substring(0, 16).replace('T', ' ') : '-'}</strong></div>
-                          <div>
-                            Vị trí ưu tiên: <strong style={{ color: '#2563eb' }}>Số #{res.priority || 1} trong hàng chờ FIFO</strong>
-                          </div>
                           {isReady && res.expiresAt && (
                             <div style={{ color: '#b91c1c', fontWeight: 700 }}>
                               ⏰ Hạn giữ chỗ ưu tiên: Đến {res.expiresAt.substring(0, 16).replace('T', ' ')}
@@ -1831,7 +1891,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
         onBorrow={handleOpenBorrowModal}
         onReserve={handleCreateReservation}
         onCancelReserve={(b) => handleCancelReservationForBook(b.id)}
-        activeReservationCount={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled' && Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên'))).length}
+        activeReservationCount={myReservations.filter(r => r.status !== 'Cancelled' && r.status !== 'Hủy' && r.status !== 'Fulfilled').length}
         isAdmin={false}
         isUserLocked={isReaderLocked}
       />
@@ -2004,7 +2064,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                 </strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#16a34a', fontWeight: 700 }}>
-                <span>Hạn trả mới sau gia hạn:</span>
+                <span>Dự kiến hạn trả mới (nếu được duyệt):</span>
                 <span>
                   {(() => {
                     const baseStr = renewRecord.returnDate || renewRecord.dueDate;
@@ -2092,6 +2152,10 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                   boxSizing: 'border-box'
                 }}
               />
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Clock size={12} color="#ea580c" />
+                <span>Yêu cầu gia hạn sẽ được gửi đến Thủ thư / Quản trị viên để xét duyệt.</span>
+              </div>
             </div>
 
             {/* Nút hành động */}
@@ -2120,7 +2184,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
                   gap: '6px'
                 }}
               >
-                {isRenewing ? 'Đang gửi yêu cầu...' : 'Xác nhận gia hạn'}
+                {isRenewing ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu gia hạn'}
               </button>
             </div>
           </div>

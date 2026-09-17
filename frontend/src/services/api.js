@@ -13,6 +13,7 @@ const syncChannel = typeof window !== 'undefined' && typeof BroadcastChannel !==
 
 let memoryDb = null;
 let memoryDbTimestamp = 0;
+const _cancelledReservationIds = new Set();
 
 if (syncChannel && typeof window !== 'undefined') {
   syncChannel.onmessage = (event) => {
@@ -464,7 +465,7 @@ export const api = {
   getBooks: async () => {
     if (!isStaticHost) {
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/books`, {}, 2500);
+        const res = await fetchWithTimeout(`${API_BASE}/books`, {}, 10000);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -491,6 +492,10 @@ export const api = {
         });
         if (res.ok) {
           const result = await res.json();
+          const db = getLocalDb();
+          const newBook = { ...bookData, ...(result.book || {}) };
+          db.books = [newBook, ...(db.books || []).filter(b => Number(b.id) !== Number(newBook.id))];
+          saveLocalDb(db);
           notifyDataUpdated('book');
           return result;
         }
@@ -516,17 +521,27 @@ export const api = {
         });
         if (res.ok) {
           const result = await res.json();
+          const db = getLocalDb();
+          const updatedBook = { ...bookData, ...(result.book || {}) };
+          db.books = (db.books || []).map(b => Number(b.id) === Number(bookId) ? { ...b, ...updatedBook } : b);
+          saveLocalDb(db);
           notifyDataUpdated('book');
           return result;
+        } else {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.detail || 'Lỗi từ máy chủ khi cập nhật sách');
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('Lỗi khi gọi API updateBook:', e);
+        if (e.message && e.message.includes('Lỗi từ máy chủ')) throw e;
+      }
     }
 
     const db = getLocalDb();
     db.books = (db.books || []).map(b => Number(b.id) === Number(bookId) ? { ...b, ...bookData } : b);
     saveLocalDb(db);
     notifyDataUpdated('book');
-    return { success: true };
+    return { success: true, book: { id: bookId, ...bookData } };
   },
 
   deleteBook: async (bookId) => {
@@ -535,6 +550,9 @@ export const api = {
         const res = await fetch(`${API_BASE}/books/${bookId}`, { method: 'DELETE' });
         if (res.ok) {
           const result = await res.json();
+          const db = getLocalDb();
+          db.books = (db.books || []).filter(b => Number(b.id) !== Number(bookId));
+          saveLocalDb(db);
           notifyDataUpdated('book');
           return result;
         }
@@ -650,8 +668,8 @@ export const api = {
     const db = getLocalDb();
     const targetBook = (db.books || []).find(b => Number(b.id) === Number(data.bookId));
     const finalBookTitle = data.bookTitle || targetBook?.title || 'Sách thư viện';
-    const finalReaderName = data.readerName || 'Trần Thị Mai';
-    const finalReaderId = Number(data.readerId || data.userId || 2);
+    const finalReaderName = data.readerName || data.fullName || '';
+    const finalReaderId = Number(data.readerId || data.userId || 0);
     const enrichedData = {
       ...data,
       bookId: Number(data.bookId),
@@ -802,7 +820,7 @@ export const api = {
         {
           id: notifId,
           recipientRole: 'Reader',
-          recipientUserId: approvedRec.readerId || 2,
+          recipientUserId: approvedRec.readerId || approvedRec.userId,
           title: 'Yêu cầu mượn sách đã được duyệt',
           message: `Yêu cầu mượn cuốn sách "${approvedRec.bookTitle}" của bạn đã được duyệt thành công!`,
           type: 'borrow_approved',
@@ -849,7 +867,7 @@ export const api = {
         {
           id: notifId,
           recipientRole: 'Reader',
-          recipientUserId: rejectedRec.readerId || 2,
+          recipientUserId: rejectedRec.readerId || rejectedRec.userId,
           title: 'Yêu cầu mượn sách bị từ chối',
           message: `Yêu cầu mượn cuốn sách "${rejectedRec.bookTitle}" đã bị từ chối.`,
           type: 'borrow_rejected',
@@ -922,7 +940,7 @@ export const api = {
       const notifReader = {
         id: maxId + 1,
         recipientRole: 'Reader',
-        recipientUserId: updated.readerId || 2,
+        recipientUserId: updated.readerId || updated.userId,
         title: 'Xác nhận trả sách thành công',
         message: `Bạn đã hoàn tất trả cuốn sách "${updated.bookTitle}". Cảm ơn bạn đã giữ gìn sách cẩn thận!`,
         type: 'book_returned',
@@ -949,19 +967,19 @@ export const api = {
           id: maxId + 2,
           recipientRole: 'Admin',
           title: 'Độc giả đã hủy yêu cầu mượn',
-          message: `Độc giả ${updated.readerName || 'Trần Thị Mai'} đã hủy yêu cầu mượn cuốn sách "${updated.bookTitle}".`,
+          message: `Độc giả ${updated.readerName || 'Độc giả'} đã hủy yêu cầu mượn cuốn sách "${updated.bookTitle}".`,
           type: 'borrow_rejected',
           recordId: updated.id,
           bookId: updated.bookId,
           bookTitle: updated.bookTitle,
-          readerName: updated.readerName || 'Trần Thị Mai',
+          readerName: updated.readerName,
           isRead: false,
           createdAt: nowStr
         },
         {
           id: maxId + 1,
           recipientRole: 'Reader',
-          recipientUserId: updated.readerId || 2,
+          recipientUserId: updated.readerId || updated.userId,
           title: 'Đã hủy yêu cầu mượn sách',
           message: `Bạn đã hủy thành công yêu cầu mượn cuốn sách "${updated.bookTitle}".`,
           type: 'borrow_rejected',
@@ -974,9 +992,10 @@ export const api = {
         ...(db.notifications || [])
       ];
     } else if (status === 'Quá hạn' && updated) {
-      const fineAmount = 6000;
+      // Tự động tạo bản ghi phạt trong db.fines
+      const fineAmount = 6000; // Mặc định 3 ngày x 2000đ
       const newFine = {
-        id: Date.now(),
+        id: Math.max(0, ...(db.fines || []).map(f => Number(f.id) || 0)) + 1,
         borrowRecordId: updated.id,
         bookTitle: updated.bookTitle,
         readerId: updated.readerId,
@@ -997,7 +1016,7 @@ export const api = {
         {
           id: maxId + 1,
           recipientRole: 'Reader',
-          recipientUserId: updated.readerId || 2,
+          recipientUserId: updated.readerId || updated.userId,
           title: 'Cảnh báo: Sách mượn bị chuyển Quá hạn',
           message: `Cuốn sách "${updated.bookTitle}" của bạn đã bị chuyển sang trạng thái Quá hạn (Tiền phạt: ${fineAmount.toLocaleString('vi-VN')} đ). Tài khoản đã bị khóa đăng nhập sau 3 ngày chưa nộp phạt, vui lòng nộp phạt qua VNPay để mở lại tài khoản!`,
           type: 'overdue_alert',
@@ -1033,7 +1052,213 @@ export const api = {
     return { success: true, record: updated };
   },
 
+  requestRenewBorrow: async (recordId, days = 7, notes = '') => {
+    // 1. Cập nhật localDb ngay lập tức (60fps optimistic UI)
+    const db = getLocalDb();
+    let updatedRecord = null;
+    const numDays = Math.max(1, Math.min(60, Number(days) || 7));
+
+    db.borrowRecords = (db.borrowRecords || []).map(r => {
+      if (Number(r.id) === Number(recordId)) {
+        updatedRecord = {
+          ...r,
+          renewStatus: 'Chờ duyệt gia hạn',
+          pendingRenewDays: numDays,
+          pendingRenewNotes: notes || '',
+          renewRequestedAt: new Date().toISOString()
+        };
+        return updatedRecord;
+      }
+      return r;
+    });
+
+    if (updatedRecord) {
+      const maxId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0));
+      const nowStr = new Date().toISOString();
+      const notifAdmin = {
+        id: maxId + 1,
+        recipientRole: 'Admin',
+        title: 'Yêu cầu gia hạn mượn sách mới',
+        message: `Độc giả ${updatedRecord.readerName || 'Độc giả'} gửi yêu cầu gia hạn cuốn sách "${updatedRecord.bookTitle}" thêm ${numDays} ngày. Chờ phê duyệt!`,
+        type: 'renew_request',
+        recordId: updatedRecord.id,
+        bookId: updatedRecord.bookId,
+        bookTitle: updatedRecord.bookTitle,
+        readerName: updatedRecord.readerName,
+        days: numDays,
+        notes,
+        isRead: false,
+        createdAt: nowStr
+      };
+      db.notifications = [notifAdmin, ...(db.notifications || [])];
+    }
+
+    saveLocalDb(db);
+    notifyDataUpdated('borrow');
+
+    // 2. Gửi request đến backend
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/borrow-records/${recordId}/request-renew`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: numDays, notes })
+        });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('borrow');
+          return result;
+        } else {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Không thể gửi yêu cầu gia hạn');
+        }
+      } catch (e) {
+        if (e.message && !e.message.includes('fetch')) throw e;
+      }
+    }
+
+    return { success: true, message: `Đã gửi yêu cầu gia hạn thêm ${numDays} ngày! Đang chờ thủ thư duyệt.`, record: updatedRecord };
+  },
+
+  approveRenewBorrow: async (recordId) => {
+    // 1. Cập nhật localDb ngay lập tức (60fps optimistic UI)
+    const db = getLocalDb();
+    let updatedRecord = null;
+    let newReturnStr = '';
+
+    db.borrowRecords = (db.borrowRecords || []).map(r => {
+      if (Number(r.id) === Number(recordId)) {
+        const numDays = Number(r.pendingRenewDays) || 7;
+        const baseDateStr = r.returnDate || r.dueDate;
+        let baseDate = new Date();
+        if (baseDateStr) {
+          const parsed = new Date(baseDateStr);
+          if (!isNaN(parsed.getTime())) baseDate = parsed;
+        }
+        const newDueDate = new Date(baseDate.getTime() + numDays * 86400000);
+        newReturnStr = newDueDate.toISOString().substring(0, 10);
+        updatedRecord = {
+          ...r,
+          returnDate: newReturnStr,
+          dueDate: newReturnStr,
+          renewCount: (Number(r.renewCount) || 0) + 1,
+          renewStatus: null,
+          pendingRenewDays: null,
+          pendingRenewNotes: null,
+          notes: r.pendingRenewNotes ? `${r.notes || ''} | Gia hạn +${numDays} ngày: ${r.pendingRenewNotes}`.trim() : r.notes
+        };
+        return updatedRecord;
+      }
+      return r;
+    });
+
+    if (updatedRecord) {
+      const maxId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0));
+      const nowStr = new Date().toISOString();
+      const notifReader = {
+        id: maxId + 1,
+        recipientRole: 'Reader',
+        recipientUserId: updatedRecord.readerId || updatedRecord.userId,
+        title: 'Yêu cầu gia hạn đã được duyệt ✓',
+        message: `Yêu cầu gia hạn cuốn sách "${updatedRecord.bookTitle}" đã được duyệt thành công! Hạn trả mới: ${newReturnStr}.`,
+        type: 'renew_approved',
+        recordId: updatedRecord.id,
+        bookId: updatedRecord.bookId,
+        bookTitle: updatedRecord.bookTitle,
+        newReturnDate: newReturnStr,
+        isRead: false,
+        createdAt: nowStr
+      };
+      db.notifications = [notifReader, ...(db.notifications || [])];
+    }
+
+    saveLocalDb(db);
+    notifyDataUpdated('borrow');
+
+    // 2. Gửi request đến backend
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/borrow-records/${recordId}/approve-renew`, { method: 'PUT' });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('borrow');
+          return result;
+        }
+      } catch (e) {}
+    }
+
+    return { success: true, message: 'Đã duyệt yêu cầu gia hạn thành công!', record: updatedRecord };
+  },
+
+  rejectRenewBorrow: async (recordId, reason = '') => {
+    // 1. Cập nhật localDb ngay lập tức
+    const db = getLocalDb();
+    let updatedRecord = null;
+
+    db.borrowRecords = (db.borrowRecords || []).map(r => {
+      if (Number(r.id) === Number(recordId)) {
+        updatedRecord = {
+          ...r,
+          renewStatus: null,
+          pendingRenewDays: null,
+          pendingRenewNotes: null
+        };
+        return updatedRecord;
+      }
+      return r;
+    });
+
+    if (updatedRecord) {
+      const maxId = Math.max(0, ...(db.notifications || []).map(n => Number(n.id) || 0));
+      const nowStr = new Date().toISOString();
+      const notifReader = {
+        id: maxId + 1,
+        recipientRole: 'Reader',
+        recipientUserId: updatedRecord.readerId || updatedRecord.userId,
+        title: 'Yêu cầu gia hạn bị từ chối ❌',
+        message: `Yêu cầu gia hạn cuốn sách "${updatedRecord.bookTitle}" đã bị từ chối. Vui lòng trả sách đúng hạn ${updatedRecord.returnDate || ''}.`,
+        type: 'renew_rejected',
+        recordId: updatedRecord.id,
+        isRead: false,
+        createdAt: nowStr
+      };
+      db.notifications = [notifReader, ...(db.notifications || [])];
+    }
+
+    saveLocalDb(db);
+    notifyDataUpdated('borrow');
+
+    // 2. Gửi request đến backend
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/borrow-records/${recordId}/reject-renew`, { method: 'PUT' });
+        if (res.ok) {
+          const result = await res.json();
+          notifyDataUpdated('borrow');
+          return result;
+        }
+      } catch (e) {}
+    }
+
+    return { success: true, message: 'Đã từ chối yêu cầu gia hạn.' };
+  },
+
   renewBorrowRecord: async (recordId, days = 7, notes = '') => {
+    // Chỉ Quản trị viên (Admin) hoặc Thủ thư (Librarian) mới có quyền gia hạn trực tiếp ngay lập tức
+    // Độc giả (Reader) bắt buộc phải qua quy trình gửi yêu cầu duyệt gia hạn (requestRenewBorrow)
+    let curRole = null;
+    try {
+      curRole = localStorage.getItem('currentUserRole') || sessionStorage.getItem('currentUserRole');
+      if (!curRole) {
+        const u = JSON.parse(localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser') || '{}');
+        curRole = u.role || u.Role;
+      }
+    } catch (e) {}
+
+    if (curRole === 'Reader') {
+      return api.requestRenewBorrow(recordId, days, notes);
+    }
+
     // 1. Cập nhật localDb trước để đảm bảo phản hồi tức thì 0ms (60fps)
     const db = getLocalDb();
     let updatedRecord = null;
@@ -1050,14 +1275,16 @@ export const api = {
             baseDate = parsed;
           }
         }
-        baseDate.setDate(baseDate.getDate() + numDays);
-        newReturnStr = baseDate.toISOString().substring(0, 10);
-
+        const newDueDate = new Date(baseDate.getTime() + numDays * 86400000);
+        newReturnStr = newDueDate.toISOString().substring(0, 10);
         updatedRecord = {
           ...r,
           returnDate: newReturnStr,
           dueDate: newReturnStr,
-          renewCount: Number(r.renewCount || 0) + 1,
+          renewCount: (Number(r.renewCount) || 0) + 1,
+          renewStatus: null,
+          pendingRenewDays: null,
+          pendingRenewNotes: null,
           notes: notes ? `${r.notes || ''} | Gia hạn +${numDays} ngày: ${notes}`.trim() : r.notes
         };
         return updatedRecord;
@@ -1072,7 +1299,7 @@ export const api = {
         id: maxId + 2,
         recipientRole: 'Admin',
         title: 'Độc giả gia hạn mượn sách',
-        message: `Độc giả ${updatedRecord.readerName || 'Trần Thị Mai'} đã gia hạn thêm ${numDays} ngày cho cuốn sách "${updatedRecord.bookTitle}". Hạn trả mới: ${newReturnStr}.`,
+        message: `Độc giả ${updatedRecord.readerName || 'Độc giả'} đã gia hạn thêm ${numDays} ngày cho cuốn sách "${updatedRecord.bookTitle}". Hạn trả mới: ${newReturnStr}.`,
         type: 'borrow_renewed',
         recordId: updatedRecord.id,
         bookId: updatedRecord.bookId,
@@ -1086,7 +1313,7 @@ export const api = {
       const notifReader = {
         id: maxId + 1,
         recipientRole: 'Reader',
-        recipientUserId: updatedRecord.readerId || 2,
+        recipientUserId: updatedRecord.readerId || updatedRecord.userId,
         title: 'Gia hạn mượn sách thành công',
         message: `Cuốn sách "${updatedRecord.bookTitle}" của bạn đã được gia hạn thêm ${numDays} ngày. Hạn trả mới: ${newReturnStr}.`,
         type: 'borrow_renewed',
@@ -1239,7 +1466,7 @@ export const api = {
 
     const db = getLocalDb();
     const books = db.books || [];
-    const actualBooks = books.filter(b => b.status !== 'Upcoming' && b.status !== 'Sắp phát hành' && b.status !== 'Sắp có' && Number(b.id) < 51);
+    const actualBooks = books.filter(b => b.status !== 'Upcoming' && b.status !== 'Sắp phát hành' && b.status !== 'Sắp có' && !b.isUpcoming);
     const totalBooks = actualBooks.length;
     const totalReaders = (db.users || []).filter(u => u.role === 'Reader').length;
     const records = db.borrowRecords || [];
@@ -1261,11 +1488,15 @@ export const api = {
   // Reservations (Đặt trước sách)
   getCachedReservations: (userId = null) => {
     const db = getLocalDb();
-    let list = db.reservations || [];
+    let list = (db.reservations || []).filter(r => 
+      !_cancelledReservationIds.has(Number(r.id)) && 
+      r.status !== 'Cancelled' && 
+      r.status !== 'Hủy'
+    );
     if (userId) {
       list = list.filter(r => Number(r.readerId || r.userId) === Number(userId));
     }
-    return list.filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+    return list;
   },
 
   getReservations: async (userId = null) => {
@@ -1276,12 +1507,21 @@ export const api = {
         const res = await fetchWithTimeout(url, {}, 6000);
         if (res.ok) {
           list = await res.json();
-          const cleanList = (list || []).filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+          const cleanList = (list || []).filter(r => 
+            !_cancelledReservationIds.has(Number(r.id)) && 
+            r.status !== 'Cancelled' && 
+            r.status !== 'Hủy'
+          );
           // Đồng bộ tức thì với localDb
           try {
             const db = getLocalDb();
             if (userId) {
-              const otherRes = (db.reservations || []).filter(r => Number(r.readerId || r.userId) !== Number(userId));
+              const otherRes = (db.reservations || []).filter(r => 
+                Number(r.readerId || r.userId) !== Number(userId) && 
+                !_cancelledReservationIds.has(Number(r.id)) && 
+                r.status !== 'Cancelled' && 
+                r.status !== 'Hủy'
+              );
               db.reservations = [...otherRes, ...cleanList];
             } else {
               db.reservations = cleanList;
@@ -1293,51 +1533,25 @@ export const api = {
       } catch (e) {}
     }
     const db = getLocalDb();
-    list = db.reservations || [];
+    list = (db.reservations || []).filter(r => 
+      !_cancelledReservationIds.has(Number(r.id)) && 
+      r.status !== 'Cancelled' && 
+      r.status !== 'Hủy'
+    );
     if (userId) {
       list = list.filter(r => Number(r.readerId || r.userId) === Number(userId));
     }
-    return list.filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+    return list;
   },
 
   createReservation: async (bookId, readerId) => {
     const bId = typeof bookId === 'object' ? bookId.bookId : bookId;
-    const rId = typeof bookId === 'object' ? (bookId.readerId || bookId.userId) : (readerId || 2);
-    
-    // 1. Kiểm tra quota và chuẩn bị bản ghi
-    const db = getLocalDb();
-    const books = db.books || [];
-    const users = db.users || [];
-    const reservations = (db.reservations || []).filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
-    const activeResvs = reservations.filter(r => Number(r.readerId || r.userId) === Number(rId) && (r.status === 'Waiting' || r.status === 'Ready'));
-    if (activeResvs.length >= 3) {
-      throw new Error('Bạn đã hết lượt đặt trước sách. Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách, nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.');
+    const rId = typeof bookId === 'object' ? (bookId.readerId || bookId.userId) : readerId;
+    if (!rId) {
+      throw new Error('Vui lòng đăng nhập để đặt trước sách.');
     }
-    const book = books.find(b => Number(b.id) === Number(bId));
-    const reader = users.find(u => Number(u.id) === Number(rId));
-    const sameWaiting = reservations.filter(r => Number(r.bookId) === Number(bId) && r.status === 'Waiting');
-    const priority = sameWaiting.length + 1;
-    const newId = Math.max(0, ...reservations.map(r => Number(r.id) || 0)) + 1;
-    const nowIso = new Date().toISOString();
-    const newRes = {
-      id: newId,
-      bookId: Number(bId),
-      bookTitle: book?.title || (typeof bookId === 'object' ? (bookId.bookTitle || bookId.title) : '') || 'Sách',
-      readerId: Number(rId),
-      userId: Number(rId),
-      readerName: reader?.fullName || 'Trần Thị Mai',
-      reservedAt: nowIso,
-      status: 'Waiting',
-      priority,
-      expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString()
-    };
-
-    // Lưu ngay vào localDb
-    db.reservations = [...reservations, newRes];
-    saveLocalDb(db);
-    notifyDataUpdated('reservation');
-
-    // 2. Gửi request đến backend nếu đang chạy online
+    
+    // 1. Gửi request đến backend trước (phản hồi ngay trong vài ms)
     if (!isStaticHost) {
       try {
         const res = await fetch(`${API_BASE}/reservations`, {
@@ -1349,39 +1563,112 @@ export const api = {
           const result = await res.json();
           if (result.reservation) {
             const freshDb = getLocalDb();
-            freshDb.reservations = (freshDb.reservations || []).map(r => r.id === newId ? result.reservation : r);
+            _cancelledReservationIds.delete(Number(result.reservation.id));
+            freshDb.reservations = [
+              ...(freshDb.reservations || []).filter(r => Number(r.id) !== Number(result.reservation.id)),
+              result.reservation
+            ];
             saveLocalDb(freshDb);
           }
           notifyDataUpdated('reservation');
           return result;
         } else {
           const err = await res.json().catch(() => ({}));
-          // Hoàn tác nếu server từ chối
-          const rollbackDb = getLocalDb();
-          rollbackDb.reservations = (rollbackDb.reservations || []).filter(r => r.id !== newId);
-          saveLocalDb(rollbackDb);
-          notifyDataUpdated('reservation');
           throw new Error(err.detail || 'Lỗi khi đặt trước sách');
         }
       } catch (e) {
-        if (e.message && !e.message.includes('fetch')) throw e;
+        // Nếu server từ chối (400, 403, 404, quota đầy, v.v.), ném lỗi ngay để UI KHÔNG chuyển sang "Đã đặt"
+        if (e.message && !e.message.includes('fetch') && !e.message.includes('NetworkError') && !e.message.includes('Failed to fetch')) {
+          throw e;
+        }
       }
     }
+
+    // 2. Chế độ Offline fallback (hoặc khi không kết nối mạng)
+    const db = getLocalDb();
+    const books = db.books || [];
+    const users = db.users || [];
+    const reservations = db.reservations || [];
+    const activeResvs = reservations.filter(r => Number(r.readerId || r.userId) === Number(rId) && (r.status === 'Waiting' || r.status === 'Ready'));
+    if (activeResvs.length >= 3) {
+      throw new Error('Bạn đã hết lượt đặt trước sách. Mỗi độc giả chỉ được đặt trước tối đa 3 cuốn sách, nếu muốn đặt thì cần phải hủy một cuốn sách khác để đặt tiếp.');
+    }
+    const book = books.find(b => Number(b.id) === Number(bId));
+    const reader = users.find(u => Number(u.id) === Number(rId));
+    const sameWaiting = reservations.filter(r => Number(r.bookId) === Number(bId) && r.status === 'Waiting');
+    const priority = sameWaiting.length + 1;
+    const newId = Math.max(0, ...reservations.map(r => Number(r.id) || 0)) + 1;
+    _cancelledReservationIds.delete(newId);
+    const nowIso = new Date().toISOString();
+    const newRes = {
+      id: newId,
+      bookId: Number(bId),
+      bookTitle: book?.title || (typeof bookId === 'object' ? (bookId.bookTitle || bookId.title) : '') || 'Sách',
+      readerId: Number(rId),
+      userId: Number(rId),
+      readerName: reader?.fullName || 'Độc giả',
+      reservedAt: nowIso,
+      status: 'Waiting',
+      priority,
+      expiresAt: new Date(Date.now() + 48 * 3600 * 1000).toISOString()
+    };
+
+    db.reservations = [...reservations, newRes];
+    saveLocalDb(db);
+    notifyDataUpdated('reservation');
 
     return { reservation: newRes, message: 'Đặt trước sách thành công!' };
   },
 
-  cancelReservation: async (resId) => {
-    // 1. Cập nhật localDb ngay lập tức
+  updateReservation: async (resId, updateData) => {
+    const numId = Number(resId);
+    if (!isStaticHost) {
+      try {
+        const res = await fetch(`${API_BASE}/reservations/${numId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updateData)
+        });
+        if (res.ok) {
+          const result = await res.json();
+          const db = getLocalDb();
+          if (result.reservation) {
+            db.reservations = (db.reservations || []).map(r => Number(r.id) === numId ? result.reservation : r);
+            saveLocalDb(db);
+          }
+          notifyDataUpdated('reservation');
+          return result;
+        } else {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || 'Không thể cập nhật đặt trước.');
+        }
+      } catch (e) {
+        if (e.message && !e.message.includes('fetch') && !e.message.includes('NetworkError') && !e.message.includes('Failed to fetch')) {
+          throw e;
+        }
+      }
+    }
+
     const db = getLocalDb();
-    db.reservations = (db.reservations || []).map(r => Number(r.id) === Number(resId) ? { ...r, status: 'Cancelled' } : r);
+    db.reservations = (db.reservations || []).map(r => Number(r.id) === numId ? { ...r, ...updateData } : r);
     saveLocalDb(db);
     notifyDataUpdated('reservation');
+    return { success: true };
+  },
+
+  cancelReservation: async (resId) => {
+    const numId = Number(resId);
+    _cancelledReservationIds.add(numId);
+
+    // 1. Cập nhật localDb ngay lập tức (60fps optimistic UI - loại bỏ khỏi hàng chờ)
+    const db = getLocalDb();
+    db.reservations = (db.reservations || []).filter(r => Number(r.id) !== numId);
+    saveLocalDb(db);
 
     // 2. Đồng bộ lên server
     if (!isStaticHost) {
       try {
-        const res = await fetch(`${API_BASE}/reservations/${resId}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE}/reservations/${numId}`, { method: 'DELETE' });
         if (res.ok) {
           const result = await res.json();
           notifyDataUpdated('reservation');
@@ -1389,6 +1676,7 @@ export const api = {
         }
       } catch (e) {}
     }
+    notifyDataUpdated('reservation');
     return { success: true, message: 'Đã hủy đặt trước sách.' };
   },
 

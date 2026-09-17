@@ -4,7 +4,7 @@ import { ChevronRight, Calendar, BookOpen } from 'lucide-react';
 const UPCOMING_BOOKS = [
   {
     id: 51,
-    title: 'Ao no Hako Season 2 (Chiếc Hộp Xanh)',
+    title: 'Ao no Hako Season 2',
     author: 'Kouji Miura',
     rating: 9.6,
     releaseDate: '04-10-2026',
@@ -116,7 +116,7 @@ const UPCOMING_BOOKS = [
 
 export { UPCOMING_BOOKS };
 
-export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancelReserve, reservedBookIds = [] }) {
+export default function UpcomingBooksSection({ books = [], onSelectBook, onReserve, onCancelReserve, reservedBookIds = [] }) {
   const [showAll, setShowAll] = useState(false);
   const [subscribedIds, setSubscribedIds] = useState([]);
 
@@ -129,8 +129,38 @@ export default function UpcomingBooksSection({ onSelectBook, onReserve, onCancel
     }
   }, [reservedBookIds]);
 
-  // Mặc định chỉ hiển thị 5 cuốn, khi click XEM THÊM sẽ hiển thị đủ cả 10 cuốn
-  const displayedBooks = showAll ? UPCOMING_BOOKS : UPCOMING_BOOKS.slice(0, 5);
+  // Lấy danh sách sách đặt trước / sắp có từ CSDL (books prop từ ReaderPortal)
+  const upcomingFromDb = (books || []).filter(b => 
+    b.isUpcoming || 
+    b.status === 'Sắp phát hành' || 
+    b.status === 'Sắp có' || 
+    b.status === 'Upcoming' || 
+    Number(b.id) >= 51
+  ).map(b => {
+    let relDate = b.releaseDate;
+    if (!relDate && (b.desc || b.description)) {
+      const match = (b.desc || b.description).match(/Dự kiến phát hành:\s*([^).\n]+)/);
+      if (match) relDate = match[1].trim();
+    }
+    const fallbackCover = UPCOMING_BOOKS.find(ub => Number(ub.id) === Number(b.id))?.cover;
+    return {
+      id: Number(b.id),
+      title: b.title,
+      author: b.author || 'Chưa rõ',
+      rating: b.rating || 9.5,
+      releaseDate: relDate || '10-2026',
+      views: b.views || '120,000',
+      cover: b.imageUrl || b.cover || fallbackCover || '',
+      imageUrl: b.imageUrl || b.cover || fallbackCover || '',
+      category: b.category || 'Manga & Light Novel',
+      desc: b.desc || b.description || '',
+      status: b.status || 'Sắp có',
+      isUpcoming: true
+    };
+  });
+
+  const allUpcoming = upcomingFromDb.length > 0 ? upcomingFromDb : UPCOMING_BOOKS;
+  const displayedBooks = showAll ? allUpcoming : allUpcoming.slice(0, 5);
 
   return (
     <section

@@ -14,7 +14,7 @@ import Footer from './components/Footer';
 import AIChatWidget from './components/AIChatWidget';
 
 export default function App() {
-  const { isAuthenticated, role } = useAuth();
+  const { isAuthenticated, role, user } = useAuth();
   const [adminTab, setAdminTab] = useState('dashboard'); // 'dashboard' | 'books' | 'pre-orders' | 'readers' | 'settings' | 'profile'
   const [readerTab, setReaderTab] = useState('catalog'); // 'catalog' | 'active-borrows' | 'history' | 'profile'
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -162,9 +162,11 @@ export default function App() {
         }}
         onReserve={async (book) => {
           try {
+            const uid = user?.id;
+            if (!uid) { console.error('Chưa đăng nhập'); return; }
             await api.createReservation({
               bookId: book.id,
-              readerId: 2,
+              readerId: uid,
               bookTitle: book.title
             });
             window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
@@ -174,7 +176,9 @@ export default function App() {
         }}
         onCancelReserve={async (book) => {
           try {
-            const list = await api.getReservations(2);
+            const uid = user?.id;
+            if (!uid) { console.error('Chưa đăng nhập'); return; }
+            const list = await api.getReservations(uid);
             const target = (list || []).find(r => Number(r.bookId) === Number(book.id) && r.status !== 'Cancelled' && r.status !== 'Hủy');
             if (target) await api.cancelReservation(target.id);
             window.dispatchEvent(new CustomEvent('smartlib:data-updated'));

@@ -22,7 +22,7 @@ from models import (
     LoginRequest, RegisterRequest, UpdateProfileRequest, ChangePasswordRequest,
     BookCreate, BookUpdate, ReaderCreate, ReaderUpdate,
     BorrowRequestCreate, BorrowStatusUpdate, NotificationReadRequest,
-    ReservationCreate, FineStatusUpdate, ReaderLockUpdate,
+    ReservationCreate, ReservationUpdate, FineStatusUpdate, ReaderLockUpdate,
     VNPayPaymentCreate, VNPayPaymentVerify, SystemSettings, FineRejectRequest,
     BorrowRenewRequest
 )
@@ -284,8 +284,29 @@ def get_books():
         )
         item = dict(b)
         item["borrowed"] = active_borrowed
+        exp_qty = item.get("expectedQuantity") or item.get("publishedYear") or (20 if item.get("isUpcoming") else item.get("quantity", 1))
+        item["expectedQuantity"] = int(exp_qty)
         result.append(item)
     return result
+
+
+@app.get("/api/books/{book_id}")
+def get_book(book_id: int):
+    db = db_manager.load_db()
+    books = db.get("books", [])
+    book = next((b for b in books if int(b.get("id", 0)) == book_id), None)
+    if not book:
+        raise HTTPException(status_code=404, detail="Không tìm thấy sách.")
+    item = dict(book)
+    borrow_records = db.get("borrowRecords", [])
+    active_borrowed = sum(
+        1 for r in borrow_records 
+        if int(r.get("bookId", 0)) == book_id and r.get("status") in ["Đang mượn", "Quá hạn"]
+    )
+    item["borrowed"] = active_borrowed
+    exp_qty = item.get("expectedQuantity") or item.get("publishedYear") or (20 if item.get("isUpcoming") else item.get("quantity", 1))
+    item["expectedQuantity"] = int(exp_qty)
+    return item
 
 
 @app.post("/api/books", status_code=201)
@@ -301,7 +322,8 @@ def create_book(req: BookCreate):
     new_id = max([int(b.get("id", 0)) for b in books], default=0) + 1
     
     qty = 0 if is_upcoming else int(req.quantity)
-    desc_val = req.desc or ""
+    exp_qty = int(req.expectedQuantity) if req.expectedQuantity is not None else (20 if is_upcoming else qty)
+    desc_val = (req.desc if req.desc is not None else req.description) or ""
     if req.releaseDate and "Dự kiến phát hành:" not in desc_val:
         desc_val = f"{desc_val}\n(Dự kiến phát hành: {req.releaseDate})".strip()
 
@@ -311,6 +333,8 @@ def create_book(req: BookCreate):
         "author": req.author.strip() if req.author else "Chưa rõ",
         "category": req.category if req.category else "Khác",
         "quantity": qty,
+        "expectedQuantity": exp_qty,
+        "publishedYear": exp_qty if is_upcoming else None,
         "available": qty,
         "borrowed": 0,
         "desc": desc_val,
@@ -343,9 +367,13 @@ def update_book(book_id: int, req: BookUpdate):
     if req.quantity is not None:
         book["quantity"] = int(req.quantity)
         book["available"] = max(0, int(req.quantity) - int(book.get("borrowed", 0)))
-    if req.desc is not None:
-        book["desc"] = req.desc
-        book["description"] = req.desc
+    if req.expectedQuantity is not None:
+        book["expectedQuantity"] = int(req.expectedQuantity)
+        book["publishedYear"] = int(req.expectedQuantity)
+    desc_val = req.desc if req.desc is not None else req.description
+    if desc_val is not None:
+        book["desc"] = desc_val
+        book["description"] = desc_val
     if req.imageUrl is not None:
         book["imageUrl"] = req.imageUrl
     if req.status is not None:
@@ -361,7 +389,12 @@ def update_book(book_id: int, req: BookUpdate):
         book["releaseDate"] = req.releaseDate
         if req.releaseDate:
             curr_desc = book.get("desc") or ""
-            if "Dự kiến phát hành:" not in curr_desc:
+            import re
+            if "Dự kiến phát hành:" in curr_desc:
+                curr_desc = re.sub(r"Dự kiến phát hành:\s*[^).\n]+([).\n]?)", f"Dự kiến phát hành: {req.releaseDate}\\1", curr_desc)
+                book["desc"] = curr_desc
+                book["description"] = curr_desc
+            else:
                 book["desc"] = f"{curr_desc}\n(Dự kiến phát hành: {req.releaseDate})".strip()
                 book["description"] = book["desc"]
     if req.isUpcoming is not None:
@@ -675,9 +708,17 @@ def approve_borrow(record_id: int):
                 raise HTTPException(status_code=409, detail="Sách này hiện đã hết số lượng sẵn có trong kho, không thể duyệt!")
 
         record["status"] = "Đang mượn"
-        record["borrowDate"] = datetime.now().isoformat()
+        now_str = datetime.now().isoformat()
+        record["borrowDate"] = now_str
+        # Tính lại returnDate dựa trên ngày duyệt thực tế (không phải ngày đăng ký)
+        sys_settings = get_system_settings()
+        borrow_days = int(sys_settings.get("borrowHomeDays", 14))
+        if record.get("borrowType") == "Đọc tại chỗ":
+            borrow_days = int(sys_settings.get("borrowLibraryDays", 1))
+        new_return_date = (datetime.now() + timedelta(days=borrow_days)).date().isoformat()
+        record["returnDate"] = new_return_date
         for n in db.get("notifications", []):
-            if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id) or (record.get("bookTitle") and record.get("bookTitle") in n.get("message", "") and n.get("type") == "borrow_request"):
+            if n.get("recordId") == record_id or (n.get("meta") and n.get("meta", {}).get("recordId") == record_id):
                 n["isRead"] = True
         db_manager.save_db(db)
 
@@ -803,7 +844,7 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
             if due_str:
                 due = datetime.fromisoformat(due_str.replace("Z", ""))
                 diff = (now.date() - due.date()).days
-                overdue_days = max(lock_threshold, diff)
+                overdue_days = max(1, diff)
         except Exception:
             overdue_days = lock_threshold
         
@@ -939,16 +980,185 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
     return result
 
 
-@app.put("/api/borrow-records/{record_id}/renew")
-def renew_borrow_record(record_id: int, req: BorrowRenewRequest):
+@app.put("/api/borrow-records/{record_id}/request-renew")
+def request_renew_borrow_record(record_id: int, req: BorrowRenewRequest):
+    """Độc giả gửi yêu cầu gia hạn sách (cần được Thủ thư hoặc Quản trị viên duyệt)."""
     db = db_manager.load_db()
     records = db.get("borrowRecords", [])
     record = next((r for r in records if int(r.get("id", 0)) == record_id), None)
     if not record:
         raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
 
-    if record.get("status") not in ["Đang mượn", "Chờ duyệt"]:
-        raise HTTPException(status_code=400, detail="Chỉ có thể gia hạn cho sách đang trong trạng thái mượn.")
+    if record.get("status") != "Đang mượn":
+        raise HTTPException(status_code=400, detail="Chỉ có thể xin gia hạn cho sách đang trong trạng thái Đang mượn.")
+
+    if record.get("renewStatus") == "Chờ duyệt gia hạn":
+        raise HTTPException(status_code=400, detail="Cuốn sách này đang có một yêu cầu gia hạn chờ phê duyệt.")
+
+    reader_id = record.get("readerId") or record.get("userId")
+    if reader_id:
+        users = db.get("users", [])
+        reader = next((u for u in users if int(u.get("id", 0)) == int(reader_id)), None)
+        if reader and reader.get("isLocked"):
+            raise HTTPException(status_code=403, detail="Tài khoản đang bị khóa do nợ phạt hoặc vi phạm, không thể gia hạn sách!")
+
+    current_renew_count = int(record.get("renewCount", 0))
+    if current_renew_count >= 2:
+        raise HTTPException(status_code=400, detail="Cuốn sách này đã được gia hạn tối đa (2 lần), không thể xin gia hạn thêm.")
+
+    days = max(1, min(60, int(req.days or 7)))
+    record["renewStatus"] = "Chờ duyệt gia hạn"
+    record["pendingRenewDays"] = days
+    record["pendingRenewNotes"] = req.notes or ""
+    record["renewRequestedAt"] = datetime.now().isoformat()
+
+    db_manager.save_db(db)
+
+    # Gửi thông báo đến trang quản trị (Admin & Librarian)
+    reader_name = record.get("readerName") or "Độc giả"
+    book_title = record.get("bookTitle") or "Sách"
+    db_manager.add_notification(
+        recipient_role="Admin",
+        title="Yêu cầu gia hạn mượn sách mới",
+        message=f"Độc giả {reader_name} đã gửi yêu cầu gia hạn cuốn sách \"{book_title}\" thêm {days} ngày. Chờ phê duyệt!",
+        notif_type="renew_request",
+        meta={
+            "recordId": record_id,
+            "bookId": record.get("bookId"),
+            "bookTitle": book_title,
+            "readerName": reader_name,
+            "days": days,
+            "notes": req.notes
+        }
+    )
+
+    # Thông báo xác nhận đang chờ duyệt cho độc giả
+    if reader_id:
+        db_manager.add_notification(
+            recipient_role="Reader",
+            recipient_user_id=int(reader_id),
+            title="Yêu cầu gia hạn đang chờ duyệt",
+            message=f"Yêu cầu gia hạn thêm {days} ngày cho cuốn sách \"{book_title}\" đã được gửi và đang chờ thủ thư phê duyệt.",
+            notif_type="renew_pending",
+            meta={"recordId": record_id, "days": days}
+        )
+
+    return {
+        "message": f"Đã gửi yêu cầu gia hạn thêm {days} ngày! Vui lòng chờ thủ thư phê duyệt.",
+        "record": record
+    }
+
+
+@app.put("/api/borrow-records/{record_id}/approve-renew")
+def approve_renew_borrow_record(record_id: int):
+    """Thủ thư hoặc Quản trị viên duyệt yêu cầu gia hạn sách."""
+    db = db_manager.load_db()
+    records = db.get("borrowRecords", [])
+    record = next((r for r in records if int(r.get("id", 0)) == record_id), None)
+    if not record:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
+
+    days = int(record.get("pendingRenewDays") or 7)
+    old_return_str = record.get("returnDate") or record.get("dueDate")
+    try:
+        if old_return_str:
+            base_date = datetime.fromisoformat(old_return_str.replace("Z", ""))
+        else:
+            base_date = datetime.now()
+    except Exception:
+        base_date = datetime.now()
+
+    new_due_date = base_date + timedelta(days=days)
+    new_due_str = new_due_date.isoformat()
+    new_due_date_str = new_due_date.strftime("%Y-%m-%d")
+
+    record["returnDate"] = new_due_str
+    record["dueDate"] = new_due_str
+    record["renewCount"] = int(record.get("renewCount", 0)) + 1
+    record["renewStatus"] = None
+    record["pendingRenewDays"] = None
+    if record.get("pendingRenewNotes"):
+        old_notes = record.get("notes") or ""
+        record["notes"] = f"{old_notes} | Gia hạn +{days} ngày: {record.get('pendingRenewNotes')}".strip(" |")
+    record["pendingRenewNotes"] = None
+
+    db_manager.save_db(db)
+
+    # Đánh dấu đã đọc thông báo yêu cầu
+    for n in db.get("notifications", []):
+        if n.get("recordId") == record_id and n.get("type") == "renew_request":
+            n["isRead"] = True
+
+    # Thông báo đến độc giả
+    reader_id = record.get("readerId") or record.get("userId")
+    book_title = record.get("bookTitle") or "Sách"
+    if reader_id:
+        db_manager.add_notification(
+            recipient_role="Reader",
+            recipient_user_id=int(reader_id),
+            title="Yêu cầu gia hạn đã được duyệt ✓",
+            message=f"Yêu cầu gia hạn cuốn sách \"{book_title}\" thêm {days} ngày đã được duyệt thành công! Hạn trả mới: {new_due_date_str}.",
+            notif_type="renew_approved",
+            meta={"recordId": record_id, "newReturnDate": new_due_date_str, "days": days}
+        )
+
+    return {
+        "message": f"Đã duyệt gia hạn cuốn sách thành công thêm {days} ngày! Hạn trả mới: {new_due_date_str}.",
+        "record": record
+    }
+
+
+@app.put("/api/borrow-records/{record_id}/reject-renew")
+def reject_renew_borrow_record(record_id: int):
+    """Thủ thư hoặc Quản trị viên từ chối yêu cầu gia hạn sách."""
+    db = db_manager.load_db()
+    records = db.get("borrowRecords", [])
+    record = next((r for r in records if int(r.get("id", 0)) == record_id), None)
+    if not record:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
+
+    record["renewStatus"] = None
+    record["pendingRenewDays"] = None
+    record["pendingRenewNotes"] = None
+
+    db_manager.save_db(db)
+
+    # Đánh dấu đã đọc thông báo yêu cầu
+    for n in db.get("notifications", []):
+        if n.get("recordId") == record_id and n.get("type") == "renew_request":
+            n["isRead"] = True
+
+    # Thông báo đến độc giả
+    reader_id = record.get("readerId") or record.get("userId")
+    book_title = record.get("bookTitle") or "Sách"
+    due_str = (record.get("returnDate") or record.get("dueDate") or "")[:10]
+    if reader_id:
+        db_manager.add_notification(
+            recipient_role="Reader",
+            recipient_user_id=int(reader_id),
+            title="Yêu cầu gia hạn bị từ chối ❌",
+            message=f"Yêu cầu gia hạn cuốn sách \"{book_title}\" đã bị từ chối. Vui lòng hoàn tất trả sách đúng hạn {due_str}.",
+            notif_type="renew_rejected",
+            meta={"recordId": record_id}
+        )
+
+    return {
+        "message": "Đã từ chối yêu cầu gia hạn.",
+        "record": record
+    }
+
+
+@app.put("/api/borrow-records/{record_id}/renew")
+def renew_borrow_record(record_id: int, req: BorrowRenewRequest):
+    """Endpoint gia hạn trực tiếp (dành cho Admin / Thủ thư trực tiếp gia hạn)."""
+    db = db_manager.load_db()
+    records = db.get("borrowRecords", [])
+    record = next((r for r in records if int(r.get("id", 0)) == record_id), None)
+    if not record:
+        raise HTTPException(status_code=404, detail="Không tìm thấy lượt mượn.")
+
+    if record.get("status") != "Đang mượn":
+        raise HTTPException(status_code=400, detail="Chỉ có thể gia hạn cho sách đang trong trạng thái Đang mượn.")
 
     days = max(1, min(60, int(req.days or 7)))
     old_return_str = record.get("returnDate") or record.get("dueDate")
@@ -964,46 +1174,16 @@ def renew_borrow_record(record_id: int, req: BorrowRenewRequest):
     new_due_str = new_due_date.isoformat()
     new_due_date_str = new_due_date.strftime("%Y-%m-%d")
 
-    # Cập nhật hạn trả mới dựa trên dữ liệu trước đó, chỉ làm mới ngày trả sách
     record["returnDate"] = new_due_str
     record["dueDate"] = new_due_str
     record["renewCount"] = int(record.get("renewCount", 0)) + 1
+    record["renewStatus"] = None
+    record["pendingRenewDays"] = None
     if req.notes:
         old_notes = record.get("notes") or ""
         record["notes"] = f"{old_notes} | Gia hạn +{days} ngày: {req.notes}".strip(" |")
 
-    # Lưu thay đổi vào DB
     db_manager.save_db(db)
-
-    # Gửi thông báo đến trang quản trị (Admin & Librarian)
-    reader_name = record.get("readerName") or "Độc giả"
-    book_title = record.get("bookTitle") or "Sách"
-    db_manager.add_notification(
-        recipient_role="Admin",
-        title="Độc giả gia hạn mượn sách",
-        message=f"Độc giả {reader_name} đã gia hạn thêm {days} ngày cho cuốn sách \"{book_title}\". Hạn trả mới: {new_due_date_str}.",
-        notif_type="borrow_renewed",
-        meta={
-            "recordId": record_id,
-            "bookId": record.get("bookId"),
-            "bookTitle": book_title,
-            "readerName": reader_name,
-            "days": days,
-            "newReturnDate": new_due_date_str
-        }
-    )
-
-    # Thông báo xác nhận cho độc giả
-    reader_id = record.get("readerId") or record.get("userId")
-    if reader_id:
-        db_manager.add_notification(
-            recipient_role="Reader",
-            recipient_user_id=int(reader_id),
-            title="Gia hạn mượn sách thành công",
-            message=f"Cuốn sách \"{book_title}\" đã được gia hạn thêm {days} ngày. Hạn trả mới: {new_due_date_str}.",
-            notif_type="borrow_renewed",
-            meta={"recordId": record_id, "newReturnDate": new_due_date_str, "days": days}
-        )
 
     return {
         "message": f"Đã gia hạn thành công thêm {days} ngày! Hạn trả mới: {new_due_date_str}.",
@@ -1064,14 +1244,11 @@ def clear_read_notifications(role: Optional[str] = Query(None), userId: Optional
 
 # ================= RESERVATIONS (Đặt trước sách) =================
 @app.get("/api/reservations")
-def get_reservations(userId: Optional[int] = Query(None), readerId: Optional[int] = Query(None)):
+def get_reservations(userId: Optional[int] = Query(None), readerId: Optional[int] = Query(None), includeCancelled: bool = Query(False)):
     db = db_manager.load_db()
     reservations = db.get("reservations", [])
-    # Lọc sạch các bản ghi không hợp lệ hoặc sách không thuộc diện đặt trước (như Tru Tiên)
-    reservations = [
-        r for r in reservations
-        if int(r.get("bookId", 0)) != 3 and "tru tiên" not in str(r.get("bookTitle", "")).lower()
-    ]
+    if not includeCancelled:
+        reservations = [r for r in reservations if r.get("status") not in ["Cancelled", "Hủy"]]
     u_id = userId or readerId
     if u_id:
         reservations = [
@@ -1088,7 +1265,9 @@ def create_reservation(req: ReservationCreate):
     books = db.get("books", [])
     users = db.get("users", [])
 
-    r_id = int(req.readerId or req.userId or 2)
+    r_id = int(req.readerId or req.userId or 0)
+    if not r_id:
+        raise HTTPException(status_code=400, detail="Vui lòng cung cấp thông tin độc giả hợp lệ.")
     b_id = int(req.bookId)
 
     # Kiểm tra sách tồn tại
@@ -1109,7 +1288,11 @@ def create_reservation(req: ReservationCreate):
         )
 
     # Kiểm tra điều kiện: Đặt trước chỉ áp dụng cho Sách Sắp có (Upcoming) hoặc Sách đang tạm hết bản sao (available <= 0)
-    is_upcoming = book.get("status") in ["Upcoming", "Sắp phát hành", "Sắp có"] or int(book.get("id", 0)) >= 51
+    is_upcoming = (
+        book.get("status") in ["Upcoming", "Sắp phát hành", "Sắp có"] or
+        bool(book.get("isUpcoming")) or
+        int(book.get("id", 0)) >= 51
+    )
     is_out_of_stock = int(book.get("available", 0)) <= 0
     if not is_upcoming and not is_out_of_stock:
         raise HTTPException(
@@ -1134,8 +1317,6 @@ def create_reservation(req: ReservationCreate):
         r for r in reservations
         if int(r.get("readerId") or r.get("userId") or 0) == r_id
         and r.get("status") in ["Waiting", "Ready"]
-        and int(r.get("bookId", 0)) != 3
-        and "tru tiên" not in str(r.get("bookTitle", "")).lower()
     ]
     if len(active_reservations) >= max_res:
         raise HTTPException(
@@ -1186,6 +1367,43 @@ def create_reservation(req: ReservationCreate):
     return {"message": "Đặt trước sách thành công!", "reservation": new_res}
 
 
+@app.put("/api/reservations/{res_id}")
+def update_reservation(res_id: int, req: ReservationUpdate):
+    db = db_manager.load_db()
+    reservations = db.get("reservations", [])
+    idx = next((i for i, r in enumerate(reservations) if int(r.get("id", 0)) == res_id), -1)
+    if idx == -1:
+        raise HTTPException(status_code=404, detail="Không tìm thấy đặt trước.")
+
+    res_item = reservations[idx]
+    if req.status is not None:
+        old_status = res_item.get("status")
+        res_item["status"] = req.status
+        if req.status == "Ready" and old_status != "Ready":
+            res_item["expiresAt"] = (datetime.now() + timedelta(hours=48)).isoformat()
+            r_id = int(res_item.get("readerId") or res_item.get("userId") or 0)
+            if r_id:
+                db_manager.add_notification(
+                    recipient_role="Reader",
+                    recipient_user_id=r_id,
+                    title="🎉 Sách đặt trước đã về kho!",
+                    message=f"Cuốn sách \"{res_item.get('bookTitle', 'Sách')}\" bạn đặt trước đã có sẵn tại thư viện. Bạn có 48 giờ để đến mượn sách!",
+                    notif_type="reservation_ready",
+                    meta={"reservationId": res_id, "bookId": res_item.get("bookId")}
+                )
+
+    if req.priority is not None:
+        res_item["priority"] = int(req.priority)
+
+    if req.expiresAt is not None:
+        res_item["expiresAt"] = req.expiresAt
+
+    reservations[idx] = res_item
+    db["reservations"] = reservations
+    db_manager.save_db(db)
+    return {"message": "Đã cập nhật đặt trước thành công!", "reservation": res_item}
+
+
 @app.delete("/api/reservations/{res_id}")
 def cancel_reservation(res_id: int):
     db = db_manager.load_db()
@@ -1193,11 +1411,21 @@ def cancel_reservation(res_id: int):
     idx = next((i for i, r in enumerate(reservations) if int(r.get("id", 0)) == res_id), -1)
     if idx == -1:
         raise HTTPException(status_code=404, detail="Không tìm thấy đặt trước.")
+    
+    cancelled_res = reservations[idx]
+    b_id = cancelled_res.get("bookId")
     reservations[idx]["status"] = "Cancelled"
+    
+    # Tính lại thứ tự ưu tiên (FIFO) cho các độc giả còn lại trong hàng chờ của cuốn sách này
+    if b_id:
+        waiting = [r for r in reservations if int(r.get("bookId", 0)) == int(b_id) and r.get("status") == "Waiting"]
+        for p_idx, r in enumerate(waiting):
+            r["priority"] = p_idx + 1
+
     db["reservations"] = reservations
     db_manager.save_db(db)
     db_manager.cancel_reservation(res_id)
-    return {"message": "Đã hủy đặt trước sách."}
+    return {"message": "Đã hủy đặt trước sách.", "reservationId": res_id}
 
 
 # ================= FINES (Quản lý phạt) =================
@@ -1324,6 +1552,7 @@ def reject_fine_payment(fine_id: int, req: Optional[FineRejectRequest] = None):
     fine["status"] = "Chưa nộp"
     fine["rejectedAt"] = datetime.now().isoformat()
     fine["rejectReason"] = reject_reason
+    fine["lastTxnRef"] = fine.get("transactionRef")
     fine["transactionRef"] = None
     db["fines"] = fines
 
@@ -1362,7 +1591,7 @@ def create_vnpay_payment(req: VNPayPaymentCreate):
     import urllib.parse
 
     now = datetime.now()
-    txn_ref = f"VNP{int(now.timestamp())}{random.randint(100, 999)}"
+    txn_ref = f"VNP{int(now.timestamp())}_{req.readerId}_{random.randint(100, 999)}"
     amount = int(req.amount)
     order_desc = req.orderInfo or f"SMARTLIB NOP PHAT DG-{str(req.readerId).zfill(3)}"
 
@@ -1484,7 +1713,7 @@ def get_payment_status(txn_ref: str):
     """Kiểm tra trạng thái thanh toán theo mã giao dịch (dùng cho polling từ frontend)"""
     db = db_manager.load_db()
     fines = db.get("fines", [])
-    fine = next((f for f in fines if f.get("transactionRef") == txn_ref), None)
+    fine = next((f for f in fines if f.get("transactionRef") == txn_ref or f.get("lastTxnRef") == txn_ref), None)
     if fine:
         if fine.get("status") == "Đã nộp":
             return {
@@ -1503,6 +1732,13 @@ def get_payment_status(txn_ref: str):
                 "amount": fine.get("fineAmount"),
                 "paidAt": fine.get("paidAt"),
                 "paymentMethod": fine.get("paymentMethod", "VNPay")
+            }
+        elif fine.get("status") == "Chưa nộp" and fine.get("lastTxnRef") == txn_ref:
+            return {
+                "status": "REJECTED",
+                "txnRef": txn_ref,
+                "fineId": fine.get("id"),
+                "reason": fine.get("rejectReason", "Giao dịch bị từ chối")
             }
     return {"status": "PENDING", "txnRef": txn_ref}
 
@@ -1534,7 +1770,11 @@ def vnpay_return(
         already_recorded = any(f.get("transactionRef") == txn_ref for f in fines)
         if not already_recorded and amount_vnd > 0:
             txn_parts = txn_ref.split("_")
-            reader_id = int(txn_parts[-1]) if txn_parts and txn_parts[-1].isdigit() else 0
+            reader_id = 0
+            if len(txn_parts) >= 2 and txn_parts[1].isdigit():
+                reader_id = int(txn_parts[1])
+            elif txn_parts and txn_parts[-1].isdigit():
+                reader_id = int(txn_parts[-1])
             fine = next((f for f in fines if int(f.get("readerId", 0)) == reader_id and f.get("status") == "Chưa nộp"), None)
             now_iso = datetime.now().isoformat()
             if fine:
@@ -1594,7 +1834,7 @@ def get_recommendations(reader_id: int, limit: int = Query(6, ge=1, le=20)):
     # Loại trừ hoàn toàn sách Sắp phát hành / Sắp có / Upcoming khỏi gợi ý sách
     books = [
         b for b in db.get("books", [])
-        if b.get("status") not in ["Upcoming", "Sắp phát hành", "Sắp có"] and int(b.get("id", 0)) < 51
+        if b.get("status") not in ["Upcoming", "Sắp phát hành", "Sắp có"] and not b.get("isUpcoming")
     ]
     records = db.get("borrowRecords", [])
 
@@ -1662,7 +1902,7 @@ def get_stats():
     # Chỉ tính các đầu sách thực tế trong kho (loại trừ sách Sắp phát hành / Sắp về)
     actual_books = [
         b for b in books
-        if b.get("status") not in ["Upcoming", "Sắp phát hành", "Sắp có"] and int(b.get("id", 0)) < 51
+        if b.get("status") not in ["Upcoming", "Sắp phát hành", "Sắp có"] and not b.get("isUpcoming")
     ]
     total_books = len(actual_books)
     total_copies = sum(int(b.get("quantity", 1)) for b in actual_books)
@@ -1715,7 +1955,7 @@ def export_books_excel():
     db = db_manager.load_db()
     books = [
         b for b in db.get("books", [])
-        if b.get("status") not in ["Upcoming", "Sắp phát hành", "Sắp có"] and int(b.get("id", 0)) < 51
+        if b.get("status") not in ["Upcoming", "Sắp phát hành", "Sắp có"] and not b.get("isUpcoming")
     ]
     records = db.get("borrowRecords", [])
     

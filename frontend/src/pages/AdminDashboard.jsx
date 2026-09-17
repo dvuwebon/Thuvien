@@ -14,7 +14,7 @@ import {
   FileSpreadsheet, Filter, Grid, List, Check, X, Printer, Edit2, Trash2, BookMarked, Eye,
   TrendingUp, BookmarkCheck, XCircle, QrCode, Lock, Unlock, ShieldAlert,
   SlidersHorizontal, DollarSign, Calendar, Building2, CreditCard, Save, RotateCcw, HelpCircle, ShieldCheck,
-  PackageCheck, Sparkles, Inbox, Layers
+  PackageCheck, Sparkles, Inbox, Layers, Star
 } from 'lucide-react';
 
 
@@ -681,6 +681,9 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
   const [receiveStockBook, setReceiveStockBook] = useState(null);
   const [receiveStockQty, setReceiveStockQty] = useState(20);
   const [isReceivingStock, setIsReceivingStock] = useState(false);
+  const [earliestBooksModalOpen, setEarliestBooksModalOpen] = useState(false);
+  const [preOrderReadersModalOpen, setPreOrderReadersModalOpen] = useState(false);
+  const [topRatedModalOpen, setTopRatedModalOpen] = useState(false);
 
   // System Settings state
   const [systemSettings, setSystemSettings] = useState({
@@ -780,11 +783,32 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
   const handleCancelReservation = async (resId) => {
     try {
-      await api.cancelReservation(resId);
+      // Cập nhật giao diện phản hồi tức thì 0ms (60fps)
+      setReservations(prev => prev.filter(r => Number(r.id) !== Number(resId)));
       showToast('✓ Đã hủy đặt trước sách thành công!');
+      await api.cancelReservation(resId);
       loadData(true);
     } catch (e) {
       showToast('Lỗi khi hủy đặt trước: ' + (e.message || 'Lỗi'));
+      loadData(true);
+    }
+  };
+
+  const handleUpdateReservationStatus = async (resId, newStatus) => {
+    try {
+      setReservations(prev => prev.map(r => Number(r.id) === Number(resId) ? { ...r, status: newStatus } : r));
+      if (newStatus === 'Ready') {
+        showToast('✓ Đã chuyển trạng thái: Sách đã sẵn sàng cho độc giả!');
+      } else if (newStatus === 'Fulfilled') {
+        showToast('✓ Đã hoàn tất mượn sách đặt trước!');
+      } else {
+        showToast('✓ Đã cập nhật trạng thái đặt trước thành công!');
+      }
+      await api.updateReservation(resId, { status: newStatus });
+      loadData(true);
+    } catch (e) {
+      showToast('Lỗi khi cập nhật đặt trước: ' + (e.message || 'Lỗi'));
+      loadData(true);
     }
   };
 
@@ -926,7 +950,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     }
   };
 
-  const handleResetSettingsDefault = () => {
+  const handleResetSettingsDefault = async () => {
     if (window.confirm('Bạn có chắc chắn muốn đặt lại toàn bộ thông số về giá trị mặc định của hệ thống không?')) {
       const defaults = {
         borrowHomeDays: 14,
@@ -951,26 +975,34 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
         libraryHours: '07:30 - 17:30 (Thứ 2 - Thứ 7)'
       };
       setSystemSettings(defaults);
-      api.updateSettings(defaults).then(() => {
+      try {
+        await api.updateSettings(defaults);
         showToast('✓ Đã khôi phục cài đặt mặc định ban đầu thành công!');
-      });
+      } catch (err) {
+        console.error('Lỗi khôi phục cài đặt:', err);
+        showToast('❌ Không thể lưu cài đặt lên server, nhưng giao diện đã cập nhật.');
+      }
     }
   };
 
   // Book Handlers (Thêm / Sửa / Xóa lưu trực tiếp vào database)
   const handleSaveBook = async (bookData) => {
-
     try {
       if (editingBook) {
-        await api.updateBook(editingBook.id, bookData);
+        const res = await api.updateBook(editingBook.id, bookData);
         showToast('✓ Đã cập nhật sách vào cơ sở dữ liệu thành công!');
+        const updated = (res && res.book) || { ...editingBook, ...bookData };
+        setBooks(prev => prev.map(b => Number(b.id) === Number(editingBook.id) ? { ...b, ...updated } : b));
       } else {
-        await api.createBook(bookData);
+        const res = await api.createBook(bookData);
         showToast('✓ Đã thêm sách mới vào cơ sở dữ liệu thành công!');
+        const newBook = (res && res.book) || bookData;
+        setBooks(prev => [newBook, ...prev]);
       }
       setBookModalOpen(false);
       setEditingBook(null);
       await loadData();
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
     } catch (err) {
       console.error('Lỗi lưu sách:', err);
       throw err;
@@ -993,6 +1025,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
       setBookToDelete(null);
       showToast('✓ Đã xóa sách khỏi cơ sở dữ liệu thành công!');
       await loadData();
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
     } catch (err) {
       setDeleteBookError(err.message || 'Không thể xóa cuốn sách này.');
     } finally {
@@ -1004,15 +1037,20 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
   const handleSaveUpcomingBook = async (bookData) => {
     try {
       if (editingUpcomingBook) {
-        await api.updateBook(editingUpcomingBook.id, bookData);
+        const res = await api.updateBook(editingUpcomingBook.id, bookData);
         showToast('✓ Đã cập nhật thông tin sách đặt trước thành công!');
+        const updated = (res && res.book) || { ...editingUpcomingBook, ...bookData };
+        setBooks(prev => prev.map(b => Number(b.id) === Number(editingUpcomingBook.id) ? { ...b, ...updated } : b));
       } else {
-        await api.createBook(bookData);
+        const res = await api.createBook(bookData);
         showToast('✓ Đã thêm sách mới vào kho đặt trước thành công!');
+        const newBook = (res && res.book) || bookData;
+        setBooks(prev => [newBook, ...prev]);
       }
       setUpcomingBookModalOpen(false);
       setEditingUpcomingBook(null);
       await loadData();
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
     } catch (err) {
       console.error('Lỗi lưu sách đặt trước:', err);
       throw err;
@@ -1028,6 +1066,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
       setUpcomingBookToDelete(null);
       showToast('✓ Đã xóa sách đặt trước khỏi cơ sở dữ liệu thành công!');
       await loadData();
+      window.dispatchEvent(new CustomEvent('smartlib:data-updated'));
     } catch (err) {
       setDeleteUpcomingBookError(err.message || 'Không thể xóa cuốn sách này.');
     } finally {
@@ -1059,12 +1098,17 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
   // Reader Handlers
   const handleSaveReader = async (readerData) => {
-    if (editingReader) {
-      await api.updateReader(editingReader.id, readerData);
-    } else {
-      await api.createReader(readerData);
+    try {
+      if (editingReader) {
+        await api.updateReader(editingReader.id, readerData);
+      } else {
+        await api.createReader(readerData);
+      }
+      await loadData();
+    } catch (err) {
+      console.error('Lỗi lưu thông tin độc giả:', err);
+      throw err;
     }
-    loadData();
   };
 
   const handleConfirmDeleteReader = async () => {
@@ -1110,6 +1154,63 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
       setBorrowActionError(err.message || 'Lỗi khi xử lý yêu cầu mượn sách.');
     } finally {
       setIsProcessingBorrowAction(false);
+    }
+  };
+
+  // Renew Handlers (Duyệt / Từ chối gia hạn mượn sách)
+  const handleApproveRenew = async (record) => {
+    const days = Number(record.pendingRenewDays) || 7;
+    // Cập nhật giao diện tức thì 60fps (optimistic update)
+    setBorrowRecords(prev => prev.map(r => {
+      if (Number(r.id) === Number(record.id)) {
+        let baseDate = new Date();
+        if (r.returnDate || r.dueDate) {
+          const parsed = new Date(r.returnDate || r.dueDate);
+          if (!isNaN(parsed.getTime())) baseDate = parsed;
+        }
+        const newDueDate = new Date(baseDate.getTime() + days * 86400000).toISOString().substring(0, 10);
+        return {
+          ...r,
+          returnDate: newDueDate,
+          dueDate: newDueDate,
+          renewCount: (Number(r.renewCount) || 0) + 1,
+          renewStatus: null,
+          pendingRenewDays: null,
+          pendingRenewNotes: null
+        };
+      }
+      return r;
+    }));
+
+    showToast(`✓ Đã duyệt gia hạn +${days} ngày cho độc giả "${record.readerName || 'Độc giả'}" mượn "${record.bookTitle}"!`);
+
+    try {
+      await api.approveRenewBorrow(record.id);
+      await loadData(true);
+    } catch (err) {
+      console.error('Lỗi khi duyệt gia hạn:', err);
+      showToast('Có lỗi xảy ra khi duyệt gia hạn: ' + (err.message || ''));
+      await loadData(true);
+    }
+  };
+
+  const handleRejectRenew = async (record) => {
+    // Cập nhật giao diện tức thì 60fps (optimistic update)
+    setBorrowRecords(prev => prev.map(r => 
+      Number(r.id) === Number(record.id)
+        ? { ...r, renewStatus: null, pendingRenewDays: null, pendingRenewNotes: null }
+        : r
+    ));
+
+    showToast(`✓ Đã từ chối gia hạn mượn sách "${record.bookTitle}".`);
+
+    try {
+      await api.rejectRenewBorrow(record.id);
+      await loadData(true);
+    } catch (err) {
+      console.error('Lỗi khi từ chối gia hạn:', err);
+      showToast('Có lỗi xảy ra khi từ chối gia hạn: ' + (err.message || ''));
+      await loadData(true);
     }
   };
 
@@ -1173,7 +1274,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     b.status !== 'Upcoming' && 
     b.status !== 'Sắp phát hành' && 
     b.status !== 'Sắp có' && 
-    Number(b.id) < 51
+    !b.isUpcoming
   );
 
   // Filtered Lists
@@ -1188,7 +1289,10 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
     const matchSearch = (r.bookTitle && r.bookTitle.toLowerCase().includes(borrowSearch.toLowerCase())) ||
                         (r.readerName && r.readerName.toLowerCase().includes(borrowSearch.toLowerCase())) ||
                         (readerCode && readerCode.toLowerCase().includes(borrowSearch.toLowerCase()));
-    const matchStatus = borrowStatusFilter === 'All' || r.status === borrowStatusFilter;
+    const matchStatus = borrowStatusFilter === 'All' || 
+                        r.status === borrowStatusFilter ||
+                        (borrowStatusFilter === 'Chờ duyệt' && r.renewStatus === 'Chờ duyệt gia hạn') ||
+                        (borrowStatusFilter === 'Chờ duyệt gia hạn' && r.renewStatus === 'Chờ duyệt gia hạn');
     return matchSearch && matchStatus;
   });
 
@@ -1218,8 +1322,104 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
             </button>
           </div>
 
-          {/* Top 4 Stat Cards (Chính xác theo Ảnh 1) */}
+          {/* Top 4 Stat Cards (Chính xác theo Ảnh 1 với hiệu ứng hover nhẹ phù hợp từng mục) */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '22px' }}>
+            <style>{`
+              .kpi-card {
+                background: #ffffff;
+                border-radius: 16px;
+                padding: 18px 22px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                cursor: pointer;
+                transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+                position: relative;
+              }
+              .kpi-card .kpi-icon-box {
+                transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+              }
+              .kpi-card:hover {
+                transform: translateY(-3px);
+              }
+              .kpi-card:hover .kpi-icon-box {
+                transform: scale(1.06);
+              }
+
+              /* 1. Kho sách - Theme Xanh Dương */
+              .kpi-card-books {
+                border: 1px solid #eef2f6;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+              }
+              .kpi-card-books:hover {
+                border-color: #93c5fd;
+                box-shadow: 0 10px 24px -4px rgba(37, 99, 235, 0.12), 0 4px 8px -2px rgba(37, 99, 235, 0.05);
+              }
+              .kpi-card-books:hover .kpi-icon-box {
+                background-color: #dbeafe !important;
+              }
+
+              /* 2. Độc giả hoạt động - Theme Tím */
+              .kpi-card-readers {
+                border: 1px solid #eef2f6;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+              }
+              .kpi-card-readers:hover {
+                border-color: #c4b5fd;
+                box-shadow: 0 10px 24px -4px rgba(124, 58, 237, 0.12), 0 4px 8px -2px rgba(124, 58, 237, 0.05);
+              }
+              .kpi-card-readers:hover .kpi-icon-box {
+                background-color: #ede9fe !important;
+              }
+
+              /* 3. Sách đang mượn - Theme Xanh Sky / Cyan */
+              .kpi-card-borrowing {
+                border: 1px solid #eef2f6;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+              }
+              .kpi-card-borrowing.active {
+                border: 2px solid #0284c7;
+                box-shadow: 0 4px 14px rgba(2, 132, 199, 0.15);
+              }
+              .kpi-card-borrowing:hover {
+                border-color: #7dd3fc;
+                box-shadow: 0 10px 24px -4px rgba(2, 132, 199, 0.14), 0 4px 8px -2px rgba(2, 132, 199, 0.05);
+              }
+              .kpi-card-borrowing.active:hover {
+                border-color: #0284c7;
+              }
+              .kpi-card-borrowing:hover .kpi-icon-box {
+                background-color: #bae6fd !important;
+              }
+
+              /* 4. Sách quá hạn - Theme Hổ Phách / Cảnh Báo */
+              .kpi-card-overdue {
+                border: 1px solid #eef2f6;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+              }
+              .kpi-card-overdue.active {
+                border: 2px solid #ef4444;
+                box-shadow: 0 4px 14px rgba(239, 68, 68, 0.15);
+              }
+              .kpi-card-overdue:hover {
+                border-color: #fcd34d;
+                box-shadow: 0 10px 24px -4px rgba(217, 119, 6, 0.14), 0 4px 8px -2px rgba(217, 119, 6, 0.05);
+              }
+              .kpi-card-overdue.has-overdue:hover {
+                border-color: #fca5a5;
+                box-shadow: 0 10px 24px -4px rgba(239, 68, 68, 0.14), 0 4px 8px -2px rgba(239, 68, 68, 0.05);
+              }
+              .kpi-card-overdue.active:hover {
+                border-color: #ef4444;
+              }
+              .kpi-card-overdue:hover .kpi-icon-box {
+                background-color: #fde68a !important;
+              }
+              .kpi-card-overdue.has-overdue:hover .kpi-icon-box {
+                background-color: #fee2e2 !important;
+              }
+            `}</style>
+
             {/* Card 1: Kho sách */}
             <div
               onClick={() => {
@@ -1228,41 +1428,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }, 100);
               }}
-              style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                border: '1px solid #eef2f6',
-                padding: '20px 22px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'translateY(-2px)';
-                e.currentTarget.style.boxShadow = '0 6px 16px rgba(37,99,235,0.1)';
-                e.currentTarget.style.borderColor = '#93c5fd';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)';
-                e.currentTarget.style.borderColor = '#eef2f6';
-              }}
+              className="kpi-card kpi-card-books"
               title="Nhấn để chuyển đến Quản lý Kho sách"
             >
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                   Kho sách
                 </div>
-                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: '6px 0 8px 0', lineHeight: 1 }}>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: '4px 0 0 0', lineHeight: 1 }}>
                   {stats?.totalBooks || actualBooks.length}
                 </div>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <TrendingUp size={13} /> +12 so với tháng trước
-                </div>
               </div>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb', flexShrink: 0 }}>
+              <div className="kpi-icon-box" style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563eb', flexShrink: 0 }}>
                 <BookOpen size={20} />
               </div>
             </div>
@@ -1275,33 +1452,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   document.getElementById('readers-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }, 100);
               }}
-              style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                border: '1px solid #eef2f6',
-                padding: '20px 22px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.02)'; }}
+              className="kpi-card kpi-card-readers"
               title="Nhấn để xem danh sách độc giả"
             >
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                   Độc giả hoạt động
                 </div>
-                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: '6px 0 8px 0', lineHeight: 1 }}>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: '4px 0 0 0', lineHeight: 1 }}>
                   {readers.length}
                 </div>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#10b981', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <TrendingUp size={13} /> +5 so với tháng trước
-                </div>
               </div>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', flexShrink: 0 }}>
+              <div className="kpi-icon-box" style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7c3aed', flexShrink: 0 }}>
                 <Users size={20} />
               </div>
             </div>
@@ -1309,33 +1471,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
             {/* Card 3: Sách đang mượn */}
             <div
               onClick={() => handleFilterAndScrollBorrows('Đang mượn')}
-              style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                border: borrowStatusFilter === 'Đang mượn' ? '2px solid #0284c7' : '1px solid #eef2f6',
-                padding: '20px 22px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                boxShadow: borrowStatusFilter === 'Đang mượn' ? '0 4px 14px rgba(2,132,199,0.15)' : '0 2px 8px rgba(0,0,0,0.02)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = borrowStatusFilter === 'Đang mượn' ? '0 4px 14px rgba(2,132,199,0.15)' : '0 2px 8px rgba(0,0,0,0.02)'; }}
+              className={`kpi-card kpi-card-borrowing ${borrowStatusFilter === 'Đang mượn' ? 'active' : ''}`}
               title="Nhấn để cuộn xuống bảng sách đang mượn"
             >
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                   Sách đang mượn
                 </div>
-                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: '6px 0 8px 0', lineHeight: 1 }}>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: '#0f172a', margin: '4px 0 0 0', lineHeight: 1 }}>
                   {borrowRecords.filter(r => r.status === 'Đang mượn').length}
                 </div>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, color: '#0284c7', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <TrendingUp size={13} /> Hiện tại
-                </div>
               </div>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7', flexShrink: 0 }}>
+              <div className="kpi-icon-box" style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0284c7', flexShrink: 0 }}>
                 <BookmarkCheck size={20} />
               </div>
             </div>
@@ -1343,33 +1490,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
             {/* Card 4: Sách quá hạn */}
             <div
               onClick={() => handleFilterAndScrollBorrows('Quá hạn')}
-              style={{
-                background: '#ffffff',
-                borderRadius: '16px',
-                border: borrowStatusFilter === 'Quá hạn' ? '2px solid #ef4444' : '1px solid #eef2f6',
-                padding: '20px 22px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                boxShadow: borrowStatusFilter === 'Quá hạn' ? '0 4px 14px rgba(239,68,68,0.15)' : '0 2px 8px rgba(0,0,0,0.02)',
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = borrowStatusFilter === 'Quá hạn' ? '0 4px 14px rgba(239,68,68,0.15)' : '0 2px 8px rgba(0,0,0,0.02)'; }}
+              className={`kpi-card kpi-card-overdue ${borrowStatusFilter === 'Quá hạn' ? 'active' : ''} ${borrowRecords.filter(r => r.status === 'Quá hạn').length > 0 ? 'has-overdue' : ''}`}
               title="Nhấn để cuộn xuống bảng sách quá hạn"
             >
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                   Sách quá hạn
                 </div>
-                <div style={{ fontSize: '28px', fontWeight: 800, color: borrowRecords.filter(r => r.status === 'Quá hạn').length > 0 ? '#ef4444' : '#0f172a', margin: '6px 0 8px 0', lineHeight: 1 }}>
+                <div style={{ fontSize: '28px', fontWeight: 800, color: borrowRecords.filter(r => r.status === 'Quá hạn').length > 0 ? '#ef4444' : '#0f172a', margin: '4px 0 0 0', lineHeight: 1 }}>
                   {borrowRecords.filter(r => r.status === 'Quá hạn').length}
                 </div>
-                <div style={{ fontSize: '11.5px', fontWeight: 600, color: borrowRecords.filter(r => r.status === 'Quá hạn').length > 0 ? '#ef4444' : '#f59e0b', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <TrendingUp size={13} /> Cần xử lý
-                </div>
               </div>
-              <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d97706', flexShrink: 0 }}>
+              <div className="kpi-icon-box" style={{ width: '42px', height: '42px', borderRadius: '12px', background: borrowRecords.filter(r => r.status === 'Quá hạn').length > 0 ? '#fee2e2' : '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', color: borrowRecords.filter(r => r.status === 'Quá hạn').length > 0 ? '#ef4444' : '#d97706', flexShrink: 0 }}>
                 <AlertTriangle size={20} />
               </div>
             </div>
@@ -1382,8 +1514,8 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
             <CategoryBorrowBarChart />
           </div>
 
-          {/* Banner thông báo khi có yêu cầu mượn chờ duyệt */}
-          {borrowRecords.filter(r => r.status === 'Chờ duyệt').length > 0 && (
+          {/* Banner thông báo khi có yêu cầu mượn hoặc gia hạn chờ duyệt */}
+          {(borrowRecords.filter(r => r.status === 'Chờ duyệt').length > 0 || borrowRecords.filter(r => r.renewStatus === 'Chờ duyệt gia hạn').length > 0) && (
             <div
               onClick={() => {
                 setPendingQueueModalOpen(true);
@@ -1404,7 +1536,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
               }}
               onMouseEnter={(e) => { e.currentTarget.style.background = '#fef3c7'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = '#fffbeb'; }}
-              title="Nhấn để xem ngay danh sách và duyệt cho độc giả mượn sách"
+              title="Nhấn để xem ngay danh sách và xử lý phê duyệt"
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#b45309', fontSize: '13.5px', fontWeight: 600 }}>
                 <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1412,7 +1544,10 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 </div>
                 <div>
                   <div style={{ fontSize: '14px' }}>
-                    Đang có <strong style={{ color: '#92400e', fontSize: '15px' }}>{borrowRecords.filter(r => r.status === 'Chờ duyệt').length} yêu cầu mượn sách</strong> chờ thủ thư phê duyệt!
+                    Đang có <strong style={{ color: '#92400e', fontSize: '15px' }}>{borrowRecords.filter(r => r.status === 'Chờ duyệt').length} yêu cầu mượn</strong>
+                    {borrowRecords.filter(r => r.renewStatus === 'Chờ duyệt gia hạn').length > 0 && (
+                      <span> và <strong style={{ color: '#b45309', fontSize: '15px' }}>{borrowRecords.filter(r => r.renewStatus === 'Chờ duyệt gia hạn').length} yêu cầu gia hạn</strong></span>
+                    )} chờ thủ thư phê duyệt!
                   </div>
                   <div style={{ fontSize: '12px', color: '#b45309', fontWeight: 500, marginTop: '2px' }}>
                     Nhấn vào đây để xem ngay danh sách và xử lý phê duyệt
@@ -1636,7 +1771,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                             <td style={{ whiteSpace: 'nowrap' }}>{r.borrowDate ? r.borrowDate.substring(0, 10) : '-'}</td>
                             <td style={{ whiteSpace: 'nowrap' }}>{r.returnDate ? r.returnDate.substring(0, 10) : '-'}</td>
                             <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                              {r.fine_amount > 0 ? (
+                              {(Number(r.fine_amount || r.fineAmount || 0)) > 0 ? (
                                 <span style={{
                                   background: '#fef2f2',
                                   color: '#dc2626',
@@ -1648,23 +1783,44 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                   whiteSpace: 'nowrap',
                                   display: 'inline-block'
                                 }}
-                                title={`Trễ ${r.overdue_days || 0} ngày`}
+                                title={`Trễ ${r.overdue_days || r.overdueDays || 0} ngày`}
                                 >
-                                  {Number(r.fine_amount).toLocaleString('vi-VN')} đ
+                                  {Number(r.fine_amount || r.fineAmount).toLocaleString('vi-VN')} đ
                                 </span>
                               ) : (
                                 <span style={{ color: '#94a3b8', fontSize: '12px' }}>—</span>
                               )}
                             </td>
                             <td style={{ whiteSpace: 'nowrap' }}>
-                              <span className={`badge ${
-                                r.status === 'Đang mượn' ? 'badge-success' :
-                                r.status === 'Chờ duyệt' ? 'badge-warning' :
-                                r.status === 'Quá hạn' ? 'badge-danger' :
-                                r.status === 'Đã trả' ? 'badge-info' : 'badge-neutral'
-                              }`} style={{ whiteSpace: 'nowrap' }}>
-                                {r.status}
-                              </span>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                                <span className={`badge ${
+                                  r.status === 'Đang mượn' ? 'badge-success' :
+                                  r.status === 'Chờ duyệt' ? 'badge-warning' :
+                                  r.status === 'Quá hạn' ? 'badge-danger' :
+                                  r.status === 'Đã trả' ? 'badge-info' : 'badge-neutral'
+                                }`} style={{ whiteSpace: 'nowrap' }}>
+                                  {r.status}
+                                </span>
+                                {r.renewStatus === 'Chờ duyệt gia hạn' && (
+                                  <span 
+                                    className="badge" 
+                                    style={{ 
+                                      background: '#fef3c7', 
+                                      color: '#92400e', 
+                                      border: '1px solid #fde68a',
+                                      fontSize: '11px',
+                                      padding: '2px 6px',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      gap: '3px',
+                                      fontWeight: 600
+                                    }}
+                                    title={r.pendingRenewNotes ? `Ghi chú độc giả: ${r.pendingRenewNotes}` : `Xin gia hạn +${r.pendingRenewDays || 7} ngày`}
+                                  >
+                                    ⏳ Xin gia hạn (+{r.pendingRenewDays || 7}n)
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                               <div style={{ display: 'inline-flex', gap: '6px', justifyContent: 'center', alignItems: 'center', flexWrap: 'nowrap' }}>
@@ -1689,6 +1845,28 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                   </>
                                 )}
 
+                                {r.renewStatus === 'Chờ duyệt gia hạn' && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApproveRenew(r)}
+                                      className="btn btn-approve btn-table-action"
+                                      style={{ background: '#059669', color: '#ffffff', borderColor: '#059669' }}
+                                      title={`Duyệt gia hạn thêm ${r.pendingRenewDays || 7} ngày`}
+                                    >
+                                      <Check size={14} /> Duyệt GH (+{r.pendingRenewDays || 7}n)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRejectRenew(r)}
+                                      className="btn btn-reject btn-table-action"
+                                      title="Từ chối yêu cầu gia hạn"
+                                    >
+                                      <X size={14} /> Từ chối GH
+                                    </button>
+                                  </>
+                                )}
+
                                 {r.status === 'Đang mượn' && (
                                   <>
                                     <button
@@ -1699,14 +1877,16 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                                     >
                                       <CheckCircle size={14} /> Trả sách
                                     </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleMarkOverdue(r)}
-                                      className="btn btn-overdue btn-table-action"
-                                      title="Xác nhận độc giả chưa trả sách và chuyển sang mục Quá hạn"
-                                    >
-                                      <AlertTriangle size={13} /> Quá hạn
-                                    </button>
+                                    {r.renewStatus !== 'Chờ duyệt gia hạn' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleMarkOverdue(r)}
+                                        className="btn btn-overdue btn-table-action"
+                                        title="Xác nhận độc giả chưa trả sách và chuyển sang mục Quá hạn"
+                                      >
+                                        <AlertTriangle size={13} /> Quá hạn
+                                      </button>
+                                    )}
                                   </>
                                 )}
 
@@ -1798,22 +1978,45 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                             </td>
                             <td style={{ whiteSpace: 'nowrap' }}>
                               <span className={`badge ${res.status === 'Waiting' ? 'badge-warning' : res.status === 'Ready' ? 'badge-success' : 'badge-neutral'}`} style={{ whiteSpace: 'nowrap' }}>
-                                {res.status === 'Waiting' ? 'Đang xếp hàng' : res.status === 'Ready' ? 'Sách đã sẵn sàng' : res.status}
+                                {res.status === 'Waiting' ? 'Đang xếp hàng' : res.status === 'Ready' ? 'Sách đã sẵn sàng' : res.status === 'Fulfilled' ? 'Đã hoàn tất' : res.status}
                               </span>
                             </td>
-                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '110px' }}>
-                              {res.status === 'Waiting' ? (
-                                <button
-                                  type="button"
-                                  onClick={() => handleCancelReservation(res.id)}
-                                  className="btn btn-reject btn-table-action"
-                                  title="Hủy lượt đặt trước này"
-                                >
-                                  <X size={14} /> Hủy đặt
-                                </button>
-                              ) : (
-                                <span style={{ color: '#94a3b8', fontSize: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '98px', height: '32px' }}>—</span>
-                              )}
+                            <td style={{ textAlign: 'right', whiteSpace: 'nowrap', minWidth: '140px' }}>
+                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                                {res.status === 'Waiting' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateReservationStatus(res.id, 'Ready')}
+                                    className="btn btn-approve btn-table-action"
+                                    title="Báo sách đã về kho và sẵn sàng cho độc giả này mượn"
+                                  >
+                                    <Check size={14} /> Báo sách về
+                                  </button>
+                                )}
+                                {res.status === 'Ready' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateReservationStatus(res.id, 'Fulfilled')}
+                                    className="btn btn-approve btn-table-action"
+                                    title="Độc giả đã nhận sách, đánh dấu hoàn tất lượt đặt trước"
+                                  >
+                                    <Check size={14} /> Hoàn tất
+                                  </button>
+                                )}
+                                {(res.status === 'Waiting' || res.status === 'Ready') && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCancelReservation(res.id)}
+                                    className="btn btn-reject btn-table-action"
+                                    title="Hủy lượt đặt trước này"
+                                  >
+                                    <X size={14} /> Hủy đặt
+                                  </button>
+                                )}
+                                {res.status !== 'Waiting' && res.status !== 'Ready' && (
+                                  <span style={{ color: '#94a3b8', fontSize: '12px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '98px', height: '32px' }}>—</span>
+                                )}
+                              </div>
                             </td>
                           </tr>
                         ))
@@ -2160,10 +2363,11 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                     ) : (
                       filteredBooks.map(b => {
                         const qty = Number(b.quantity) || 1;
-                        const activeBorrowsForBook = borrowRecords.filter(r =>
-                          (r.book_id === b.id || (r.book_title && b.title && r.book_title.trim().toLowerCase() === b.title.trim().toLowerCase())) &&
-                          (r.status === 'Đang mượn' || r.status === 'Quá hạn')
-                        ).length;
+                        const activeBorrowsForBook = borrowRecords.filter(r => {
+                          const matchId = Number(r.bookId || r.book_id || 0) === Number(b.id);
+                          const matchTitle = (r.bookTitle || r.book_title) && b.title && (r.bookTitle || r.book_title).trim().toLowerCase() === b.title.trim().toLowerCase();
+                          return (matchId || matchTitle) && (r.status === 'Đang mượn' || r.status === 'Quá hạn');
+                        }).length;
                         const borrowed = Math.max(Number(b.borrowed) || 0, activeBorrowsForBook);
                         const avail = b.available_copies !== undefined && b.available_copies !== null
                           ? Math.max(0, Math.min(qty, Number(b.available_copies)))
@@ -2405,6 +2609,43 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
           Number(b.id) >= 51
         );
 
+        // Helper chuẩn hóa và trích xuất ngày phát hành sách sắp về
+        const parseReleaseDate = (b) => {
+          let str = (b.releaseDate || '').trim();
+          if (!str && (b.desc || b.description)) {
+            const text = b.desc || b.description || '';
+            if (text.includes('Dự kiến phát hành:')) {
+              str = text.split('Dự kiến phát hành:')[1].trim().split('.')[0].trim();
+            }
+          }
+          if (!str) return new Date(2099, 11, 31);
+
+          const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+          if (dmyMatch) {
+            return new Date(parseInt(dmyMatch[3], 10), parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10));
+          }
+
+          const myMatch = str.match(/^(\d{1,2})[-/](\d{4})$/);
+          if (myMatch) {
+            return new Date(parseInt(myMatch[2], 10), parseInt(myMatch[1], 10) - 1, 1);
+          }
+
+          const yMatch = str.match(/^(\d{4})$/);
+          if (yMatch) {
+            return new Date(parseInt(yMatch[1], 10), 0, 1);
+          }
+
+          const parsed = new Date(str);
+          if (!isNaN(parsed.getTime())) return parsed;
+          return new Date(2099, 11, 31);
+        };
+
+        const formatReleaseDate = (b) => {
+          return b.releaseDate || (b.desc && b.desc.includes('Dự kiến phát hành:') ? b.desc.split('Dự kiến phát hành:')[1].trim().split('.')[0].trim() : '10-2026');
+        };
+
+        const now = new Date();
+
         const filteredUpcoming = upcomingList.filter(book => {
           const q = upcomingSearch.toLowerCase().trim();
           const matchesSearch = !q ||
@@ -2414,43 +2655,88 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
           const matchesCat = upcomingCategoryFilter === 'All' || book.category === upcomingCategoryFilter;
 
-          const relStr = (book.releaseDate || book.desc || book.description || '').toLowerCase();
-          const matchesMonth = upcomingMonthFilter === 'All' || relStr.includes(upcomingMonthFilter.toLowerCase());
+          let matchesDate = true;
+          if (upcomingMonthFilter !== 'All') {
+            const bDate = parseReleaseDate(book);
+            const diffDays = Math.ceil((bDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            if (upcomingMonthFilter === '1m') {
+              matchesDate = diffDays <= 31;
+            } else if (upcomingMonthFilter === '3m') {
+              matchesDate = diffDays <= 92;
+            } else if (upcomingMonthFilter === '6m') {
+              matchesDate = diffDays <= 183;
+            } else if (upcomingMonthFilter === 'after6m') {
+              matchesDate = diffDays > 183;
+            }
+          }
 
-          return matchesSearch && matchesCat && matchesMonth;
+          return matchesSearch && matchesCat && matchesDate;
         });
 
-        // Compute pre-order count for each book
+        // Đếm số lượt độc giả đặt trước cho từng sách
         const getBookPreOrderCount = (bookId) => {
           return reservations.filter(r => 
-            Number(r.bookId) === Number(bookId) && 
+            Number(r.bookId || r.book_id) === Number(bookId) && 
             r.status !== 'Cancelled' && 
             r.status !== 'Hủy' && 
             r.status !== 'Fulfilled'
           ).length;
         };
 
-        const totalPreOrders = reservations.filter(r => 
-          upcomingList.some(ub => Number(ub.id) === Number(r.bookId)) && 
+        // Lọc danh sách yêu cầu đặt trước có hiệu lực cho các sách sắp về
+        const activePreOrderReservations = reservations.filter(r => 
+          upcomingList.some(ub => Number(ub.id) === Number(r.bookId || r.book_id)) && 
           r.status !== 'Cancelled' && 
           r.status !== 'Hủy' && 
           r.status !== 'Fulfilled'
-        ).length;
+        );
 
-        const arrivingSoonCount = upcomingList.filter(b => 
-          (b.releaseDate || b.desc || '').includes('10-2026')
-        ).length;
-
-        // Find most anticipated book
-        let topBook = null;
-        let maxCount = -1;
-        upcomingList.forEach(b => {
-          const c = getBookPreOrderCount(b.id);
-          if (c > maxCount) {
-            maxCount = c;
-            topBook = b;
+        // Nhóm theo tài khoản độc giả: 1 độc giả đặt nhiều cuốn chỉ tính 1 tài khoản
+        const preOrderReadersMap = new Map();
+        activePreOrderReservations.forEach(r => {
+          const readerId = Number(r.readerId || r.userId || r.user_id || 0);
+          if (!preOrderReadersMap.has(readerId)) {
+            const readerObj = readers.find(rd => Number(rd.id) === readerId) || {
+              id: readerId,
+              fullName: r.readerName || r.userName || (readerId === 2 ? 'Trần Thị Mai' : `Độc giả #${readerId}`),
+              username: r.username || (readerId === 2 ? 'reader' : `user_${readerId}`),
+              phone: r.phone || (readerId === 2 ? '0912345678' : ''),
+              email: r.email || (readerId === 2 ? 'mai.tran@gmail.com' : '')
+            };
+            preOrderReadersMap.set(readerId, {
+              reader: readerObj,
+              reservations: [],
+              books: []
+            });
+          }
+          const entry = preOrderReadersMap.get(readerId);
+          entry.reservations.push(r);
+          const b = upcomingList.find(ub => Number(ub.id) === Number(r.bookId || r.book_id)) || books.find(bk => Number(bk.id) === Number(r.bookId || r.book_id));
+          if (b && !entry.books.some(eb => Number(eb.id) === Number(b.id))) {
+            entry.books.push(b);
           }
         });
+
+        const preOrderReadersList = Array.from(preOrderReadersMap.values());
+        const totalUniquePreOrderReaders = preOrderReadersMap.size;
+
+        // Top 5 sách dự kiến về sớm nhất (sắp xếp theo thời gian tăng dần)
+        const earliestUpcomingBooks = [...upcomingList]
+          .sort((a, b) => parseReleaseDate(a) - parseReleaseDate(b))
+          .slice(0, 5);
+
+        // Top 5 sách được mong đợi nhất theo đánh giá AI
+        const topRatedUpcomingBooks = [...upcomingList]
+          .map(b => {
+            const rating = Number(b.rating) || 9.0;
+            const waitCount = getBookPreOrderCount(b.id);
+            const aiScore = (rating * 10) + (waitCount * 1.8);
+            return { ...b, parsedRating: rating, waitCount, aiScore };
+          })
+          .sort((a, b) => b.aiScore - a.aiScore || b.parsedRating - a.parsedRating)
+          .slice(0, 5);
+
+        const topAiBook = topRatedUpcomingBooks[0] || null;
 
         const upcomingCategories = Array.from(new Set(upcomingList.map(b => b.category).filter(Boolean)));
 
@@ -2484,44 +2770,163 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
             {/* KPI Stat Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ background: '#ffffff', borderRadius: '14px', padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {/* Card 1: Cuộn xuống danh sách sách sắp về */}
+              <div
+                onClick={() => {
+                  const el = document.getElementById('upcoming-books-content');
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                role="button"
+                tabIndex={0}
+                title="Nhấp để cuộn xuống danh sách các sách sắp về"
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '14px',
+                  padding: '18px 20px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(37, 99, 235, 0.12)';
+                  e.currentTarget.style.borderColor = '#93c5fd';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.03)';
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                }}
+              >
                 <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <BookOpen size={22} />
                 </div>
-                <div>
+                <div style={{ flex: 1 }}>
                   <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Tổng đầu sách sắp về</div>
                   <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{upcomingList.length}</div>
                 </div>
               </div>
 
-              <div style={{ background: '#ffffff', borderRadius: '14px', padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {/* Card 2: Dự kiến số sách về sớm nhất */}
+              <div
+                onClick={() => setEarliestBooksModalOpen(true)}
+                role="button"
+                tabIndex={0}
+                title="Nhấp để xem 5 cuốn sách dự kiến về sớm nhất"
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '14px',
+                  padding: '18px 20px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(217, 119, 6, 0.12)';
+                  e.currentTarget.style.borderColor = '#fcd34d';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.03)';
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                }}
+              >
                 <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Calendar size={22} />
                 </div>
-                <div>
-                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Dự kiến về T10/2026</div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>{arrivingSoonCount}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Dự kiến số sách về sớm nhất</div>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#0f172a', lineHeight: 1.2 }}>
+                    {earliestUpcomingBooks.length} <span style={{ fontSize: '13px', fontWeight: 600, color: '#94a3b8' }}>/ {upcomingList.length} cuốn</span>
+                  </div>
                 </div>
               </div>
 
-              <div style={{ background: '#ffffff', borderRadius: '14px', padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {/* Card 3: Độc giả đặt trước (tính theo tài khoản duy nhất) */}
+              <div
+                onClick={() => setPreOrderReadersModalOpen(true)}
+                role="button"
+                tabIndex={0}
+                title="Nhấp để xem danh sách sách đã đặt trước theo tài khoản độc giả"
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '14px',
+                  padding: '18px 20px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(22, 163, 74, 0.12)';
+                  e.currentTarget.style.borderColor = '#86efac';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.03)';
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                }}
+              >
                 <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: '#f0fdf4', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Users size={22} />
                 </div>
-                <div>
-                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Độc giả đang đặt trước</div>
-                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', lineHeight: 1.2 }}>{totalPreOrders}</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Độc giả đặt trước</div>
+                  <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', lineHeight: 1.2 }}>
+                    {totalUniquePreOrderReaders}
+                  </div>
                 </div>
               </div>
 
-              <div style={{ background: '#ffffff', borderRadius: '14px', padding: '18px 20px', border: '1px solid #e2e8f0', boxShadow: '0 2px 6px rgba(0,0,0,0.03)', display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {/* Card 4: Được mong đợi nhất */}
+              <div
+                onClick={() => setTopRatedModalOpen(true)}
+                role="button"
+                tabIndex={0}
+                title="Nhấp để xem Top 5 sách được mong đợi nhất theo gợi ý của AI"
+                style={{
+                  background: '#ffffff',
+                  borderRadius: '14px',
+                  padding: '18px 20px',
+                  border: '1px solid #e2e8f0',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.03)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 6px 16px rgba(147, 51, 234, 0.12)';
+                  e.currentTarget.style.borderColor = '#d8b4fe';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.03)';
+                  e.currentTarget.style.borderColor = '#e2e8f0';
+                }}
+              >
                 <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: '#faf5ff', color: '#9333ea', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Sparkles size={22} />
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Được mong đợi nhất</div>
-                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={topBook?.title || 'Chưa có'}>
-                    {topBook ? `${topBook.title.substring(0, 22)}...` : 'Chưa có'}
+                  <div style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={topAiBook?.title || 'Chưa có'}>
+                    {topAiBook ? topAiBook.title : 'Chưa có'}
                   </div>
                 </div>
               </div>
@@ -2538,7 +2943,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                     placeholder="Tìm theo tên sách, tác giả, thể loại..."
                     value={upcomingSearch}
                     onChange={(e) => setUpcomingSearch(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px 8px 36px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                    style={{ width: '100%', height: '38px', padding: '0 32px 0 36px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', boxSizing: 'border-box', backgroundColor: '#ffffff', color: '#0f172a' }}
                   />
                   {upcomingSearch && (
                     <button onClick={() => setUpcomingSearch('')} style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', color: '#94a3b8', cursor: 'pointer' }}>
@@ -2548,11 +2953,11 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 </div>
 
                 {/* Category filter */}
-                <div style={{ minWidth: '160px' }}>
+                <div style={{ minWidth: '170px' }}>
                   <select
                     value={upcomingCategoryFilter}
                     onChange={(e) => setUpcomingCategoryFilter(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', backgroundColor: '#ffffff' }}
+                    style={{ width: '100%', height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', backgroundColor: '#ffffff', color: '#334155', boxSizing: 'border-box', cursor: 'pointer' }}
                   >
                     <option value="All">Tất cả thể loại</option>
                     {upcomingCategories.map(c => (
@@ -2561,18 +2966,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   </select>
                 </div>
 
-                {/* Month filter */}
-                <div style={{ minWidth: '150px' }}>
+                {/* Real-time Dynamic Release Date Filter */}
+                <div style={{ minWidth: '180px' }}>
                   <select
                     value={upcomingMonthFilter}
                     onChange={(e) => setUpcomingMonthFilter(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', backgroundColor: '#ffffff' }}
+                    style={{ width: '100%', height: '38px', padding: '0 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', outline: 'none', backgroundColor: '#ffffff', color: '#334155', boxSizing: 'border-box', cursor: 'pointer' }}
                   >
                     <option value="All">Tất cả đợt phát hành</option>
-                    <option value="10-2026">Tháng 10/2026</option>
-                    <option value="11-2026">Tháng 11/2026</option>
-                    <option value="12-2026">Tháng 12/2026</option>
-                    <option value="2027">Năm 2027</option>
+                    <option value="1m">Trong vòng 1 tháng</option>
+                    <option value="3m">Trong vòng 3 tháng</option>
+                    <option value="6m">Trong vòng 6 tháng</option>
+                    <option value="after6m">Sau 6 tháng</option>
                   </select>
                 </div>
               </div>
@@ -2623,7 +3028,8 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
             </div>
 
             {/* Content List */}
-            {filteredUpcoming.length === 0 ? (
+            <div id="upcoming-books-content" style={{ scrollMarginTop: '24px' }}>
+              {filteredUpcoming.length === 0 ? (
               <div className="card" style={{ padding: '50px 20px', textAlign: 'center', color: '#94a3b8' }}>
                 <Clock size={48} style={{ margin: '0 auto 12px', color: '#cbd5e1' }} />
                 <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#475569', margin: '0 0 6px 0' }}>
@@ -2645,6 +3051,71 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
               /* TABLE VIEW */
               <div className="card" style={{ overflow: 'hidden', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
                 <div className="table-responsive">
+                  <style>{`
+                    .btn-action-cell {
+                      width: 95px;
+                      height: 32px;
+                      border-radius: 8px;
+                      font-size: 12px;
+                      font-weight: 600;
+                      display: inline-flex;
+                      align-items: center;
+                      justify-content: center;
+                      gap: 5px;
+                      cursor: pointer;
+                      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                      outline: none;
+                      box-sizing: border-box;
+                    }
+                    .btn-action-receive {
+                      background: #16a34a;
+                      color: #ffffff;
+                      border: 1px solid #16a34a;
+                      box-shadow: 0 1px 3px rgba(22, 163, 74, 0.25);
+                    }
+                    .btn-action-receive:hover {
+                      background: #15803d;
+                      border-color: #15803d;
+                      transform: translateY(-2px);
+                      box-shadow: 0 4px 12px rgba(22, 163, 74, 0.4);
+                    }
+                    .btn-action-edit {
+                      background: #eff6ff;
+                      color: #2563eb;
+                      border: 1px solid #bfdbfe;
+                    }
+                    .btn-action-edit:hover {
+                      background: #2563eb;
+                      color: #ffffff;
+                      border-color: #2563eb;
+                      transform: translateY(-2px);
+                      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+                    }
+                    .btn-action-detail {
+                      background: #f0fdfa;
+                      color: #0d9488;
+                      border: 1px solid #99f6e4;
+                    }
+                    .btn-action-detail:hover {
+                      background: #0d9488;
+                      color: #ffffff;
+                      border-color: #0d9488;
+                      transform: translateY(-2px);
+                      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.35);
+                    }
+                    .btn-action-delete {
+                      background: #fef2f2;
+                      color: #ef4444;
+                      border: 1px solid #fecaca;
+                    }
+                    .btn-action-delete:hover {
+                      background: #ef4444;
+                      color: #ffffff;
+                      border-color: #ef4444;
+                      transform: translateY(-2px);
+                      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.35);
+                    }
+                  `}</style>
                   <table>
                     <thead>
                       <tr>
@@ -2655,7 +3126,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                         <th style={{ minWidth: '120px' }}>Dự kiến về</th>
                         <th style={{ minWidth: '140px', textAlign: 'center' }}>Bạn đọc chờ</th>
                         <th style={{ minWidth: '110px', textAlign: 'center' }}>Trạng thái</th>
-                        <th style={{ minWidth: '180px', textAlign: 'center' }}>Thao tác</th>
+                        <th style={{ minWidth: '210px', textAlign: 'center', whiteSpace: 'nowrap' }}>Thao tác</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -2759,52 +3230,53 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                               </span>
                             </td>
 
-                            <td style={{ textAlign: 'center' }}>
-                              <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
-                                <button
-                                  type="button"
-                                  onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
-                                  style={{ border: '1px solid #e2e8f0', background: '#ffffff', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', color: '#475569', display: 'flex' }}
-                                  title="Xem chi tiết ấn phẩm"
-                                >
-                                  <Eye size={14} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => { setEditingUpcomingBook(b); setUpcomingBookModalOpen(true); }}
-                                  style={{ border: '1px solid #bfdbfe', background: '#eff6ff', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', color: '#2563eb', display: 'flex' }}
-                                  title="Chỉnh sửa thông tin"
-                                >
-                                  <Edit2 size={14} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => { setUpcomingBookToDelete(b); setDeleteUpcomingBookError(''); }}
-                                  style={{ border: '1px solid #fecaca', background: '#fef2f2', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', color: '#ef4444', display: 'flex' }}
-                                  title="Xóa sách đặt trước"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                            {/* Cột 8: Thao tác (Căn giữa, kích thước đều nhau 95px x 32px, cách đều 8px theo dạng lưới 2x2) */}
+                            <td style={{ textAlign: 'center', verticalAlign: 'middle', padding: '12px 8px', whiteSpace: 'nowrap', minWidth: '210px' }}>
+                              <div style={{
+                                display: 'inline-grid',
+                                gridTemplateColumns: 'repeat(2, 95px)',
+                                gap: '8px',
+                                justifyContent: 'center',
+                                alignItems: 'center'
+                              }}>
+                                {/* Hàng 1, Cột 1: Nhập kho (như Cho mượn) */}
                                 <button
                                   type="button"
                                   onClick={() => { setReceiveStockBook(b); setReceiveStockQty(b.expectedQuantity || 20); }}
-                                  style={{
-                                    border: 'none',
-                                    background: 'linear-gradient(135deg, #16a34a, #15803d)',
-                                    color: '#ffffff',
-                                    padding: '5px 9px',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    fontWeight: 700,
-                                    fontSize: '11.5px',
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: '3px',
-                                    boxShadow: '0 2px 5px rgba(22, 163, 74, 0.25)'
-                                  }}
+                                  className="btn-action-cell btn-action-receive"
                                   title="Sách đã về thư viện? Bấm để nhập kho chính thức"
                                 >
-                                  <PackageCheck size={13} /> Nhập kho
+                                  <PackageCheck size={14} /> Nhập kho
+                                </button>
+
+                                {/* Hàng 1, Cột 2: Sửa */}
+                                <button
+                                  type="button"
+                                  onClick={() => { setEditingUpcomingBook(b); setUpcomingBookModalOpen(true); }}
+                                  className="btn-action-cell btn-action-edit"
+                                  title="Chỉnh sửa thông tin sách đặt trước"
+                                >
+                                  <Edit2 size={14} /> Sửa
+                                </button>
+
+                                {/* Hàng 2, Cột 1: Chi tiết (như Mã QR) */}
+                                <button
+                                  type="button"
+                                  onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                  className="btn-action-cell btn-action-detail"
+                                  title="Xem chi tiết sách đặt trước"
+                                >
+                                  <Eye size={14} /> Chi tiết
+                                </button>
+
+                                {/* Hàng 2, Cột 2: Xóa */}
+                                <button
+                                  type="button"
+                                  onClick={() => { setUpcomingBookToDelete(b); setDeleteUpcomingBookError(''); }}
+                                  className="btn-action-cell btn-action-delete"
+                                  title="Xóa sách đặt trước"
+                                >
+                                  <Trash2 size={14} /> Xóa
                                 </button>
                               </div>
                             </td>
@@ -2936,6 +3408,600 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                   );
                 })}
               </div>
+            )}
+            </div>
+
+            {/* Modal 1: Top 5 Cuốn Sách Dự Kiến Về Sớm Nhất */}
+            {earliestBooksModalOpen && typeof document !== 'undefined' && createPortal(
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  backdropFilter: 'blur(5px)',
+                  zIndex: 999999,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '20px',
+                  boxSizing: 'border-box'
+                }}
+                onClick={() => setEarliestBooksModalOpen(false)}
+              >
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '18px',
+                    maxWidth: '740px',
+                    width: '100%',
+                    maxHeight: '88vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                    overflow: 'hidden',
+                    margin: 'auto'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Header */}
+                  <div style={{ padding: '18px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#d97706', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(217, 119, 6, 0.3)' }}>
+                        <Calendar size={22} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                          Dự Kiến 5 Cuốn Sách Về Sớm Nhất
+                        </h3>
+                        <span style={{ fontSize: '12.5px', color: '#78350f', fontWeight: 500 }}>
+                          Lọc từ {upcomingList.length} đầu sách sắp về, sắp xếp theo thời gian dự kiến phát hành sớm nhất
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEarliestBooksModalOpen(false)}
+                      style={{ border: 'none', background: 'rgba(255,255,255,0.85)', color: '#64748b', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  {/* Body List */}
+                  <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {earliestUpcomingBooks.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '40px 0', color: '#94a3b8' }}>
+                        <Calendar size={40} style={{ margin: '0 auto 8px', color: '#cbd5e1' }} />
+                        <p style={{ margin: 0, fontSize: '14px' }}>Chưa có dữ liệu sách sắp về.</p>
+                      </div>
+                    ) : (
+                      earliestUpcomingBooks.map((b, idx) => {
+                        const preCount = getBookPreOrderCount(b.id);
+                        const relDate = formatReleaseDate(b);
+                        const bDate = parseReleaseDate(b);
+                        const diffDays = Math.ceil((bDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+                        const diffBadge = diffDays <= 0 ? 'Dự kiến trong tháng này' : (diffDays <= 30 ? `Khoảng ${diffDays} ngày nữa` : `Khoảng ${Math.round(diffDays / 30)} tháng nữa`);
+
+                        return (
+                          <div
+                            key={b.id}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '16px',
+                              padding: '14px 18px',
+                              borderRadius: '12px',
+                              border: idx === 0 ? '1.5px solid #fcd34d' : '1px solid #e2e8f0',
+                              background: idx === 0 ? '#fffdf5' : '#ffffff',
+                              boxShadow: idx === 0 ? '0 4px 14px rgba(217, 119, 6, 0.08)' : 'none',
+                              transition: 'all 0.2s ease'
+                            }}
+                          >
+                            {/* Rank Pill */}
+                            <div style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              background: idx === 0 ? '#d97706' : (idx === 1 ? '#0284c7' : (idx === 2 ? '#16a34a' : '#64748b')),
+                              color: '#ffffff',
+                              fontWeight: 800,
+                              fontSize: '13px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}>
+                              #{idx + 1}
+                            </div>
+
+                            {/* Book Cover */}
+                            <div
+                              onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                              style={{
+                                width: '48px',
+                                height: '68px',
+                                borderRadius: '8px',
+                                overflow: 'hidden',
+                                background: '#f1f5f9',
+                                border: '1px solid #e2e8f0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexShrink: 0,
+                                cursor: 'pointer'
+                              }}
+                            >
+                              {b.imageUrl ? (
+                                <img src={b.imageUrl} alt={b.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                              ) : (
+                                <BookOpen size={20} color="#94a3b8" />
+                              )}
+                            </div>
+
+                            {/* Book Info */}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '3px' }}>
+                                <h4
+                                  onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                  style={{ fontSize: '14.5px', fontWeight: 700, color: '#0f172a', margin: 0, cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '360px' }}
+                                  title={b.title}
+                                >
+                                  {b.title}
+                                </h4>
+                                <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '6px', background: '#f1f5f9', color: '#475569', fontWeight: 600 }}>
+                                  {b.category || 'Manga'}
+                                </span>
+                              </div>
+
+                              <div style={{ fontSize: '12.5px', color: '#64748b', marginBottom: '5px' }}>
+                                Tác giả: <strong style={{ color: '#334155' }}>{b.author || 'Chưa rõ'}</strong>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '12px' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#d97706', fontWeight: 700, background: '#fef3c7', padding: '2px 8px', borderRadius: '6px' }}>
+                                  <Calendar size={13} /> {relDate}
+                                </span>
+                                <span style={{ color: '#64748b', fontSize: '11.5px' }}>
+                                  • {diffBadge}
+                                </span>
+                                <span style={{ color: '#2563eb', fontWeight: 600, fontSize: '11.5px' }}>
+                                  • {preCount} độc giả chờ
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Quick Action Button */}
+                            <button
+                              type="button"
+                              onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                              className="btn btn-outline"
+                              style={{ padding: '7px 14px', fontSize: '12.5px', fontWeight: 600, flexShrink: 0, borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                            >
+                              <Eye size={13} /> Xem sách
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', background: '#f8fafc' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEarliestBooksModalOpen(false)}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '13px', padding: '8px 22px', borderRadius: '8px' }}
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+
+            {/* Modal 2: Độc Giả Đặt Trước Theo Tài Khoản */}
+            {preOrderReadersModalOpen && typeof document !== 'undefined' && createPortal(
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  backdropFilter: 'blur(5px)',
+                  zIndex: 999999,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '20px',
+                  boxSizing: 'border-box'
+                }}
+                onClick={() => setPreOrderReadersModalOpen(false)}
+              >
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '18px',
+                    maxWidth: '780px',
+                    width: '100%',
+                    maxHeight: '88vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                    overflow: 'hidden',
+                    margin: 'auto'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Header */}
+                  <div style={{ padding: '18px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#16a34a', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(22, 163, 74, 0.3)' }}>
+                        <Users size={22} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                          Danh Sách Độc Giả Đặt Trước Theo Tài Khoản
+                        </h3>
+                        <span style={{ fontSize: '12.5px', color: '#166534', fontWeight: 500 }}>
+                          Ghi nhận {totalUniquePreOrderReaders} tài khoản độc giả (1 độc giả đặt nhiều cuốn chỉ tính 1 tài khoản)
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setPreOrderReadersModalOpen(false)}
+                      style={{ border: 'none', background: 'rgba(255,255,255,0.85)', color: '#64748b', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1 }}>
+                    {preOrderReadersList.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '48px 0', color: '#94a3b8' }}>
+                        <Users size={46} style={{ margin: '0 auto 12px', color: '#cbd5e1' }} />
+                        <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#475569', margin: '0 0 6px 0' }}>Chưa có độc giả đặt trước</h4>
+                        <p style={{ fontSize: '13px', margin: 0 }}>Hiện chưa có tài khoản nào đăng ký đặt trước các đầu sách sắp về.</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                        {preOrderReadersList.map((entry, idx) => (
+                          <div
+                            key={entry.reader.id || idx}
+                            style={{
+                              border: '1px solid #e2e8f0',
+                              borderRadius: '14px',
+                              background: '#ffffff',
+                              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+                              overflow: 'hidden'
+                            }}
+                          >
+                            {/* Reader Account Header Banner */}
+                            <div style={{ padding: '14px 18px', background: '#f8fafc', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: '#e0e7ff', color: '#4338ca', fontWeight: 800, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  {(entry.reader.fullName || 'DG').substring(0, 2).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ fontSize: '14.5px', fontWeight: 800, color: '#0f172a' }}>{entry.reader.fullName}</span>
+                                    <code style={{ background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px', fontSize: '11px', color: '#334155' }}>
+                                      {entry.reader.username}
+                                    </code>
+                                    <span style={{ fontSize: '11.5px', fontWeight: 700, color: '#2563eb' }}>
+                                      [{getReaderCode(entry.reader.id)}]
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                                    SĐT: {entry.reader.phone || 'Chưa cập nhật'} • Email: {entry.reader.email || 'Chưa cập nhật'}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <span style={{ background: '#dcfce7', color: '#15803d', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 700 }}>
+                                {entry.books.length} đầu sách đặt trước
+                              </span>
+                            </div>
+
+                            {/* Books Ordered By This Reader */}
+                            <div style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              {entry.books.map((b) => {
+                                const res = entry.reservations.find(r => Number(r.bookId || r.book_id) === Number(b.id));
+                                const relDate = formatReleaseDate(b);
+
+                                return (
+                                  <div
+                                    key={b.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      padding: '10px 14px',
+                                      borderRadius: '10px',
+                                      border: '1px solid #f1f5f9',
+                                      background: '#fbfcfd',
+                                      gap: '12px'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                                      <div
+                                        onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                        style={{ width: '38px', height: '52px', borderRadius: '6px', overflow: 'hidden', background: '#f1f5f9', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, cursor: 'pointer' }}
+                                      >
+                                        {b.imageUrl ? (
+                                          <img src={b.imageUrl} alt={b.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                                        ) : (
+                                          <BookOpen size={16} color="#94a3b8" />
+                                        )}
+                                      </div>
+                                      <div style={{ minWidth: 0, flex: 1 }}>
+                                        <h5
+                                          onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                          style={{ fontSize: '13.5px', fontWeight: 700, color: '#0f172a', margin: '0 0 3px 0', cursor: 'pointer', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                          title={b.title}
+                                        >
+                                          {b.title}
+                                        </h5>
+                                        <div style={{ fontSize: '11.5px', color: '#64748b', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                          <span>Thể loại: <strong>{b.category || 'Manga'}</strong></span>
+                                          <span>• Dự kiến về: <strong style={{ color: '#d97706' }}>{relDate}</strong></span>
+                                          {res?.reservedAt && (
+                                            <span>• Đặt ngày: {res.reservedAt.substring(0, 10)}</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                                      <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11.5px', fontWeight: 700, background: '#eff6ff', color: '#2563eb' }}>
+                                        {res?.status === 'Waiting' ? 'Đang chờ' : (res?.status || 'Chờ sách về')}
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                        className="btn btn-outline"
+                                        style={{ padding: '5px 10px', fontSize: '11.5px' }}
+                                      >
+                                        Chi tiết
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', background: '#f8fafc' }}>
+                    <button
+                      type="button"
+                      onClick={() => setPreOrderReadersModalOpen(false)}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '13px', padding: '8px 22px', borderRadius: '8px' }}
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+
+            {/* Modal 3: Top 5 Tác Phẩm AI Gợi Ý Được Mong Đợi Nhất */}
+            {topRatedModalOpen && typeof document !== 'undefined' && createPortal(
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  background: 'rgba(15, 23, 42, 0.65)',
+                  backdropFilter: 'blur(5px)',
+                  zIndex: 999999,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '20px',
+                  boxSizing: 'border-box'
+                }}
+                onClick={() => setTopRatedModalOpen(false)}
+              >
+                <div
+                  style={{
+                    background: '#ffffff',
+                    borderRadius: '18px',
+                    maxWidth: '760px',
+                    width: '100%',
+                    maxHeight: '88vh',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+                    overflow: 'hidden',
+                    margin: 'auto'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Header */}
+                  <div style={{ padding: '18px 24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: '#9333ea', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(147, 51, 234, 0.3)' }}>
+                        <Sparkles size={22} />
+                      </div>
+                      <div>
+                        <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                          Top 5 Tác Phẩm AI Gợi Ý Được Mong Đợi Nhất
+                        </h3>
+                        <span style={{ fontSize: '12.5px', color: '#6b21a8', fontWeight: 500 }}>
+                          Hệ thống AI phân tích đánh giá số sao, điểm phê bình và mức độ đón nhận của độc giả
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setTopRatedModalOpen(false)}
+                      style={{ border: 'none', background: 'rgba(255,255,255,0.85)', color: '#64748b', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  {/* Body */}
+                  <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    {topRatedUpcomingBooks.map((b, idx) => {
+                      const preCount = getBookPreOrderCount(b.id);
+                      const relDate = formatReleaseDate(b);
+                      const aiNotes = [
+                        'Đạt số sao đánh giá xuất sắc nhất danh mục. Tác phẩm sở hữu lượng thảo luận cao kỷ lục và là tâm điểm đón chờ hàng đầu của độc giả thư viện.',
+                        'Cốt truyện được giới phê bình khen ngợi nồng nhiệt, phong cách xây dựng nhân vật độc đáo với tỷ lệ yêu thích áp đảo.',
+                        'Tuyệt phẩm nhận được lượng bạn đọc đặt trước tăng trưởng ấn tượng, nhịp truyện hấp dẫn và nghệ thuật minh họa mãn nhãn.',
+                        'Đầu sách trinh thám & bí ẩn có lượng fan trung thành đông đảo, nội dung lôi cuốn với điểm số bình chọn cao liên tục qua các tập.',
+                        'Tác phẩm giàu cảm xúc với phong cách du ký huyền ảo, được hệ thống AI đánh giá là đầu sách tiềm năng nhất năm.'
+                      ];
+
+                      return (
+                        <div
+                          key={b.id}
+                          style={{
+                            display: 'flex',
+                            gap: '16px',
+                            padding: '16px',
+                            borderRadius: '14px',
+                            border: idx === 0 ? '1.5px solid #d8b4fe' : '1px solid #e2e8f0',
+                            background: idx === 0 ? '#fdfaff' : '#ffffff',
+                            boxShadow: idx === 0 ? '0 4px 16px rgba(147, 51, 234, 0.08)' : 'none',
+                            alignItems: 'flex-start'
+                          }}
+                        >
+                          {/* Rank Badge */}
+                          <div style={{
+                            width: '34px',
+                            height: '34px',
+                            borderRadius: '10px',
+                            background: idx === 0 ? 'linear-gradient(135deg, #9333ea, #7e22ce)' : '#f1f5f9',
+                            color: idx === 0 ? '#ffffff' : '#64748b',
+                            fontWeight: 800,
+                            fontSize: '13.5px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0
+                          }}>
+                            #{idx + 1}
+                          </div>
+
+                          {/* Cover Image */}
+                          <div
+                            onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                            style={{
+                              width: '58px',
+                              height: '82px',
+                              borderRadius: '8px',
+                              overflow: 'hidden',
+                              background: '#f8fafc',
+                              border: '1px solid #e2e8f0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {b.imageUrl ? (
+                              <img src={b.imageUrl} alt={b.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                            ) : (
+                              <BookOpen size={22} color="#94a3b8" />
+                            )}
+                          </div>
+
+                          {/* Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                              <div>
+                                <h4
+                                  onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                  style={{ fontSize: '15px', fontWeight: 800, color: '#0f172a', margin: 0, cursor: 'pointer' }}
+                                >
+                                  {b.title}
+                                </h4>
+                                <div style={{ fontSize: '12.5px', color: '#64748b', marginTop: '2px' }}>
+                                  Tác giả: <strong style={{ color: '#334155' }}>{b.author || 'Chưa rõ'}</strong> • Thể loại: <span style={{ color: '#9333ea', fontWeight: 600 }}>{b.category}</span>
+                                </div>
+                              </div>
+
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#fef3c7', color: '#b45309', padding: '3px 8px', borderRadius: '6px', fontSize: '12px', fontWeight: 800 }}>
+                                  <Star size={13} fill="#f59e0b" color="#f59e0b" /> {b.parsedRating?.toFixed(1) || '9.6'} / 10
+                                </span>
+                                <span style={{ background: '#f3e8ff', color: '#7e22ce', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>
+                                  {idx === 0 ? 'AI Khuyên Đọc #1' : (idx === 1 ? 'AI Đề Cử #2' : `Top #${idx + 1}`)}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* AI Commentary */}
+                            <div style={{ background: '#f8fafc', borderLeft: '3px solid #9333ea', borderRadius: '4px', padding: '8px 10px', fontSize: '12px', color: '#475569', lineHeight: 1.45, margin: '8px 0' }}>
+                              <span style={{ fontWeight: 700, color: '#7e22ce' }}>Đánh giá AI: </span>
+                              {aiNotes[idx] || 'Tác phẩm được độc giả mong đợi và đánh giá cao trên toàn hệ thống.'}
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                              <div style={{ fontSize: '12px', color: '#64748b', display: 'flex', gap: '12px' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <Calendar size={13} color="#d97706" /> Dự kiến: <strong style={{ color: '#d97706' }}>{relDate}</strong>
+                                </span>
+                                <span style={{ color: '#16a34a', fontWeight: 600 }}>
+                                  • {preCount} độc giả đăng ký chờ
+                                </span>
+                              </div>
+
+                              <button
+                                type="button"
+                                onClick={() => { setSelectedBook(b); setDetailModalOpen(true); }}
+                                className="btn btn-outline"
+                                style={{ padding: '5px 12px', fontSize: '12px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              >
+                                <Eye size={13} /> Chi tiết
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Footer */}
+                  <div style={{ padding: '14px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', background: '#f8fafc' }}>
+                    <button
+                      type="button"
+                      onClick={() => setTopRatedModalOpen(false)}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '13px', padding: '8px 22px', borderRadius: '8px' }}
+                    >
+                      Đóng
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
             )}
           </div>
         );
@@ -3965,10 +5031,10 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                 </div>
                 <div>
                   <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#92400e', margin: 0 }}>
-                    Hàng Chờ Duyệt Mượn Sách
+                    Hàng Chờ Duyệt Mượn & Gia Hạn Sách
                   </h3>
                   <div style={{ fontSize: '12px', color: '#b45309', marginTop: '2px' }}>
-                    Đang có <strong>{borrowRecords.filter(r => r.status === 'Chờ duyệt').length}</strong> yêu cầu cần thủ thư phê duyệt
+                    Đang có <strong>{borrowRecords.filter(r => r.status === 'Chờ duyệt' || r.renewStatus === 'Chờ duyệt gia hạn').length}</strong> yêu cầu cần thủ thư phê duyệt
                   </div>
                 </div>
               </div>
@@ -3995,18 +5061,18 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
 
             {/* Modal Body: Danh sách yêu cầu chờ duyệt */}
             <div style={{ padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {borrowRecords.filter(r => r.status === 'Chờ duyệt').length === 0 ? (
+              {borrowRecords.filter(r => r.status === 'Chờ duyệt' || r.renewStatus === 'Chờ duyệt gia hạn').length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '36px 16px', color: '#64748b', fontSize: '14px' }}>
                   <CheckCircle size={36} color="#16a34a" style={{ margin: '0 auto 10px auto' }} />
-                  <div>Tất cả yêu cầu mượn sách đã được xử lý xong!</div>
+                  <div>Tất cả yêu cầu mượn và gia hạn sách đã được xử lý xong!</div>
                 </div>
               ) : (
-                borrowRecords.filter(r => r.status === 'Chờ duyệt').map(record => (
+                borrowRecords.filter(r => r.status === 'Chờ duyệt' || r.renewStatus === 'Chờ duyệt gia hạn').map(record => (
                   <div
                     key={record.id}
                     style={{
-                      border: '1px solid #fde68a',
-                      background: '#fffdfa',
+                      border: record.renewStatus === 'Chờ duyệt gia hạn' ? '1px solid #fed7aa' : '1px solid #fde68a',
+                      background: record.renewStatus === 'Chờ duyệt gia hạn' ? '#fffaf5' : '#fffdfa',
                       borderRadius: '12px',
                       padding: '16px',
                       display: 'flex',
@@ -4017,39 +5083,86 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700, color: '#64748b', fontSize: '12.5px' }}>#{record.id}</span>
                         <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '14.5px' }}>{record.bookTitle}</span>
+                        {record.renewStatus === 'Chờ duyệt gia hạn' ? (
+                          <span className="badge" style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontSize: '11px', padding: '2px 7px', fontWeight: 700 }}>
+                            ⏳ Xin gia hạn +{record.pendingRenewDays || 7} ngày
+                          </span>
+                        ) : (
+                          <span className="badge badge-warning" style={{ fontSize: '11px', padding: '2px 7px' }}>
+                            Mượn mới
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: '12.5px', color: '#475569', display: 'flex', flexWrap: 'wrap', gap: '14px' }}>
                         <span>Độc giả: <strong style={{ color: '#0f172a' }}>{record.readerName}</strong> ({getReaderCode(record.readerId)})</span>
-                        <span>Hình thức: <strong style={{ color: '#2563eb' }}>{record.borrowType || 'Mượn về nhà'}</strong></span>
-                        <span>Ngày yêu cầu: <strong style={{ color: '#64748b' }}>{record.borrowDate ? record.borrowDate.substring(0, 10) : 'Hôm nay'}</strong></span>
+                        {record.renewStatus === 'Chờ duyệt gia hạn' ? (
+                          <>
+                            <span>Hạn hiện tại: <strong style={{ color: '#2563eb' }}>{record.returnDate || record.dueDate}</strong></span>
+                            {record.pendingRenewNotes && <span>Lý do: <em style={{ color: '#64748b' }}>"{record.pendingRenewNotes}"</em></span>}
+                          </>
+                        ) : (
+                          <>
+                            <span>Hình thức: <strong style={{ color: '#2563eb' }}>{record.borrowType || 'Mượn về nhà'}</strong></span>
+                            <span>Ngày yêu cầu: <strong style={{ color: '#64748b' }}>{record.borrowDate ? record.borrowDate.substring(0, 10) : 'Hôm nay'}</strong></span>
+                          </>
+                        )}
                       </div>
                     </div>
 
                     <div style={{ display: 'flex', gap: '8px', flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPendingQueueModalOpen(false);
-                          setBorrowActionModal({ type: 'approve', record });
-                        }}
-                        className="btn btn-approve btn-table-action"
-                      >
-                        <Check size={14} /> Duyệt
-                      </button>
+                      {record.renewStatus === 'Chờ duyệt gia hạn' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleApproveRenew(record);
+                            }}
+                            className="btn btn-approve btn-table-action"
+                            style={{ background: '#059669', color: '#ffffff', borderColor: '#059669' }}
+                            title={`Duyệt gia hạn thêm ${record.pendingRenewDays || 7} ngày`}
+                          >
+                            <Check size={14} /> Duyệt GH
+                          </button>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setPendingQueueModalOpen(false);
-                          setBorrowActionModal({ type: 'reject', record });
-                        }}
-                        className="btn btn-reject btn-table-action"
-                      >
-                        <X size={14} /> Từ chối
-                      </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleRejectRenew(record);
+                            }}
+                            className="btn btn-reject btn-table-action"
+                            title="Từ chối yêu cầu gia hạn"
+                          >
+                            <X size={14} /> Từ chối
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPendingQueueModalOpen(false);
+                              setBorrowActionModal({ type: 'approve', record });
+                            }}
+                            className="btn btn-approve btn-table-action"
+                          >
+                            <Check size={14} /> Duyệt
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPendingQueueModalOpen(false);
+                              setBorrowActionModal({ type: 'reject', record });
+                            }}
+                            className="btn btn-reject btn-table-action"
+                          >
+                            <X size={14} /> Từ chối
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ))

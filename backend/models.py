@@ -31,7 +31,9 @@ class BookCreate(BaseModel):
     author: Optional[str] = "Chưa rõ"
     category: Optional[str] = "Khác"
     quantity: int = 1
+    expectedQuantity: Optional[int] = None
     desc: Optional[str] = ""
+    description: Optional[str] = None
     imageUrl: Optional[str] = None
     status: Optional[str] = "Sẵn sàng"
     releaseDate: Optional[str] = None
@@ -42,7 +44,9 @@ class BookUpdate(BaseModel):
     author: Optional[str] = None
     category: Optional[str] = None
     quantity: Optional[int] = None
+    expectedQuantity: Optional[int] = None
     desc: Optional[str] = None
+    description: Optional[str] = None
     imageUrl: Optional[str] = None
     status: Optional[str] = None
     releaseDate: Optional[str] = None
@@ -88,6 +92,11 @@ class ReservationCreate(BaseModel):
     bookId: int
     readerId: Optional[int] = None
     userId: Optional[int] = None
+
+class ReservationUpdate(BaseModel):
+    status: Optional[str] = None
+    priority: Optional[int] = None
+    expiresAt: Optional[str] = None
 
 class FineStatusUpdate(BaseModel):
     status: Optional[str] = "Đã nộp"

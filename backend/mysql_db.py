@@ -127,6 +127,7 @@ class BookModel(Base):
                 rel_date = desc_text.split("Dự kiến phát hành:")[1].strip().split(")")[0].split(".")[0].strip()
             except Exception:
                 pass
+        exp_qty = self.published_year or (20 if is_up else self.quantity)
         return {
             "id": self.id,
             "title": self.title,
@@ -140,6 +141,7 @@ class BookModel(Base):
             "imageUrl": self.image_url,
             "status": self.status,
             "publishedYear": self.published_year,
+            "expectedQuantity": exp_qty,
             "isUpcoming": is_up,
             "releaseDate": rel_date
         }
@@ -160,6 +162,10 @@ class BorrowRecordModel(Base):
     overdue_days = Column(Integer, nullable=False, default=0)
     status = Column(String(50), nullable=False, default="Chờ duyệt", index=True)
     notes = Column(String(255), nullable=True)
+    renew_status = Column(String(50), nullable=True)
+    pending_renew_days = Column(Integer, nullable=True)
+    pending_renew_notes = Column(String(255), nullable=True)
+    renew_count = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     user = relationship("UserModel")
@@ -185,7 +191,11 @@ class BorrowRecordModel(Base):
             "overdue_days": self.overdue_days,
             "overdueDays": self.overdue_days,
             "status": self.status,
-            "notes": self.notes
+            "notes": self.notes,
+            "renewStatus": getattr(self, "renew_status", None),
+            "pendingRenewDays": getattr(self, "pending_renew_days", None),
+            "pendingRenewNotes": getattr(self, "pending_renew_notes", None),
+            "renewCount": int(getattr(self, "renew_count", 0) or 0)
         }
 
 
@@ -314,6 +324,7 @@ class MySQLDatabaseManager:
 
         # Khởi tạo persistent SQLite engine để nạp dữ liệu siêu tốc < 5ms khi MySQL chưa bật
         self.db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_local.db"))
+        self.sql_file_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_mysql.sql"))
         try:
             self.sqlite_engine = create_engine(
                 f"sqlite:///{self.db_path}",
@@ -335,11 +346,53 @@ class MySQLDatabaseManager:
                     pass
 
             self.SqliteSession = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=self.sqlite_engine))
+            self._ensure_sqlite_columns()
         except Exception:
             self.sqlite_engine = None
             self.SqliteSession = None
 
         self._init_connection()
+
+    def _ensure_sqlite_columns(self):
+        """Đảm bảo các cột cho tính năng xin gia hạn tồn tại trong SQLite cục bộ"""
+        if not self.sqlite_engine:
+            return
+        try:
+            with self.sqlite_engine.connect() as conn:
+                res = conn.execute(text("PRAGMA table_info(borrow_records)")).fetchall()
+                existing_cols = {row[1] for row in res}
+                if existing_cols:
+                    if "renew_status" not in existing_cols:
+                        conn.execute(text("ALTER TABLE borrow_records ADD COLUMN renew_status VARCHAR(50);"))
+                    if "pending_renew_days" not in existing_cols:
+                        conn.execute(text("ALTER TABLE borrow_records ADD COLUMN pending_renew_days INTEGER;"))
+                    if "pending_renew_notes" not in existing_cols:
+                        conn.execute(text("ALTER TABLE borrow_records ADD COLUMN pending_renew_notes VARCHAR(255);"))
+                    if "renew_count" not in existing_cols:
+                        conn.execute(text("ALTER TABLE borrow_records ADD COLUMN renew_count INTEGER DEFAULT 0;"))
+                    conn.commit()
+        except Exception as e:
+            logger.warning(f"Lỗi kiểm tra/cập nhật cột SQLite borrow_records: {e}")
+
+    def _ensure_mysql_columns(self):
+        """Đảm bảo các cột cho tính năng gia hạn tồn tại trong MySQL"""
+        if not self.engine:
+            return
+        try:
+            with self.engine.connect() as conn:
+                res = conn.execute(text("SHOW COLUMNS FROM `borrow_records`")).fetchall()
+                existing_cols = {row[0] for row in res}
+                if "renew_status" not in existing_cols:
+                    conn.execute(text("ALTER TABLE `borrow_records` ADD COLUMN `renew_status` VARCHAR(50) NULL;"))
+                if "pending_renew_days" not in existing_cols:
+                    conn.execute(text("ALTER TABLE `borrow_records` ADD COLUMN `pending_renew_days` INT NULL;"))
+                if "pending_renew_notes" not in existing_cols:
+                    conn.execute(text("ALTER TABLE `borrow_records` ADD COLUMN `pending_renew_notes` VARCHAR(255) NULL;"))
+                if "renew_count" not in existing_cols:
+                    conn.execute(text("ALTER TABLE `borrow_records` ADD COLUMN `renew_count` INT NOT NULL DEFAULT 0;"))
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Lỗi kiểm tra/cập nhật cột MySQL borrow_records: {e}")
 
     def _get_connection_url(self, with_db: bool = True) -> str:
         encoded_pass = quote_plus(self.password)
@@ -392,6 +445,7 @@ class MySQLDatabaseManager:
 
             # 3. Tự động tạo các bảng nếu chưa có
             Base.metadata.create_all(bind=self.engine)
+            self._ensure_mysql_columns()
             self._is_connected = True
             logger.info(f"✓ Đã kết nối thành công tới MySQL Database [{self.database}] tại {self.host}:{self.port}")
             self._ensure_seed_data()
@@ -659,6 +713,10 @@ class MySQLDatabaseManager:
                         existing_b.description = b.get("desc") or b.get("description")
                     if b.get("imageUrl"):
                         existing_b.image_url = b.get("imageUrl")
+                    if b.get("expectedQuantity") is not None:
+                        existing_b.published_year = int(b.get("expectedQuantity"))
+                    elif b.get("publishedYear") is not None:
+                        existing_b.published_year = int(b.get("publishedYear"))
                 else:
                     new_b = BookModel(
                         id=bid,
@@ -669,7 +727,8 @@ class MySQLDatabaseManager:
                         available_copies=avail,
                         description=b.get("desc") or b.get("description", ""),
                         image_url=b.get("imageUrl"),
-                        status=b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách")
+                        status=b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách"),
+                        published_year=int(b.get("expectedQuantity") or b.get("publishedYear")) if (b.get("expectedQuantity") or b.get("publishedYear")) else None
                     )
                     session.add(new_b)
 
@@ -731,6 +790,12 @@ class MySQLDatabaseManager:
                     existing_br.fine_amount = fine_val
                     existing_br.overdue_days = overdue_val
                     existing_br.actual_return_date = act_dt
+                    existing_br.renew_status = br.get("renewStatus")
+                    existing_br.pending_renew_days = br.get("pendingRenewDays")
+                    existing_br.pending_renew_notes = br.get("pendingRenewNotes")
+                    existing_br.renew_count = int(br.get("renewCount") or 0)
+                    if br.get("notes") is not None:
+                        existing_br.notes = br.get("notes")
                 else:
                     new_br = BorrowRecordModel(
                         id=brid,
@@ -742,7 +807,12 @@ class MySQLDatabaseManager:
                         borrow_type=br.get("borrowType", "Mượn về nhà"),
                         status=br.get("status", "Chờ duyệt"),
                         fine_amount=fine_val,
-                        overdue_days=overdue_val
+                        overdue_days=overdue_val,
+                        notes=br.get("notes"),
+                        renew_status=br.get("renewStatus"),
+                        pending_renew_days=br.get("pendingRenewDays"),
+                        pending_renew_notes=br.get("pendingRenewNotes"),
+                        renew_count=int(br.get("renewCount") or 0)
                     )
                     session.add(new_br)
 
@@ -833,6 +903,328 @@ class MySQLDatabaseManager:
             logger.info("✓ Đã lưu và đồng bộ thay đổi vào smartlib_local.db")
         except Exception as e:
             logger.error(f"Lỗi khi lưu dữ liệu vào SQLite: {e}")
+
+    def _sql_val(self, val) -> str:
+        if val is None:
+            return "NULL"
+        if isinstance(val, bool):
+            return "1" if val else "0"
+        if isinstance(val, (int, float)):
+            return str(val)
+        if isinstance(val, (dict, list)):
+            val = json.dumps(val, ensure_ascii=False)
+        s = str(val)
+        s = s.replace("\\", "\\\\").replace("'", "\\'")
+        return f"'{s}'"
+
+    def _sync_to_sql_file(self, data: Dict[str, Any]):
+        """
+        Đồng bộ toàn bộ dữ liệu cập nhật hiện tại vào file database/smartlib_mysql.sql.
+        Giúp file SQL luôn phản ánh chính xác dữ liệu mới nhất trong cơ sở dữ liệu.
+        """
+        try:
+            sql_path = getattr(self, "sql_file_path", None)
+            if not sql_path:
+                sql_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "database", "smartlib_mysql.sql"))
+
+            # Đảm bảo dữ liệu đầy đủ tất cả các bảng
+            users = data.get("users", [])
+            books = data.get("books", [])
+            borrows = data.get("borrowRecords", [])
+            resvs = data.get("reservations", [])
+            fines = data.get("fines", [])
+            notifs = data.get("notifications", [])
+
+            # Nếu data truyền vào thiếu bảng, fallback load_db để lấy đầy đủ dữ liệu
+            if not users or not books:
+                full_db = self.load_db()
+                if not users:
+                    users = full_db.get("users", [])
+                if not books:
+                    books = full_db.get("books", [])
+                if not borrows:
+                    borrows = full_db.get("borrowRecords", [])
+                if not resvs:
+                    resvs = full_db.get("reservations", [])
+                if not fines:
+                    fines = full_db.get("fines", [])
+                if not notifs:
+                    notifs = full_db.get("notifications", [])
+
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            lines = []
+            lines.append("-- =====================================================================")
+            lines.append("-- SMARTLIB - HỆ THỐNG QUẢN LÝ THƯ VIỆN THÔNG MINH")
+            lines.append("-- CƠ SỞ DỮ LIỆU MYSQL 8.0 CHUẨN 3NF TOÀN DIỆN (SYNCHRONIZED)")
+            lines.append(f"-- Thời gian cập nhật tự động: {now_str}")
+            lines.append("-- =====================================================================")
+            lines.append("CREATE DATABASE IF NOT EXISTS `smartlib_db` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;")
+            lines.append("USE `smartlib_db`;\n")
+            lines.append("SET FOREIGN_KEY_CHECKS = 0;")
+            lines.append("DROP TABLE IF EXISTS `notifications`;")
+            lines.append("DROP TABLE IF EXISTS `fines`;")
+            lines.append("DROP TABLE IF EXISTS `reservations`;")
+            lines.append("DROP TABLE IF EXISTS `borrow_records`;")
+            lines.append("DROP TABLE IF EXISTS `books`;")
+            lines.append("DROP TABLE IF EXISTS `users`;")
+            lines.append("SET FOREIGN_KEY_CHECKS = 1;\n")
+
+            lines.append("CREATE TABLE users (")
+            lines.append("    id INT AUTO_INCREMENT PRIMARY KEY,")
+            lines.append("    username VARCHAR(50) NOT NULL UNIQUE,")
+            lines.append("    password_hash VARCHAR(256) NOT NULL,")
+            lines.append("    full_name VARCHAR(100) NOT NULL,")
+            lines.append("    role VARCHAR(50) NOT NULL DEFAULT 'Reader',")
+            lines.append("    email VARCHAR(100) NULL,")
+            lines.append("    phone VARCHAR(30) NULL,")
+            lines.append("    address VARCHAR(255) NULL,")
+            lines.append("    birth_date DATE NULL,")
+            lines.append("    is_active TINYINT(1) NOT NULL DEFAULT 1,")
+            lines.append("    is_locked TINYINT(1) NOT NULL DEFAULT 0,")
+            lines.append("    lock_reason VARCHAR(255) NULL,")
+            lines.append("    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,")
+            lines.append("    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,")
+            lines.append("    INDEX idx_users_username (username),")
+            lines.append("    INDEX idx_users_role (role)")
+            lines.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n")
+
+            lines.append("CREATE TABLE books (")
+            lines.append("    id INT AUTO_INCREMENT PRIMARY KEY,")
+            lines.append("    title VARCHAR(255) NOT NULL,")
+            lines.append("    author VARCHAR(100) NOT NULL DEFAULT 'Chưa rõ',")
+            lines.append("    category VARCHAR(100) NOT NULL DEFAULT 'Chung',")
+            lines.append("    quantity INT NOT NULL DEFAULT 1,")
+            lines.append("    available_copies INT NOT NULL DEFAULT 1,")
+            lines.append("    description LONGTEXT NULL,")
+            lines.append("    image_url LONGTEXT NULL,")
+            lines.append("    status VARCHAR(50) NOT NULL DEFAULT 'Sẵn sàng',")
+            lines.append("    published_year INT NULL,")
+            lines.append("    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,")
+            lines.append("    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,")
+            lines.append("    INDEX idx_books_title (title),")
+            lines.append("    INDEX idx_books_category (category),")
+            lines.append("    INDEX idx_books_status (status)")
+            lines.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n")
+
+            lines.append("CREATE TABLE borrow_records (")
+            lines.append("    id INT AUTO_INCREMENT PRIMARY KEY,")
+            lines.append("    user_id INT NOT NULL,")
+            lines.append("    book_id INT NOT NULL,")
+            lines.append("    borrow_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,")
+            lines.append("    due_date DATETIME NOT NULL,")
+            lines.append("    return_date DATETIME NULL,")
+            lines.append("    actual_return_date DATETIME NULL,")
+            lines.append("    borrow_type VARCHAR(50) NOT NULL DEFAULT 'Mượn về nhà',")
+            lines.append("    fine_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,")
+            lines.append("    overdue_days INT NOT NULL DEFAULT 0,")
+            lines.append("    status VARCHAR(50) NOT NULL DEFAULT 'Chờ duyệt',")
+            lines.append("    notes VARCHAR(255) NULL,")
+            lines.append("    renew_status VARCHAR(50) NULL,")
+            lines.append("    pending_renew_days INT NULL,")
+            lines.append("    pending_renew_notes VARCHAR(255) NULL,")
+            lines.append("    renew_count INT NOT NULL DEFAULT 0,")
+            lines.append("    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,")
+            lines.append("    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,")
+            lines.append("    CONSTRAINT fk_borrow_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,")
+            lines.append("    CONSTRAINT fk_borrow_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,")
+            lines.append("    INDEX idx_borrow_user (user_id),")
+            lines.append("    INDEX idx_borrow_book (book_id),")
+            lines.append("    INDEX idx_borrow_status (status)")
+            lines.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n")
+
+            lines.append("CREATE TABLE reservations (")
+            lines.append("    id INT AUTO_INCREMENT PRIMARY KEY,")
+            lines.append("    user_id INT NOT NULL,")
+            lines.append("    book_id INT NOT NULL,")
+            lines.append("    reserved_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,")
+            lines.append("    priority INT NOT NULL DEFAULT 1,")
+            lines.append("    expires_at DATETIME NOT NULL,")
+            lines.append("    status VARCHAR(50) NOT NULL DEFAULT 'Waiting',")
+            lines.append("    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,")
+            lines.append("    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,")
+            lines.append("    CONSTRAINT fk_res_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,")
+            lines.append("    CONSTRAINT fk_res_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,")
+            lines.append("    INDEX idx_res_user (user_id),")
+            lines.append("    INDEX idx_res_book (book_id),")
+            lines.append("    INDEX idx_res_status (status)")
+            lines.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n")
+
+            lines.append("CREATE TABLE fines (")
+            lines.append("    id INT AUTO_INCREMENT PRIMARY KEY,")
+            lines.append("    record_id INT NOT NULL,")
+            lines.append("    user_id INT NOT NULL,")
+            lines.append("    book_id INT NOT NULL,")
+            lines.append("    due_date DATETIME NOT NULL,")
+            lines.append("    actual_return_date DATETIME NOT NULL,")
+            lines.append("    fine_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,")
+            lines.append("    status VARCHAR(50) NOT NULL DEFAULT 'Chưa nộp',")
+            lines.append("    payment_method VARCHAR(50) NOT NULL DEFAULT 'Tiền mặt',")
+            lines.append("    transaction_ref VARCHAR(100) NULL,")
+            lines.append("    paid_at DATETIME NULL,")
+            lines.append("    note VARCHAR(255) NULL,")
+            lines.append("    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,")
+            lines.append("    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,")
+            lines.append("    CONSTRAINT fk_fine_record FOREIGN KEY (record_id) REFERENCES borrow_records(id) ON DELETE CASCADE,")
+            lines.append("    CONSTRAINT fk_fine_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,")
+            lines.append("    CONSTRAINT fk_fine_book FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,")
+            lines.append("    INDEX idx_fines_user (user_id),")
+            lines.append("    INDEX idx_fines_status (status)")
+            lines.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n")
+
+            lines.append("CREATE TABLE notifications (")
+            lines.append("    id INT AUTO_INCREMENT PRIMARY KEY,")
+            lines.append("    recipient_role VARCHAR(20) NOT NULL,")
+            lines.append("    recipient_user_id INT NULL,")
+            lines.append("    title VARCHAR(255) NOT NULL,")
+            lines.append("    message TEXT NOT NULL,")
+            lines.append("    type VARCHAR(50) NOT NULL DEFAULT 'general',")
+            lines.append("    is_read TINYINT(1) NOT NULL DEFAULT 0,")
+            lines.append("    meta_json JSON NULL,")
+            lines.append("    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,")
+            lines.append("    CONSTRAINT fk_notif_user FOREIGN KEY (recipient_user_id) REFERENCES users(id) ON DELETE CASCADE,")
+            lines.append("    INDEX idx_notif_recipient (recipient_role, recipient_user_id),")
+            lines.append("    INDEX idx_notif_is_read (is_read)")
+            lines.append(") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;\n")
+
+            # 1. Users
+            if users:
+                lines.append("-- =====================================================================")
+                lines.append("-- DỮ LIỆU SEED KHỞI TẠO: 1. NGƯỜI DÙNG (users)")
+                lines.append("-- =====================================================================")
+                lines.append("INSERT INTO users (id, username, password_hash, full_name, role, email, phone, address, birth_date, is_active, is_locked, lock_reason)\nVALUES")
+                u_rows = []
+                for u in users:
+                    uid = self._sql_val(u.get("id"))
+                    uname = self._sql_val(u.get("username", f"user{u.get('id')}"))
+                    pw = self._sql_val(u.get("passwordHash") or u.get("password_hash") or "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3")
+                    fname = self._sql_val(u.get("fullName") or u.get("full_name") or "Người dùng")
+                    role = self._sql_val(u.get("role", "Reader"))
+                    email = self._sql_val(u.get("email"))
+                    phone = self._sql_val(u.get("phone"))
+                    addr = self._sql_val(u.get("address"))
+                    bdate = self._sql_val(str(u.get("birthDate") or u.get("birth_date"))[:10]) if (u.get("birthDate") or u.get("birth_date")) else "NULL"
+                    active = "1" if u.get("isActive", True) else "0"
+                    locked = "1" if u.get("isLocked", False) else "0"
+                    lreason = self._sql_val(u.get("lockReason") or u.get("lock_reason"))
+                    u_rows.append(f"  ({uid}, {uname}, {pw}, {fname}, {role}, {email}, {phone}, {addr}, {bdate}, {active}, {locked}, {lreason})")
+                lines.append(",\n".join(u_rows) + ";\n")
+
+            # 2. Books
+            if books:
+                lines.append("-- =====================================================================")
+                lines.append(f"-- DỮ LIỆU SEED KHỞI TẠO: 2. KHO SÁCH (books - {len(books)} ĐẦU SÁCH)")
+                lines.append("-- =====================================================================")
+                lines.append("INSERT INTO books (id, title, author, category, quantity, available_copies, description, image_url, status, published_year)\nVALUES")
+                b_rows = []
+                for b in books:
+                    bid = self._sql_val(b.get("id"))
+                    title = self._sql_val(b.get("title", "Sách"))
+                    author = self._sql_val(b.get("author", "Chưa rõ"))
+                    cat = self._sql_val(b.get("category", "Chung"))
+                    qty = self._sql_val(int(b.get("quantity", 1)))
+                    avail = self._sql_val(int(b.get("available", b.get("available_copies", qty))))
+                    desc = self._sql_val(b.get("desc") or b.get("description", ""))
+                    img = self._sql_val(b.get("imageUrl") or b.get("image_url"))
+                    st = self._sql_val(b.get("status", "Sẵn sàng"))
+                    pub = str(b.get("expectedQuantity") or b.get("publishedYear") or b.get("published_year")) if (b.get("expectedQuantity") or b.get("publishedYear") or b.get("published_year")) else "NULL"
+                    b_rows.append(f"  ({bid}, {title}, {author}, {cat}, {qty}, {avail}, {desc}, {img}, {st}, {pub})")
+                lines.append(",\n".join(b_rows) + ";\n")
+
+            # 3. Borrow Records
+            if borrows:
+                lines.append("-- =====================================================================")
+                lines.append("-- DỮ LIỆU SEED KHỞI TẠO: 3. LỊCH SỬ MƯỢN TRẢ SÁCH (borrow_records)")
+                lines.append("-- =====================================================================")
+                lines.append("INSERT INTO borrow_records (id, user_id, book_id, borrow_date, due_date, actual_return_date, borrow_type, fine_amount, overdue_days, status, notes, renew_status, pending_renew_days, pending_renew_notes, renew_count)\nVALUES")
+                br_rows = []
+                for br in borrows:
+                    brid = self._sql_val(br.get("id"))
+                    uid = self._sql_val(br.get("readerId") or br.get("userId") or 2)
+                    bkid = self._sql_val(br.get("bookId", 1))
+                    b_date = self._sql_val((str(br.get("borrowDate") or "")).replace("T", " ")[:19] or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    d_date = self._sql_val((str(br.get("returnDate") or br.get("dueDate") or "")).replace("T", " ")[:19] or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    act_date = self._sql_val((str(br.get("actualReturnDate") or "")).replace("T", " ")[:19]) if br.get("actualReturnDate") else "NULL"
+                    b_type = self._sql_val(br.get("borrowType", "Mượn về nhà"))
+                    fine_amt = self._sql_val(float(br.get("fine_amount") or br.get("fineAmount") or 0.0))
+                    overdue = self._sql_val(int(br.get("overdue_days") or br.get("overdueDays") or 0))
+                    st = self._sql_val(br.get("status", "Chờ duyệt"))
+                    notes = self._sql_val(br.get("notes"))
+                    renew_st = self._sql_val(br.get("renewStatus"))
+                    pending_days = self._sql_val(br.get("pendingRenewDays"))
+                    pending_notes = self._sql_val(br.get("pendingRenewNotes"))
+                    renew_cnt = self._sql_val(int(br.get("renewCount") or 0))
+                    br_rows.append(f"  ({brid}, {uid}, {bkid}, {b_date}, {d_date}, {act_date}, {b_type}, {fine_amt}, {overdue}, {st}, {notes}, {renew_st}, {pending_days}, {pending_notes}, {renew_cnt})")
+                lines.append(",\n".join(br_rows) + ";\n")
+
+            # 4. Reservations
+            if resvs:
+                lines.append("-- =====================================================================")
+                lines.append("-- DỮ LIỆU SEED KHỞI TẠO: 4. HÀNG ĐỢI ĐẶT TRƯỚC SÁCH (reservations)")
+                lines.append("-- =====================================================================")
+                lines.append("INSERT INTO reservations (id, user_id, book_id, reserved_at, priority, expires_at, status)\nVALUES")
+                res_rows = []
+                for res in resvs:
+                    resid = self._sql_val(res.get("id"))
+                    uid = self._sql_val(res.get("readerId") or res.get("userId") or 2)
+                    bkid = self._sql_val(res.get("bookId", 1))
+                    res_at = self._sql_val((str(res.get("reservedAt") or "")).replace("T", " ")[:19] or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    prio = self._sql_val(int(res.get("priority", 1)))
+                    exp_at = self._sql_val((str(res.get("expiresAt") or "")).replace("T", " ")[:19] or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    st = self._sql_val(res.get("status", "Waiting"))
+                    res_rows.append(f"  ({resid}, {uid}, {bkid}, {res_at}, {prio}, {exp_at}, {st})")
+                lines.append(",\n".join(res_rows) + ";\n")
+
+            # 5. Fines
+            if fines:
+                lines.append("-- =====================================================================")
+                lines.append("-- DỮ LIỆU SEED KHỞI TẠO: 5. QUẢN LÝ TIỀN PHẠT & VI PHẠM (fines)")
+                lines.append("-- =====================================================================")
+                lines.append("INSERT INTO fines (id, record_id, user_id, book_id, due_date, actual_return_date, fine_amount, status, payment_method, transaction_ref, paid_at, note)\nVALUES")
+                f_rows = []
+                for f in fines:
+                    fid = self._sql_val(f.get("id"))
+                    recid = self._sql_val(f.get("recordId") or f.get("borrowRecordId") or 1)
+                    uid = self._sql_val(f.get("readerId") or f.get("userId") or 2)
+                    bkid = self._sql_val(f.get("bookId", 1))
+                    due_dt = self._sql_val((str(f.get("dueDate") or "")).replace("T", " ")[:19] or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    act_dt = self._sql_val((str(f.get("actualReturnDate") or "")).replace("T", " ")[:19] or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    famt = self._sql_val(float(f.get("fineAmount", 0.0)))
+                    st = self._sql_val(f.get("status", "Chưa nộp"))
+                    pm = self._sql_val(f.get("paymentMethod", "Tiền mặt"))
+                    txref = self._sql_val(f.get("transactionRef"))
+                    paid_at = self._sql_val((str(f.get("paidAt") or "")).replace("T", " ")[:19]) if f.get("paidAt") else "NULL"
+                    note = self._sql_val(f.get("note"))
+                    f_rows.append(f"  ({fid}, {recid}, {uid}, {bkid}, {due_dt}, {act_dt}, {famt}, {st}, {pm}, {txref}, {paid_at}, {note})")
+                lines.append(",\n".join(f_rows) + ";\n")
+
+            # 6. Notifications
+            if notifs:
+                lines.append("-- =====================================================================")
+                lines.append("-- DỮ LIỆU SEED KHỞI TẠO: 6. THÔNG BÁO HỆ THỐNG (notifications)")
+                lines.append("-- =====================================================================")
+                lines.append("INSERT INTO notifications (id, recipient_role, recipient_user_id, title, message, type, is_read, meta_json, created_at)\nVALUES")
+                n_rows = []
+                for n in notifs[:50]:
+                    nid = self._sql_val(n.get("id"))
+                    role = self._sql_val(n.get("recipientRole", "Admin"))
+                    uid = self._sql_val(n.get("recipientUserId"))
+                    title = self._sql_val(n.get("title", ""))
+                    msg = self._sql_val(n.get("message", ""))
+                    ntype = self._sql_val(n.get("type", "general"))
+                    isread = "1" if n.get("isRead", False) else "0"
+                    metaj = self._sql_val(json.dumps(n.get("meta") or {}, ensure_ascii=False))
+                    created = self._sql_val((str(n.get("createdAt") or "")).replace("T", " ")[:19] or datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    n_rows.append(f"  ({nid}, {role}, {uid}, {title}, {msg}, {ntype}, {isread}, {metaj}, {created})")
+                lines.append(",\n".join(n_rows) + ";\n")
+
+            tmp_path = sql_path + ".tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines))
+            if os.path.exists(tmp_path):
+                os.replace(tmp_path, sql_path)
+            logger.info("✓ Đã đồng bộ trực tiếp thay đổi vào database/smartlib_mysql.sql")
+        except Exception as e:
+            logger.error(f"Lỗi khi đồng bộ smartlib_mysql.sql: {e}")
 
     def cancel_reservation(self, res_id: int):
         """Hủy đặt trước sách và cập nhật trạng thái đồng thời trên MySQL và SQLite"""
@@ -993,6 +1385,11 @@ class MySQLDatabaseManager:
                 except Exception as sq_err:
                     logger.warning(f"Đồng bộ SQLite backup: {sq_err}")
 
+            try:
+                self._sync_to_sql_file(self.load_db())
+            except Exception as sql_err:
+                logger.warning(f"Đồng bộ smartlib_mysql.sql: {sql_err}")
+
             return res_dict
         except Exception:
             session.rollback()
@@ -1004,9 +1401,16 @@ class MySQLDatabaseManager:
         """
         Đồng bộ toàn bộ dữ liệu từ Dict vào các bảng MySQL quan hệ.
         """
-        invalidate_books_cache()
+        if data.get("books"):
+            _BOOKS_CACHE["data"] = data.get("books")
+            _BOOKS_CACHE["cached_at"] = time.time()
+        else:
+            invalidate_books_cache()
+
         # Luôn sao lưu và đồng bộ dữ liệu vào SQLite dự phòng
         self._save_to_local_sqlite(data)
+        # Luôn đồng bộ dữ liệu vào file database/smartlib_mysql.sql
+        self._sync_to_sql_file(data)
 
         if not self.SessionLocal:
             self._init_connection()
@@ -1034,6 +1438,10 @@ class MySQLDatabaseManager:
                     existing_book.description = b.get("desc") or b.get("description") or existing_book.description
                     existing_book.image_url = b.get("imageUrl") or existing_book.image_url
                     existing_book.status = b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách")
+                    if b.get("expectedQuantity") is not None:
+                        existing_book.published_year = int(b.get("expectedQuantity"))
+                    elif b.get("publishedYear") is not None:
+                        existing_book.published_year = int(b.get("publishedYear"))
                 else:
                     new_b = BookModel(
                         id=bid,
@@ -1044,7 +1452,8 @@ class MySQLDatabaseManager:
                         available_copies=avail,
                         description=b.get("desc") or b.get("description", ""),
                         image_url=b.get("imageUrl"),
-                        status=b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách")
+                        status=b.get("status", "Sẵn sàng" if avail > 0 else "Hết sách"),
+                        published_year=int(b.get("expectedQuantity") or b.get("publishedYear")) if (b.get("expectedQuantity") or b.get("publishedYear")) else None
                     )
                     session.add(new_b)
 
@@ -1068,6 +1477,12 @@ class MySQLDatabaseManager:
                     existing_user.phone = u.get("phone", existing_user.phone)
                     existing_user.address = u.get("address", existing_user.address)
                     existing_user.role = u.get("role", existing_user.role)
+                    if "isLocked" in u:
+                        existing_user.is_locked = bool(u.get("isLocked"))
+                    if "lockReason" in u:
+                        existing_user.lock_reason = u.get("lockReason")
+                    if "passwordHash" in u and u.get("passwordHash"):
+                        existing_user.password_hash = u.get("passwordHash")
                 else:
                     new_u = UserModel(
                         id=uid,
@@ -1077,7 +1492,9 @@ class MySQLDatabaseManager:
                         role=u.get("role", "Reader"),
                         email=u.get("email"),
                         phone=u.get("phone"),
-                        address=u.get("address")
+                        address=u.get("address"),
+                        is_locked=bool(u.get("isLocked", False)),
+                        lock_reason=u.get("lockReason", "")
                     )
                     session.add(new_u)
 
@@ -1097,6 +1514,12 @@ class MySQLDatabaseManager:
                     existing_br.fine_amount = float(br.get("fine_amount") or br.get("fineAmount") or 0.0)
                     existing_br.overdue_days = int(br.get("overdue_days") or br.get("overdueDays") or 0)
                     existing_br.actual_return_date = actual_dt
+                    existing_br.renew_status = br.get("renewStatus")
+                    existing_br.pending_renew_days = br.get("pendingRenewDays")
+                    existing_br.pending_renew_notes = br.get("pendingRenewNotes")
+                    existing_br.renew_count = int(br.get("renewCount") or 0)
+                    if br.get("notes") is not None:
+                        existing_br.notes = br.get("notes")
                 else:
                     new_br = BorrowRecordModel(
                         id=brid,
@@ -1108,7 +1531,12 @@ class MySQLDatabaseManager:
                         borrow_type=br.get("borrowType", "Mượn về nhà"),
                         fine_amount=float(br.get("fine_amount") or br.get("fineAmount") or 0.0),
                         overdue_days=int(br.get("overdue_days") or br.get("overdueDays") or 0),
-                        status=br.get("status", "Chờ duyệt")
+                        status=br.get("status", "Chờ duyệt"),
+                        notes=br.get("notes"),
+                        renew_status=br.get("renewStatus"),
+                        pending_renew_days=br.get("pendingRenewDays"),
+                        pending_renew_notes=br.get("pendingRenewNotes"),
+                        renew_count=int(br.get("renewCount") or 0)
                     )
                     session.add(new_br)
 
@@ -1121,12 +1549,13 @@ class MySQLDatabaseManager:
                 resid = int(resid)
                 incoming_res_ids.add(resid)
                 existing_res = session.query(ReservationModel).filter_by(id=resid).first()
-                exp_dt = datetime.fromisoformat(res.get("expiresAt").replace("Z", "")) if res.get("expiresAt") else datetime.utcnow()
+                exp_dt = datetime.fromisoformat(res.get("expiresAt").replace("Z", "")) if res.get("expiresAt") else None
                 res_dt = datetime.fromisoformat(res.get("reservedAt").replace("Z", "")) if res.get("reservedAt") else datetime.utcnow()
                 if existing_res:
                     existing_res.status = res.get("status", existing_res.status)
                     existing_res.priority = int(res.get("priority", existing_res.priority))
-                    existing_res.expires_at = exp_dt
+                    if exp_dt:
+                        existing_res.expires_at = exp_dt
                 else:
                     new_res = ReservationModel(
                         id=resid,
@@ -1134,7 +1563,7 @@ class MySQLDatabaseManager:
                         book_id=res.get("bookId") or 1,
                         reserved_at=res_dt,
                         priority=int(res.get("priority", 1)),
-                        expires_at=exp_dt,
+                        expires_at=exp_dt or datetime.utcnow(),
                         status=res.get("status", "Waiting")
                     )
                     session.add(new_res)
@@ -1150,12 +1579,23 @@ class MySQLDatabaseManager:
                 if not fid:
                     continue
                 existing_fine = session.query(FineModel).filter_by(id=fid).first()
+                paid_dt = datetime.fromisoformat(f.get("paidAt").replace("Z", "")) if f.get("paidAt") else None
+                act_dt = datetime.fromisoformat(f.get("actualReturnDate").replace("Z", "")) if f.get("actualReturnDate") else None
                 if existing_fine:
                     existing_fine.status = f.get("status", existing_fine.status)
                     existing_fine.fine_amount = float(f.get("fineAmount", existing_fine.fine_amount))
+                    if "paymentMethod" in f:
+                        existing_fine.payment_method = f.get("paymentMethod")
+                    if "transactionRef" in f:
+                        existing_fine.transaction_ref = f.get("transactionRef")
+                    if paid_dt:
+                        existing_fine.paid_at = paid_dt
+                    if act_dt:
+                        existing_fine.actual_return_date = act_dt
+                    if "note" in f:
+                        existing_fine.note = f.get("note")
                 else:
-                    due_dt = datetime.fromisoformat(f.get("dueDate")) if f.get("dueDate") else datetime.utcnow()
-                    act_dt = datetime.fromisoformat(f.get("actualReturnDate")) if f.get("actualReturnDate") else datetime.utcnow()
+                    due_dt = datetime.fromisoformat(f.get("dueDate").replace("Z", "")) if f.get("dueDate") else datetime.utcnow()
                     new_fine = FineModel(
                         id=fid,
                         record_id=f.get("borrowRecordId") or f.get("recordId") or 1,
@@ -1164,7 +1604,11 @@ class MySQLDatabaseManager:
                         due_date=due_dt,
                         actual_return_date=act_dt,
                         fine_amount=float(f.get("fineAmount", 0.0)),
-                        status=f.get("status", "Chưa nộp")
+                        status=f.get("status", "Chưa nộp"),
+                        payment_method=f.get("paymentMethod"),
+                        transaction_ref=f.get("transactionRef"),
+                        paid_at=paid_dt,
+                        note=f.get("note")
                     )
                     session.add(new_fine)
 
@@ -1176,6 +1620,19 @@ class MySQLDatabaseManager:
                 existing_notif = session.query(NotificationModel).filter_by(id=nid).first()
                 if existing_notif:
                     existing_notif.is_read = bool(n.get("isRead", False))
+                else:
+                    new_n = NotificationModel(
+                        id=nid,
+                        recipient_role=n.get("recipientRole", "Admin"),
+                        recipient_user_id=n.get("recipientUserId"),
+                        title=n.get("title", ""),
+                        message=n.get("message", ""),
+                        type=n.get("type", "general"),
+                        is_read=bool(n.get("isRead", False)),
+                        meta_json=n.get("meta") or {},
+                        created_at=datetime.fromisoformat(n["createdAt"].replace("Z", "")) if n.get("createdAt") else datetime.utcnow()
+                    )
+                    session.add(new_n)
 
             session.commit()
         except Exception as e:

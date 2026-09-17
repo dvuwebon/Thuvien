@@ -46,16 +46,16 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, onReserve, boo
       } else {
         const defaultName = (user?.fullName && user.fullName !== 'Độc giả') 
           ? user.fullName 
-          : (user?.username === 'reader' ? 'Trần Thị Mai' : (user?.fullName || user?.username || 'Trần Thị Mai'));
+          : (user?.username || '');
         setFormData({
           bookId: book.id,
           bookTitle: book.title,
-          readerId: user ? user.id : 2,
-          readerCode: user ? formatReaderCode(user.id) : 'DG-001',
+          readerId: user ? user.id : 0,
+          readerCode: user ? formatReaderCode(user.id) : '',
           readerName: defaultName,
-          phone: user?.phone || '0901 234 567',
-          email: user?.email || 'mai.tran@smartlib.edu.vn',
-          address: user?.address || 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội',
+          phone: user?.phone || '',
+          email: user?.email || '',
+          address: user?.address || '',
           borrowType: 'Mượn về nhà',
           status: 'Chờ duyệt'
         });
@@ -89,7 +89,7 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, onReserve, boo
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const finalName = (formData.readerName || '').trim() || (user?.fullName || 'Trần Thị Mai');
+    const finalName = (formData.readerName || '').trim() || (user?.fullName || '');
     setLoading(true);
     setError('');
     try {
@@ -98,7 +98,7 @@ export default function BorrowModal({ isOpen, onClose, onConfirm, onReserve, boo
         bookId: Number(book.id),
         bookTitle: book.title,
         readerName: finalName,
-        readerId: Number(formData.readerId || user?.id || 2)
+        readerId: Number(formData.readerId || user?.id || 0)
       };
       await onConfirm(payload);
       setIsSuccess(true);

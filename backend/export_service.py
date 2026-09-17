@@ -181,6 +181,15 @@ def generate_qr_code(data: str) -> bytes:
     return buf.getvalue()
 
 
+def strip_accents(text: str) -> str:
+    import unicodedata
+    if not text:
+        return ""
+    text = str(text).replace("đ", "d").replace("Đ", "D")
+    nfkd = unicodedata.normalize('NFKD', text)
+    return "".join([c for c in nfkd if not unicodedata.combining(c)])
+
+
 def generate_borrow_receipt_pdf(record: Dict[str, Any], book: Optional[Dict[str, Any]] = None, reader: Optional[Dict[str, Any]] = None) -> bytes:
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
@@ -221,13 +230,16 @@ def generate_borrow_receipt_pdf(record: Dict[str, Any], book: Optional[Dict[str,
     # Info table
     b_date = (record.get("borrowDate") or "")[:10]
     r_date = (record.get("returnDate") or "")[:10]
-    status = record.get("status", "Chờ duyệt")
+    status = strip_accents(record.get("status", "Cho duyet"))
+    book_title = strip_accents(record.get("bookTitle", ""))
+    reader_name = strip_accents(record.get("readerName", ""))
+    borrow_type = strip_accents(record.get("borrowType", "Muon ve nha"))
 
     data = [
         ["Ma phieu (Receipt ID):", f"#{record.get('id')}"],
-        ["Ten sach (Book Title):", record.get("bookTitle", "")],
-        ["Doc gia (Reader Name):", record.get("readerName", "")],
-        ["Hinh thuc muon (Type):", record.get("borrowType", "Muon ve nha")],
+        ["Ten sach (Book Title):", book_title],
+        ["Doc gia (Reader Name):", reader_name],
+        ["Hinh thuc muon (Type):", borrow_type],
         ["Ngay muon (Borrow Date):", b_date],
         ["Han tra (Due Date):", r_date],
         ["Trang thai (Status):", status]

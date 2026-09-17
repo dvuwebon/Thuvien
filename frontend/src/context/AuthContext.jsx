@@ -98,27 +98,16 @@ const normalizeUser = (loaded, loadedRole) => {
   const readerUser = {
     ...DEFAULT_READER,
     ...loaded,
-    id: loaded.id && Number(loaded.id) !== 1 && Number(loaded.id) !== 3 ? Number(loaded.id) : 2,
-    UserID: loaded.id && Number(loaded.id) !== 1 && Number(loaded.id) !== 3 ? Number(loaded.id) : 2,
+    id: loaded.id && Number(loaded.id) !== 1 && Number(loaded.id) !== 3 ? Number(loaded.id) : (loaded.id || 2),
+    UserID: loaded.id && Number(loaded.id) !== 1 && Number(loaded.id) !== 3 ? Number(loaded.id) : (loaded.id || 2),
     username: loaded.username === 'admin' ? 'reader' : (loaded.username || 'reader'),
     role: 'Reader',
     Role: 'Reader'
   };
-  if (!readerUser.fullName || readerUser.fullName === 'Độc giả' || readerUser.fullName === 'Quản trị viên') {
+  // Chỉ dùng fallback demo cho tài khoản mẫu reader hoặc id 2
+  if ((readerUser.username === 'reader' || Number(readerUser.id) === 2) && (!readerUser.fullName || readerUser.fullName === 'Độc giả')) {
     readerUser.fullName = 'Trần Thị Mai';
     readerUser.FullName = 'Trần Thị Mai';
-  }
-  if (readerUser.email && readerUser.email.includes('admin')) {
-    readerUser.email = 'mai.tran@smartlib.edu.vn';
-  }
-  if (readerUser.phone === '0987 654 321') {
-    readerUser.phone = '0901 234 567';
-  }
-  if (readerUser.address && readerUser.address.includes('ĐHQG')) {
-    readerUser.address = 'Khu KTX Sinh viên Mễ Trì, Thanh Xuân, Hà Nội';
-  }
-  if (readerUser.birthDate === '1990-01-01') {
-    readerUser.birthDate = '2002-10-20';
   }
   return readerUser;
 };
@@ -208,8 +197,11 @@ export const AuthProvider = ({ children }) => {
     const actualRole = merged.role || merged.Role || role || 'Reader';
     const normalized = normalizeUser(merged, actualRole);
     setUser(normalized);
+    setRole(actualRole);
     sessionStorage.setItem('currentUser', JSON.stringify(normalized));
+    sessionStorage.setItem('currentUserRole', actualRole);
     localStorage.setItem('currentUser', JSON.stringify(normalized));
+    localStorage.setItem('currentUserRole', actualRole);
   };
 
   return (
