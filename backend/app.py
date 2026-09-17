@@ -838,7 +838,7 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
         grace_days = int(sys_settings.get("gracePeriodDays", 0))
         lock_threshold = int(sys_settings.get("autoLockAfterDays", 3))
 
-        overdue_days = max(1, lock_threshold)
+        overdue_days = 1
         try:
             due_str = record.get("returnDate") or record.get("dueDate")
             if due_str:
@@ -846,7 +846,7 @@ def update_borrow_status(record_id: int, req: BorrowStatusUpdate):
                 diff = (now.date() - due.date()).days
                 overdue_days = max(1, diff)
         except Exception:
-            overdue_days = lock_threshold
+            overdue_days = 1
         
         chargeable_days = max(0, overdue_days - grace_days)
         fine_amount = float(chargeable_days * fine_rate)

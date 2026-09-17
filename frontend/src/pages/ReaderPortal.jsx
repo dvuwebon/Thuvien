@@ -425,7 +425,13 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
       (bookTitle && b.title && b.title.trim().toLowerCase() === bookTitle.trim().toLowerCase())
     );
     if (found) {
-      const isUp = Boolean(found.isUpcoming) || found.status === 'Sắp phát hành' || found.status === 'Sắp có' || found.status === 'Upcoming' || Number(found.id) >= 51;
+      const isUp = Boolean(
+        found.isUpcoming || 
+        found.status === 'Sắp phát hành' || 
+        found.status === 'Sắp có' || 
+        found.status === 'Upcoming' || 
+        (Number(found.id) >= 51 && found.isUpcoming !== false && found.status !== 'Sẵn sàng' && found.status !== 'Hết sách' && found.status !== 'Bảo trì')
+      );
       const isResv = myReservations.some(r => Number(r.bookId) === Number(found.id) && r.status !== 'Cancelled' && r.status !== 'Hủy');
       let relDate = found.releaseDate;
       if (!relDate && (found.desc || found.description)) {
@@ -1257,7 +1263,7 @@ export default function ReaderPortal({ activeTab, onTabChange }) {
           b.status === 'Sắp phát hành' || 
           b.status === 'Sắp có' || 
           b.status === 'Upcoming' || 
-          Number(b.id) >= 51
+          (Number(b.id) >= 51 && b.isUpcoming !== false && b.status !== 'Sẵn sàng' && b.status !== 'Hết sách' && b.status !== 'Bảo trì')
         );
         const allEligibleBooks = (upcomingFromDb.length > 0 ? upcomingFromDb : UPCOMING_BOOKS).map(ub => {
           let relDate = ub.releaseDate;

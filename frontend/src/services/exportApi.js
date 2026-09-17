@@ -88,7 +88,69 @@ export const exportApi = {
   },
 
   downloadBorrowReceiptPdf: (recordId) => {
-    window.open(`/api/export/receipt/${recordId}/pdf`, '_blank');
+    if (window.location.hostname.includes('github.io') || window.location.protocol === 'file:') {
+      try {
+        const db = getStoredDb();
+        const borrows = db.borrow_records || db.borrowRecords || [];
+        const rec = borrows.find(r => Number(r.id) === Number(recordId));
+        if (rec) {
+          const printWindow = window.open('', '_blank', 'width=700,height=800');
+          if (printWindow) {
+            printWindow.document.write(`
+              <!DOCTYPE html>
+              <html>
+              <head>
+                <meta charset="utf-8">
+                <title>Phiếu Mượn Sách #${rec.id} - SmartLib</title>
+                <style>
+                  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; line-height: 1.6; }
+                  .header { text-align: center; border-bottom: 2px solid #2563eb; padding-bottom: 20px; margin-bottom: 30px; }
+                  .title { font-size: 24px; font-weight: 800; color: #1e40af; text-transform: uppercase; margin: 0; }
+                  .subtitle { color: #64748b; font-size: 14px; margin-top: 5px; }
+                  .receipt-box { border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; background: #f8fafc; margin-bottom: 30px; }
+                  .row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 15px; }
+                  .label { font-weight: 600; color: #475569; }
+                  .value { font-weight: 700; color: #0f172a; }
+                  .status { color: #16a34a; font-weight: 800; }
+                  .footer { text-align: center; font-size: 12px; color: #94a3b8; margin-top: 40px; border-top: 1px dashed #cbd5e1; padding-top: 20px; }
+                  @media print { .no-print { display: none; } }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <div class="title">Thư Viện Thông Minh SmartLib</div>
+                  <div class="subtitle">PHIẾU XÁC NHẬN MƯỢN SÁCH ĐIỆN TỬ</div>
+                </div>
+                <div class="receipt-box">
+                  <div class="row"><span class="label">Mã phiếu mượn:</span><span class="value">#${rec.id}</span></div>
+                  <div class="row"><span class="label">Tên sách:</span><span class="value">${rec.bookTitle || 'Sách'}</span></div>
+                  <div class="row"><span class="label">Người mượn:</span><span class="value">${rec.readerName || 'Độc giả'}</span></div>
+                  <div class="row"><span class="label">Hình thức:</span><span class="value">${rec.borrowType || 'Mượn về nhà'}</span></div>
+                  <div class="row"><span class="label">Ngày mượn:</span><span class="value">${(rec.borrowDate || '').substring(0, 10)}</span></div>
+                  <div class="row"><span class="label">Hạn trả sách:</span><span class="value" style="color: #dc2626;">${(rec.returnDate || rec.dueDate || '').substring(0, 10)}</span></div>
+                  <div class="row"><span class="label">Trạng thái:</span><span class="value status">${rec.status || 'Đang mượn'}</span></div>
+                </div>
+                <p style="font-size: 13px; color: #64748b; text-align: center;">
+                  * Độc giả vui lòng bảo quản sách cẩn thận và hoàn trả đúng hạn. Trả trễ hạn sẽ áp dụng phí phạt theo quy chế thư viện.
+                </p>
+                <div class="footer">
+                  Hệ thống Quản lý Thư viện Thông minh SmartLib &copy; 2026
+                </div>
+                <script>
+                  window.onload = function() { window.print(); }
+                </script>
+              </body>
+              </html>
+            `);
+            printWindow.document.close();
+            return;
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    window.open('/api/export/receipt/' + recordId + '/pdf', '_blank');
   },
 
   downloadBackupJson: () => {

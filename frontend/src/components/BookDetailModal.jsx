@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, BookOpen, User, Tag, Layers, QrCode, BookMarked, Edit2, Trash2, Download, Clock, AlertCircle } from 'lucide-react';
+import { X, BookOpen, QrCode, BookMarked, Edit2, Trash2, Download, Clock, AlertCircle } from 'lucide-react';
 import QRCode from 'qrcode';
-import { exportApi } from '../services/exportApi';
 
 export default function BookDetailModal({ book, isOpen, onClose, onBorrow, onEdit, onDelete, isAdmin, onReserve, onCancelReserve, activeReservationCount = 0, isUserLocked = false }) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
 
-  const isUpcoming = Boolean(book?.isUpcoming || book?.status === 'Sắp phát hành' || book?.status === 'Sắp có' || Number(book?.id) >= 51);
+  const isUpcoming = Boolean(
+    book?.isUpcoming || 
+    book?.status === 'Sắp phát hành' || 
+    book?.status === 'Sắp có' || 
+    book?.status === 'Upcoming' || 
+    (Number(book?.id) >= 51 && book?.isUpcoming !== false && book?.status !== 'Sẵn sàng' && book?.status !== 'Hết sách' && book?.status !== 'Bảo trì')
+  );
   const isReserved = Boolean(book?.isReserved);
 
   useEffect(() => {

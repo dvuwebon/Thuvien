@@ -135,7 +135,7 @@ export default function UpcomingBooksSection({ books = [], onSelectBook, onReser
     b.status === 'Sắp phát hành' || 
     b.status === 'Sắp có' || 
     b.status === 'Upcoming' || 
-    Number(b.id) >= 51
+    (Number(b.id) >= 51 && b.isUpcoming !== false && b.status !== 'Sẵn sàng' && b.status !== 'Hết sách' && b.status !== 'Bảo trì')
   ).map(b => {
     let relDate = b.releaseDate;
     if (!relDate && (b.desc || b.description)) {

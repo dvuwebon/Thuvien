@@ -11,10 +11,10 @@ import BorrowModal from '../components/BorrowModal';
 import ExportReportModal from '../components/ExportReportModal';
 import {
   BookOpen, Users, Clock, AlertTriangle, CheckCircle, Search, Plus,
-  FileSpreadsheet, Filter, Grid, List, Check, X, Printer, Edit2, Trash2, BookMarked, Eye,
-  TrendingUp, BookmarkCheck, XCircle, QrCode, Lock, Unlock, ShieldAlert,
-  SlidersHorizontal, DollarSign, Calendar, Building2, CreditCard, Save, RotateCcw, HelpCircle, ShieldCheck,
-  PackageCheck, Sparkles, Inbox, Layers, Star
+  FileSpreadsheet, Filter, Grid, List, Check, X, Edit2, Trash2, BookMarked, Eye,
+  BookmarkCheck, XCircle, QrCode, Lock, Unlock,
+  SlidersHorizontal, DollarSign, Calendar, Building2, CreditCard, Save, RotateCcw, ShieldCheck,
+  PackageCheck, Sparkles, Star
 } from 'lucide-react';
 
 
@@ -2606,7 +2606,7 @@ export default function AdminDashboard({ activeTab, onTabChange, isLibrarian = f
           b.status === 'Sắp phát hành' || 
           b.status === 'Sắp có' || 
           b.status === 'Upcoming' || 
-          Number(b.id) >= 51
+          (Number(b.id) >= 51 && b.isUpcoming !== false && b.status !== 'Sẵn sàng' && b.status !== 'Hết sách' && b.status !== 'Bảo trì')
         );
 
         // Helper chuẩn hóa và trích xuất ngày phát hành sách sắp về

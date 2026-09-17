@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { BookOpen, User, Lock, Mail, Phone, Calendar, MapPin, ArrowRight, ShieldCheck, AlertTriangle, CreditCard, X, CheckCircle } from 'lucide-react';
+import { BookOpen, User, Lock, Mail, Phone, Calendar, MapPin, ShieldCheck, CreditCard, X, CheckCircle } from 'lucide-react';
 import VNPayPaymentModal from '../components/VNPayPaymentModal';
 
 export default function LoginPage() {
@@ -94,7 +94,9 @@ export default function LoginPage() {
   const handleVNPaySuccess = async (res) => {
     setVnpayModalOpen(false);
     setLockedModalData(null);
-    setError(res?.message || 'Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Vui lòng đợi trong giây lát hoặc liên hệ ban quản trị!');
+    const msg = res?.message || 'Tài khoản của bạn đang chờ Quản trị viên duyệt giao dịch nộp phạt VNPay. Vui lòng đợi trong giây lát!';
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 5000);
   };
 
   const handleRegisterSubmit = async (e) => {

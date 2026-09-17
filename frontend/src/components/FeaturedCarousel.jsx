@@ -14,7 +14,6 @@ export default function FeaturedCarousel({ books, onSelectBook, onBorrowBook }) 
       b => b.status !== 'Upcoming' && 
            b.status !== 'Sắp phát hành' && 
            b.status !== 'Sắp có' && 
-           Number(b.id) < 51 && 
            !b.isUpcoming
     );
     if (!eligibleBooks || eligibleBooks.length === 0) return;

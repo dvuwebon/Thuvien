@@ -60,9 +60,9 @@ const getLocalDb = (forceFresh = false) => {
             imageUrl: (orig && orig.imageUrl) || b.imageUrl
           };
         });
-        // Lọc sạch dữ liệu đặt trước rác (như Tru Tiên) nếu còn vướng trong LocalStorage
+        // Lọc sạch dữ liệu đặt trước rác hoặc đã hủy nếu còn vướng trong LocalStorage
         if (Array.isArray(parsed.reservations)) {
-          parsed.reservations = parsed.reservations.filter(r => Number(r.bookId) !== 3 && !((r.bookTitle || '').toLowerCase().includes('tru tiên')));
+          parsed.reservations = parsed.reservations.filter(r => r && r.status !== 'Cancelled' && r.status !== 'Hủy');
         }
         memoryDb = parsed;
         memoryDbTimestamp = storedTime;
@@ -1936,7 +1936,7 @@ export const api = {
           const data = await res.json();
           if (data && Array.isArray(data.books)) {
             data.books = data.books.filter(
-              b => b.status !== 'Upcoming' && b.status !== 'Sắp phát hành' && b.status !== 'Sắp có' && Number(b.id) < 51 && !b.isUpcoming
+              b => b.status !== 'Upcoming' && b.status !== 'Sắp phát hành' && b.status !== 'Sắp có' && !b.isUpcoming
             );
           }
           return data;
@@ -1946,7 +1946,7 @@ export const api = {
     const db = getLocalDb();
     // Loại trừ hoàn toàn sách sắp có / sắp phát hành khỏi danh sách đề xuất
     const books = (db.books || []).filter(
-      b => b.status !== 'Upcoming' && b.status !== 'Sắp phát hành' && b.status !== 'Sắp có' && Number(b.id) < 51 && !b.isUpcoming
+      b => b.status !== 'Upcoming' && b.status !== 'Sắp phát hành' && b.status !== 'Sắp có' && !b.isUpcoming
     );
     const records = db.borrowRecords || [];
     const readerRecords = records.filter(r => Number(r.readerId) === Number(readerId));
